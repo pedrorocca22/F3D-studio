@@ -1,0 +1,216 @@
+{
+    "date": "2026-02-15 18:15:42",
+    "type": "grayscale",
+    "fixed_pwm": 700,
+    "max_gray": 255,
+    "data": [
+        {
+            "gray": 0,
+            "irradiance": 0.02623
+        },
+        {
+            "gray": 5,
+            "irradiance": 0.53179
+        },
+        {
+            "gray": 10,
+            "irradiance": 0.8672433333333334
+        },
+        {
+            "gray": 15,
+            "irradiance": 1.2805983333333333
+        },
+        {
+            "gray": 20,
+            "irradiance": 1.7007066666666668
+        },
+        {
+            "gray": 25,
+            "irradiance": 2.09021
+        },
+        {
+            "gray": 30,
+            "irradiance": 2.554831666666667
+        },
+        {
+            "gray": 35,
+            "irradiance": 2.9526850000000002
+        },
+        {
+            "gray": 40,
+            "irradiance": 3.3807416666666668
+        },
+        {
+            "gray": 45,
+            "irradiance": 3.7964783333333334
+        },
+        {
+            "gray": 50,
+            "irradiance": 4.03376
+        },
+        {
+            "gray": 55,
+            "irradiance": 5.574528
+        },
+        {
+            "gray": 60,
+            "irradiance": 5.057996666666667
+        },
+        {
+            "gray": 65,
+            "irradiance": 5.45585
+        },
+        {
+            "gray": 70,
+            "irradiance": 5.877548333333333
+        },
+        {
+            "gray": 75,
+            "irradiance": 6.292885
+        },
+        {
+            "gray": 80,
+            "irradiance": 6.7280983333333335
+        },
+        {
+            "gray": 85,
+            "irradiance": 7.121178333333334
+        },
+        {
+            "gray": 90,
+            "irradiance": 7.557981666666667
+        },
+        {
+            "gray": 95,
+            "irradiance": 7.960601666666667
+        },
+        {
+            "gray": 100,
+            "irradiance": 8.314336666666666
+        },
+        {
+            "gray": 105,
+            "irradiance": 8.788895
+        },
+        {
+            "gray": 110,
+            "irradiance": 9.248351666666666
+        },
+        {
+            "gray": 115,
+            "irradiance": 9.66528
+        },
+        {
+            "gray": 120,
+            "irradiance": 10.052798333333334
+        },
+        {
+            "gray": 125,
+            "irradiance": 10.462971666666666
+        },
+        {
+            "gray": 130,
+            "irradiance": 10.876321666666666
+        },
+        {
+            "gray": 135,
+            "irradiance": 13.552382
+        },
+        {
+            "gray": 140,
+            "irradiance": 11.692693333333333
+        },
+        {
+            "gray": 145,
+            "irradiance": 12.130688333333334
+        },
+        {
+            "gray": 150,
+            "irradiance": 12.538475
+        },
+        {
+            "gray": 155,
+            "irradiance": 12.95898
+        },
+        {
+            "gray": 160,
+            "irradiance": 13.365973333333335
+        },
+        {
+            "gray": 165,
+            "irradiance": 13.77416
+        },
+        {
+            "gray": 170,
+            "irradiance": 12.677867142857144
+        },
+        {
+            "gray": 175,
+            "irradiance": 14.621928333333333
+        },
+        {
+            "gray": 180,
+            "irradiance": 15.009843333333334
+        },
+        {
+            "gray": 185,
+            "irradiance": 11.55279125
+        },
+        {
+            "gray": 190,
+            "irradiance": 15.870726666666666
+        },
+        {
+            "gray": 195,
+            "irradiance": 16.251486666666665
+        },
+        {
+            "gray": 200,
+            "irradiance": 16.670801666666666
+        },
+        {
+            "gray": 205,
+            "irradiance": 17.087731666666667
+        },
+        {
+            "gray": 210,
+            "irradiance": 17.50943
+        },
+        {
+            "gray": 215,
+            "irradiance": 17.915628333333334
+        },
+        {
+            "gray": 220,
+            "irradiance": 18.36633833333333
+        },
+        {
+            "gray": 225,
+            "irradiance": 18.743521666666666
+        },
+        {
+            "gray": 230,
+            "irradiance": 19.164428333333333
+        },
+        {
+            "gray": 235,
+            "irradiance": 19.582151666666668
+        },
+        {
+            "gray": 240,
+            "irradiance": 19.997095
+        },
+        {
+            "gray": 245,
+            "irradiance": 20.423560000000002
+        },
+        {
+            "gray": 250,
+            "irradiance": 20.86076166666667
+        },
+        {
+            "gray": 255,
+            "irradiance": 21.272524999999998
+        }
+    ]
+}

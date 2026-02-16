@@ -1,0 +1,6 @@
+
+Flask==3.0.0
+pyserial
+numpy
+# smbus and spidev are usually system packages or need special install on Pi
+# pip install smbus2 spidev

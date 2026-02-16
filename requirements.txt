@@ -1,0 +1,6 @@
+numpy
+numpy-stl
+flask
+flask-cors
+requests
+Pillow
