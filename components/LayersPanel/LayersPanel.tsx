@@ -7,6 +7,8 @@ import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
 import { PatternPreview } from '../Viewport/PatternPreview';
 
+
+
 interface LayersPanelProps {
   models: ModelData[];
   globalSettings: GlobalSettings;
@@ -48,7 +50,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 }) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
-    patterns: false,
     sliceSettings: false,
     advanceSlice: false,
     adhesion: false,
@@ -100,7 +101,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   }, [openSections.advanceSlice, selectedModelId, setIsAdvancedSliceMode]);
 
   const [segmentPatternPickers, setSegmentPatternPickers] = useState<Record<string, boolean>>({});
-  const [showGlobalPatternPicker, setShowGlobalPatternPicker] = useState(false);
 
   const toggleSection = (key: string) => {
     if (key === 'advanceSlice' && !selectedModelId) return;
@@ -331,47 +331,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           </div>
         </AccordionSection>
 
-        {/* Pattern Library Section */}
-        <AccordionSection
-          title="Pattern Library"
-          isOpen={openSections.patterns}
-          onToggle={() => toggleSection('patterns')}
-        >
-          <div className="grid grid-cols-3 gap-2 py-1">
-            {patterns.map(p => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  if (selectedModel) {
-                    // Using the new onUpdateModifiers to replace/set correct modifiers
-                    const newMod = JSON.parse(JSON.stringify(p.config));
-                    onUpdateModifiers([newMod]);
-                  }
-                }}
-                className="aspect-square bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary transition-all p-0.5"
-                title={`Apply ${p.name} to model`}
-              >
-                <div className="w-full h-full rounded-sm overflow-hidden flex items-center justify-center bg-slate-200 dark:bg-slate-900">
-                  <PatternPreview
-                    type={p.config.core_pattern || 'gradient'}
-                    cellSize={p.config.core_pattern === 'voronoi' ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
-                    coreGray={p.config.core_pattern === 'voronoi' ? (p.config.core_gray ?? 0) : (p.config.gradient_start_gray ?? 255)}
-                    shellGray={p.config.core_pattern === 'voronoi' ? (p.config.shell_gray ?? 255) : (p.config.gradient_end_gray ?? 0)}
-                    power={p.config.gradient_power || 1.0}
-                    thickness={p.config.voronoi_wall_thickness || 0.5}
-                    width={60}
-                    height={60}
-                  />
-                </div>
-              </button>
-            ))}
-            {patterns.length === 0 && (
-              <div className="col-span-3 text-center py-4 text-[10px] text-slate-400">
-                No patterns in library
-              </div>
-            )}
-          </div>
-        </AccordionSection>
 
 
 
@@ -491,74 +450,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
 
             <div className="h-2"></div>
-
-            {/* Global Pattern Picker */}
-            <div className="border-t border-slate-100 dark:border-slate-700/50 pt-2 mb-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Pattern</span>
-                <div className="flex items-center gap-2">
-                  {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
-                    <span className="text-[9px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded border border-purple-100 dark:border-purple-900/30 truncate max-w-[80px]">
-                      {patterns.find(p => JSON.stringify(p.config) === JSON.stringify(selectedModel.modifiers?.[0]))?.name || "Custom"}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setShowGlobalPatternPicker(!showGlobalPatternPicker)}
-                    className={`p-1 rounded transition-colors ${selectedModel?.modifiers && selectedModel.modifiers.length > 0 ? 'text-purple-500 hover:text-purple-600 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                    title="Select Pattern"
-                  >
-                    <Icon name="palette" className="text-sm" />
-                  </button>
-                  {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
-                    <button
-                      onClick={() => onUpdateModifiers([])}
-                      className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                      title="Remove Pattern"
-                    >
-                      <Icon name="close" className="text-xs" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {showGlobalPatternPicker && (
-                <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-100 dark:border-slate-700/50 mb-3 animate-in fade-in zoom-in-95 duration-200">
-                  <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {patterns.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          onUpdateModifiers([p.config]);
-                          setShowGlobalPatternPicker(false);
-                        }}
-                        className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5 relative group"
-                        title={p.name}
-                      >
-                        <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900">
-                          <PatternPreview
-                            type={p.config.core_pattern || 'gradient'}
-                            cellSize={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
-                            coreGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.core_gray ?? (p.config.core_pattern === 'sponge' ? 255 : 0)) : (p.config.gradient_start_gray ?? 255)}
-                            shellGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.shell_gray ?? (p.config.core_pattern === 'sponge' ? 0 : 255)) : (p.config.gradient_end_gray ?? 0)}
-                            power={p.config.gradient_power || 1.0}
-                            thickness={p.config.voronoi_wall_thickness || 0.5}
-                            density={p.config.sponge_density || 0.5}
-                            width={40}
-                            height={40}
-                          />
-                        </div>
-                      </button>
-                    ))}
-                    {patterns.length === 0 && (
-                      <div className="col-span-4 text-center py-2 text-[10px] text-slate-400">
-                        No patterns available. Create one in Designer.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
 
             <button
               onClick={handleApplyToAll}
@@ -811,12 +702,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                               className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                             >
                               <PatternPreview
-                                type={p.config.core_pattern || 'gradient'}
-                                cellSize={p.config.core_pattern === 'voronoi' ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
-                                coreGray={p.config.core_pattern === 'voronoi' ? (p.config.core_gray ?? 0) : (p.config.gradient_start_gray ?? 255)}
-                                shellGray={p.config.core_pattern === 'voronoi' ? (p.config.shell_gray ?? 255) : (p.config.gradient_end_gray ?? 0)}
-                                power={p.config.gradient_power || 1.0}
-                                thickness={p.config.voronoi_wall_thickness || 0.5}
+                                type="sponge"
+                                cellSize={p.config.voronoi_cell_size || 1.0}
+                                coreGray={p.config.core_gray ?? 255}
+                                shellGray={p.config.shell_gray ?? 0}
+                                density={p.config.sponge_density || 0.5}
                                 width={40}
                                 height={40}
                               />
