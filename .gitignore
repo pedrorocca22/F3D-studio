@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Big static binaries and temporary outputs
+PrusaSlicer-2.9.3/
+jobs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
