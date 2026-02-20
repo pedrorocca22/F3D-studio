@@ -2,13 +2,13 @@
 title DLP3 - Deploy to Raspberry Pi
 echo ============================================
 echo   DLP3 - Deploying rpi_node to RPi
-echo   Target: pi@192.168.137.164
+echo   Target: pi@192.168.137.148
 echo ============================================
 echo.
 
 :: --- Configuration ---
 set RPI_USER=pi
-set RPI_IP=192.168.137.164
+set RPI_IP=192.168.137.148
 set RPI_PATH=/home/pi/dlp_project/rpi_node/
 set LOCAL_PATH=%~dp0rpi_node\
 

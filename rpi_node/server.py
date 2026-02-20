@@ -88,7 +88,8 @@ def display():
 def expose():
     data = request.json
     duration = data.get('duration', 1.0)
-    success = projector.expose(duration)
+    dark_frames = int(data.get('dark_frames', 0))  # 0 = LED continuo (máxima irradiancia)
+    success = projector.expose(duration, dark_frames=dark_frames)
     return jsonify({"status": "ok" if success else "failed"})
 
 @app.route('/projector/off', methods=['POST'])

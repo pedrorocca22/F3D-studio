@@ -17,12 +17,14 @@ export const CalibrationTool: React.FC<CalibrationToolProps> = ({ onClose }) => 
     // RPi IP - usually same origin if served from RPi, or hardcoded for dev
     // In dev mode (vite), we might need a proxy or hardcoded IP.
     // Assuming the user runs this on PC accessing RPi.
-    const RPI_URL = "http://192.168.137.164:5000";
+    const RPI_URL = "http://192.168.137.148:5000";
 
     // Calculate estimated irradiance based on gray value
     // Formula: Irradiance ~= 0.083 * gray (Linear approximation from calibration)
     useEffect(() => {
-        setEstimatedIrradiance(0.083 * grayValue);
+        // Estimacion de irradiancia basada en calibracion completa 2026-02-20
+        // Pendiente media medida: ~0.091 mW/cm2 por nivel de gris (rango 0-255)
+        setEstimatedIrradiance(0.091 * grayValue);
     }, [grayValue]);
 
     const abortControllerRef = useRef<AbortController | null>(null);

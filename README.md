@@ -256,7 +256,7 @@ npm run dev
 Editar `config.ini`, sección `[Hardware]`:
 ```ini
 [Hardware]
-rpi_ip = 192.168.137.164
+rpi_ip = 192.168.137.148
 ```
 
 ---

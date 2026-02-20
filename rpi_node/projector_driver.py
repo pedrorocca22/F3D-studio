@@ -118,23 +118,27 @@ class ProjectorDriver:
                 return False
         return False
 
-    def expose(self, duration_seconds):
+    def expose(self, duration_seconds, dark_frames=0):
+        """
+        Expone el patrón actual durante duration_seconds.
+
+        dark_frames: fotogramas oscuros entre cada fotograma expuesto.
+          - 0  → LED encendido ininterrumpidamente → irradiancia máxima (calibración, impresión)
+          - >0 → alterna encendido/apagado → reduce irradiancia efectiva.
+                 Útil para estabilizar visualmente el Grid de calibración óptica,
+                 pero NO usar en exposiciones de calibración de irradiancia ni en impresión.
+        """
         if self.dmd:
             try:
-                # -1 for infinite, we control timing manually for precision
-                # Reverting to 5 dark_frames (default) to see if it helps steady the Grid.
-                self.dmd.expose_pattern(exposed_frames=-1, dark_frames=5)
-                
-                # Wait for exposure to complete
+                self.dmd.expose_pattern(exposed_frames=-1, dark_frames=dark_frames)
                 time.sleep(duration_seconds)
-                
-                # Stop explicitly
                 self.dmd.stop_exposure()
                 return True
             except Exception as e:
                 self.logger.error(f"Exposure failed: {e}")
                 return False
         return False
+
     
     def stop(self):
         """Stop projection and put device into standby (LEDs OFF)."""

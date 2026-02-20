@@ -149,6 +149,9 @@ class PrintManager:
         if self.state == PrintState.PRINTING:
             return False, "Already printing"
             
+        # Ensure we have the latest calibration in memory before we run
+        self.calibration.load()
+        
         self.current_job_id = job_id
         job_dir = Path(jobs_dir) / job_id
         job_json_path = job_dir / "job.json"

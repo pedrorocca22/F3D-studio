@@ -283,6 +283,10 @@ def job_progress(job_id):
 # ----------------------------
 @app.post("/slice_scene")
 def slice_scene():
+    # Reload calibration to ensure any frontend preview layer lookups use the latest mapping
+    if print_manager and hasattr(print_manager, 'calibration'):
+        print_manager.calibration.load()
+
     files = request.files.getlist("files[]")
     if not files:
         return jsonify({"error": "No files[] received"}), 400
