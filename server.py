@@ -39,7 +39,8 @@ print_manager = PrintManager(DEFAULT_CONFIG_INI)
 # INI helpers
 # ----------------------------
 def parse_ini_dims(path: Path):
-    dims = {"width": 120.96, "height": 68.04, "depth": 150}
+    # Defaults match the actual DLP3 work volume
+    dims = {"width": 71.11, "height": 40.0, "depth": 76}
     if not path.exists():
         return dims
 
@@ -88,7 +89,7 @@ def transform_stl_to_scene(
     *,
     scale: float = 1.0,
     target_center_xy=(0.0, 0.0),
-    rotation=(0.0, 0.0, 0.0), # degrees x, y, z
+    rotation=(0.0, 0.0, 0.0), # degrees x, y, z (in Three.js / data space)
     align_min_z_to_0: bool = True,
     rotate_flat: bool = False
 ):
@@ -99,106 +100,104 @@ def transform_stl_to_scene(
         print(f"Error loading STL {in_stl}: {e}")
         return
 
-    # 1. Coordinate System Transformation: M_final = RotX(90) * Rot_User * RotX(-90)
-    # Why? Frontend UI is Y-up, but raw STL is Z-up. When loading into UI, Three.js rotates X-90.
-    # To match backend (Z-up), we must simulate:
-    # 1. Transform to UI Space: RotX(-90)
-    # 2. Apply User Rotations (XYZ)
-    # 3. Transform back to Slicer Space (Z-up): RotX(90)
+    # -----------------------------------------------------------------------
+    # COORDINATE SYSTEM
+    # Raw STL = Z-up world (X=right, Y=depth, Z=up)
+    # Three.js viewport = Y-up world (X=right, Y=up, Z=depth)
+    # 
+    # When Three.js loads the STL it applies RotX(-90) to convert Z-up -> Y-up.
+    # User rotations (rx, ry, rz from TransformData) are in Three.js Y-up space.
+    # We must:
+    #   1. Map STL to Three.js space:  RotX(-90)
+    #   2. Apply user rotation in Three.js space: Rz @ Ry @ Rx
+    #   3. Map back to slicer Z-up:    RotX(+90)
+    # Combined: M_final = RotX(90) @ M_user @ RotX(-90)
+    # -----------------------------------------------------------------------
 
-    # Rotation Helper
-    def get_rotation_matrix(axis, theta_deg):
+    def get_rotation_matrix_3x3(axis, theta_deg):
+        """Return a 3x3 rotation matrix (standard column-vector convention)."""
         theta = np.radians(theta_deg)
         c, s = np.cos(theta), np.sin(theta)
         if axis == 'x':
-            return np.array([
-                [1, 0, 0, 0],
-                [0, c, -s, 0],
-                [0, s, c, 0],
-                [0, 0, 0, 1]
-            ])
+            return np.array([[1,0,0],[0,c,-s],[0,s,c]], dtype=np.float64)
         elif axis == 'y':
-            return np.array([
-                [c, 0, s, 0],
-                [0, 1, 0, 0],
-                [-s, 0, c, 0],
-                [0, 0, 0, 1]
-            ])
+            return np.array([[c,0,s],[0,1,0],[-s,0,c]], dtype=np.float64)
         elif axis == 'z':
-            return np.array([
-                [c, -s, 0, 0],
-                [s, c, 0, 0],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
-        return np.eye(4)
+            return np.array([[c,-s,0],[s,c,0],[0,0,1]], dtype=np.float64)
+        return np.eye(3, dtype=np.float64)
 
-    # Build Transformation Matrix (4x4)
-    # Order of multiplications in NumPy is M1 @ M2 @ v (right-to-left application if column vectors, 
-    # but numpy-stl vectors are row-vectors: v @ M2.T @ M1.T). 
-    # numpy-stl applies `transform` using left-multiplication: m.vectors = m.vectors @ M.T
-    # So we construct M such that v_new = M @ v_old is the standard column-vector logic.
-
-    # 1. Base Transform: RotX(-90)
-    M_base = get_rotation_matrix('x', -90)
-
-    # 2. User Transform: RotX * RotY * RotZ (Intrinsic XYZ or Extrinsic? Three.js uses XYZ order)
+    # User rotations from frontend (Three.js Y-up space, XYZ Euler order)
+    # IMPORTANT: Frontend TransformData applies a Y<->Z axis swap for rendering:
+    #   rotation.x -> Three.js X rotation (correct, no swap)
+    #   rotation.y -> Three.js Z rotation (swap! Data Y <-> Three.js Z)
+    #   rotation.z -> Three.js Y rotation (swap! Data Z <-> Three.js Y)
     rx, ry, rz = rotation
-    M_user_x = get_rotation_matrix('x', rx)
-    M_user_y = get_rotation_matrix('y', ry)
-    M_user_z = get_rotation_matrix('z', rz)
-    
-    # Standard Euler XYZ composition: M_user = M_z @ M_y @ M_x
-    M_user = M_user_z @ M_user_y @ M_user_x
+    Rx = get_rotation_matrix_3x3('x', rx)   # Data X -> Three.js X (no swap)
+    Ry = get_rotation_matrix_3x3('z', ry)   # Data Y -> Three.js Z  (swapped)
+    Rz = get_rotation_matrix_3x3('y', rz)   # Data Z -> Three.js Y  (swapped)
+    # Euler XYZ intrinsic order (as applied in Three.js rotGroupRef.current.rotation.set)
+    M_user = Rz @ Ry @ Rx
 
-    # 3. To Z-up: RotX(90)
-    M_to_z_up = get_rotation_matrix('x', 90)
+    # Coordinate space bridge matrices
+    M_to_ui   = get_rotation_matrix_3x3('x', -90)  # STL Z-up  -> Three.js Y-up
+    M_to_zup  = get_rotation_matrix_3x3('x', +90)  # Three.js Y-up -> STL Z-up
 
-    # Combine All Rotations
-    M_rotation_final = M_to_z_up @ M_user @ M_base
+    # Final rotation in Z-up slicer space
+    M_final = M_to_zup @ M_user @ M_to_ui
 
-    # Apply Rotation to Mesh
-    # Note: We rotate around the CENTER of the object's geometry to match UI controls.
-    # Calculate geometric center based on raw mesh
+    print(f"[DEBUG] Rotation applied (rx={rx}, ry={ry}, rz={rz}), Scale: {scale}", flush=True)
+
+    # --- STEP 1: Center the raw STL at origin (in original Z-up coords) ---
     min_x, max_x = model_mesh.x.min(), model_mesh.x.max()
     min_y, max_y = model_mesh.y.min(), model_mesh.y.max()
     min_z, max_z = model_mesh.z.min(), model_mesh.z.max()
     center = np.array([(min_x + max_x)/2, (min_y + max_y)/2, (min_z + max_z)/2])
+    model_mesh.translate(-center)
 
-    model_mesh.translate(-center) # Move to (0,0,0)
-    model_mesh.transform(M_rotation_final) # Rotate
-    # Do NOT translate back to original center yet, we want to place it at (0,0,0) for scaling/positioning
-    
-    # --- SCALING ---
+    # --- STEP 2: Apply combined rotation ---
+    # numpy-stl.transform expects a 4x4 matrix and uses row-vector convention:
+    #   v_new_row = v_old_row @ M.T
+    # which is equivalent to the column-vector: v_new = M @ v_old
+    M4 = np.eye(4, dtype=np.float64)
+    M4[:3, :3] = M_final
+    model_mesh.transform(M4)
+
+    # --- STEP 3: Apply scale (now in Z-up slicer space after rotation) ---
+    # After rotation the axes in the mesh ARE the slicer X/Y/Z, so we
+    # scale all vertex X/Y/Z coordinates directly.
     if isinstance(scale, (float, int)):
         if scale != 1.0:
-            model_mesh.points *= scale # Efficient numpy scaling of all vertices
+            model_mesh.points *= scale
     elif isinstance(scale, (tuple, list)) and len(scale) == 3:
-        # Non-uniform scaling
+        # Non-uniform scale: sx/sy/sz are in SLICER Z-up space.
+        # In the frontend TransformData:
+        #   scale.x -> slicer X (bed width)
+        #   scale.y -> slicer Y (bed depth)  [Three.js Z -> Data Y]
+        #   scale.z -> slicer Z (print height)[Three.js Y -> Data Z]
         sx, sy, sz = scale
-        # numpy-stl exposes x, y, z arrays (shape: faces x 3)
-        model_mesh.x *= sx
-        model_mesh.y *= sy
-        model_mesh.z *= sz
-        
-    print(f"[DEBUG] Applied Scale: {scale}", flush=True)
+        # model_mesh.vectors has shape (N, 3, 3): N triangles, 3 vertices, xyz
+        model_mesh.vectors[:, :, 0] *= sx  # scale X
+        model_mesh.vectors[:, :, 1] *= sy  # scale Y (bed depth)
+        model_mesh.vectors[:, :, 2] *= sz  # scale Z (height)
 
-    # --- POSITIONING ON BED ---
-    # We want the CENTER of the scaled object to be at target_center_xy
+    # --- STEP 4: Place object center at target XY on the bed ---
+    # The object is now centered at (0,0,z_offset); translate X and Y only.
     tx, ty = target_center_xy
-    
-    # Since we centered at (0,0,0) before, current (x,y) are relative to center.
-    # Just translate x and y to target.
     model_mesh.translate(np.array([tx, ty, 0]))
 
-    # --- ALIGN Z TO 0 (FLOOR) ---
+    # --- STEP 5: Align bottom face to Z=0 (floor of the build plate) ---
     if align_min_z_to_0:
         current_z_min = model_mesh.z.min()
-        if current_z_min != 0:
+        if abs(current_z_min) > 1e-6:
             model_mesh.translate(np.array([0, 0, -current_z_min]))
-    
-    # Save optimized STL
+
+    # Save the transformed STL
     model_mesh.save(str(out_stl))
+
+    # Debug summary
+    bb_min = np.array([model_mesh.x.min(), model_mesh.y.min(), model_mesh.z.min()])
+    bb_max = np.array([model_mesh.x.max(), model_mesh.y.max(), model_mesh.z.max()])
+    print(f"[DEBUG] Placed STL bbox: min={bb_min.round(2)}, max={bb_max.round(2)}", flush=True)
     return out_stl
 
 
@@ -343,8 +342,8 @@ def slice_scene():
             # Nuestro Frontend envia coordenadas donde (0,0) es el centro.
             # Convertimos coordenadas del Viewport (Centro=0,0) a Bed (Esq=0,0)
             dims = parse_ini_dims(config_path)
-            bed_w = dims.get("width", 120.96)
-            bed_h = dims.get("height", 68.04)
+            bed_w = dims.get("width", 71.11)
+            bed_h = dims.get("height", 40.0)
             
             target_cx = pos_x + (bed_w / 2.0)
             target_cy = pos_y + (bed_h / 2.0)

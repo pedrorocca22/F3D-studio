@@ -18,9 +18,26 @@ class PrintState:
     COMPLETED = "COMPLETED"
     ERROR = "ERROR"
 
+# Directorio base: donde está este archivo (d:\dlp3-main)
+_BASE_DIR = Path(__file__).resolve().parent
+# Ruta canónica del archivo de calibración (en la subcarpeta tools/)
+_DEFAULT_CALIBRATION_FILE = _BASE_DIR / "tools" / "calibration_gray.json"
+
 class CalibrationManager:
-    def __init__(self, calibration_file="calibration_gray.json"):
-        self.calibration_file = Path(calibration_file)
+    def __init__(self, calibration_file=None):
+        # Si no se indica ruta, usamos la ruta absoluta por defecto (tools/)
+        if calibration_file is None:
+            self.calibration_file = _DEFAULT_CALIBRATION_FILE
+        else:
+            p = Path(calibration_file)
+            # Si la ruta relativa no existe, intentamos buscarla en tools/
+            if not p.is_absolute():
+                candidate = _BASE_DIR / p
+                if not candidate.exists():
+                    candidate = _BASE_DIR / "tools" / p.name
+                self.calibration_file = candidate
+            else:
+                self.calibration_file = p
         self.data = []
         self.max_pwm = 700
         self.max_gray = 255
@@ -42,11 +59,11 @@ class CalibrationManager:
                     # Sort by irradiance for interpolation
                     self.data.sort(key=lambda x: x["irradiance"])
                     
-                logging.info(f"Loaded calibration data: {len(self.data)} points. Mode: {self.mode}")
+                logging.info(f"Loaded calibration data: {len(self.data)} points. Mode: {self.mode}. File: {self.calibration_file}")
             except Exception as e:
-                logging.error(f"Failed to load calibration: {e}")
+                logging.error(f"Failed to load calibration from {self.calibration_file}: {e}")
         else:
-            logging.warning("No calibration file found. Using default logic.")
+            logging.warning(f"No calibration file found at: {self.calibration_file}. Using default logic (gray=255).")
 
     def get_gray_for_irradiance(self, net_target_mw_cm2):
         """Finds the closest Gray Value (0-255) for a NET target irradiance."""
