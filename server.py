@@ -5,6 +5,7 @@ import zipfile
 import shutil
 import json
 import struct
+import threading
 from pathlib import Path
 import io
 
@@ -29,10 +30,19 @@ JOBS_DIR = BASE_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
-CORS(app) # Habilita CORS para todas las rutas
+CORS(app)  # Habilita CORS para todas las rutas
 
 # Initialize Print Manager
 print_manager = PrintManager(DEFAULT_CONFIG_INI)
+
+# ----------------------------
+# Job progress tracking
+# ----------------------------
+_slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
+
+def _set_progress(job_id: str, progress: float, message: str, status: str = "running"):
+    """Thread-safe progress update (CPython GIL makes dict assignment atomic)."""
+    _slice_jobs[job_id] = {"status": status, "progress": round(progress, 3), "message": message}
 
 
 # ----------------------------
@@ -258,6 +268,17 @@ def extract_root_pngs_from_sl1_and_rename(sl1_path: Path, layers_dir: Path):
 
 
 # ----------------------------
+# Job progress endpoint
+# ----------------------------
+@app.get("/job/<job_id>/progress")
+def job_progress(job_id):
+    info = _slice_jobs.get(job_id)
+    if not info:
+        return jsonify({"status": "unknown", "progress": 0, "message": "Job not found"})
+    return jsonify(info)
+
+
+# ----------------------------
 # Scene slicing
 # ----------------------------
 @app.post("/slice_scene")
@@ -272,7 +293,7 @@ def slice_scene():
 
     try:
         scene = json.loads(scene_json)
-        print(f"[DEBUG] Received Scene JSON: {json.dumps(scene, indent=2)}") # LOG ENTIRE SCENE
+        print(f"[DEBUG] Received Scene JSON: {json.dumps(scene, indent=2)}")
     except Exception as e:
         return jsonify({"error": f"Invalid scene_json: {e}"}), 400
 
@@ -280,11 +301,10 @@ def slice_scene():
         return jsonify({"error": f"Count mismatch: scene={len(scene)} files={len(files)}"}), 400
 
     config_path = ensure_local_config()
-    
+
     job_id = uuid.uuid4().hex[:10]
-    
+
     # --- CLEANUP OLD JOBS ---
-    # Borrar trabajos anteriores para ahorrar espacio
     try:
         if JOBS_DIR.exists():
             for item in JOBS_DIR.iterdir():
@@ -299,6 +319,40 @@ def slice_scene():
     job_dir.mkdir(parents=True, exist_ok=True)
     constructs_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- Save uploaded files immediately (request context won't be available in thread) ---
+    saved_files = []  # list of (filename, Path)
+    for i, f in enumerate(files):
+        safe_name = secure_filename(f.filename) or f"model_{i}.stl"
+        tmp_path = job_dir / f"upload_{i}_{safe_name}"
+        f.save(tmp_path)
+        saved_files.append((f.filename, tmp_path))
+
+    # Snapshot all form params needed by the worker thread
+    form_params = {
+        "layer_height":           request.form.get("layer_height", "0.05"),
+        "initial_layer_height":   request.form.get("initial_layer_height"),
+        "initial_exposure_time":  request.form.get("initial_exposure_time"),
+        "faded_layers":           request.form.get("faded_layers"),
+    }
+
+    # Register job as pending
+    _set_progress(job_id, 0.0, "Queued", status="pending")
+
+    # --- Launch background worker ---
+    def worker():
+        _run_slice_job(job_id, scene, saved_files, config_path, job_dir, constructs_dir, form_params)
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+    return jsonify({"status": "processing", "job_id": job_id, "url": f"/job/{job_id}"})
+
+
+def _run_slice_job(job_id, scene, saved_files, config_path, job_dir, constructs_dir, form_params):
+    """Background worker: full slice pipeline."""
+    import traceback
+    import time as _t
+
     job_data = {
         "job_id": job_id,
         "type": "multi",
@@ -307,44 +361,42 @@ def slice_scene():
         "constructs": [],
     }
 
-    # Groups: key=(irr, dose, ranges_str) -> list of { 'placed_stl', 'original_filename' }
     batches = {}
 
-    import traceback
-    import time as _t
     _t0_total = _t.time()
     try:
+        n_models = len(scene)
         for i, obj in enumerate(scene):
-            f = files[i]
-            
+            orig_filename, stl_tmp_path = saved_files[i]
+
+            _set_progress(job_id, 0.05 + 0.15 * (i / max(n_models, 1)),
+                          f"Transforming model {i+1}/{n_models}: {orig_filename}")
+
             c_dir = constructs_dir / str(i)
             in_dir = c_dir / "in"
             in_dir.mkdir(parents=True, exist_ok=True)
 
-            stl_path = in_dir / secure_filename(f.filename)
-            f.save(stl_path)
+            # Copy already-saved upload into the construct in/ dir
+            stl_path = in_dir / secure_filename(orig_filename)
+            shutil.copy2(stl_tmp_path, stl_path)
 
             scale_x = float(obj.get("scale", obj.get("scale_x", 1.0)))
             scale_y = float(obj.get("scale", obj.get("scale_y", 1.0)))
             scale_z = float(obj.get("scale", obj.get("scale_z", 1.0)))
-            
-            # Prefer explicit scale_x/y/z if present (Frontend sends scale_x etc)
+
             if "scale_x" in obj: scale_x = float(obj["scale_x"])
             if "scale_y" in obj: scale_y = float(obj["scale_y"])
             if "scale_z" in obj: scale_z = float(obj["scale_z"])
-            
+
             scale = (scale_x, scale_y, scale_z)
 
             pos_x = float(obj.get("pos_x_mm", 0.0))
             pos_y = float(obj.get("pos_y_mm", 0.0))
 
-            # Centramos en (pos_x, pos_y). Prusa considera (0,0) la esquina inferior izquierda.
-            # Nuestro Frontend envia coordenadas donde (0,0) es el centro.
-            # Convertimos coordenadas del Viewport (Centro=0,0) a Bed (Esq=0,0)
             dims = parse_ini_dims(config_path)
             bed_w = dims.get("width", 71.11)
             bed_h = dims.get("height", 40.0)
-            
+
             target_cx = pos_x + (bed_w / 2.0)
             target_cy = pos_y + (bed_h / 2.0)
 
@@ -363,17 +415,17 @@ def slice_scene():
                 align_min_z_to_0=True
             )
             print(f"[TIMING] transform_stl_to_scene: {_t.time()-_t1:.2f}s")
-            
+
             irr = float(obj.get("irradiance", obj.get("irradiance_mW_cm2", 0.0)))
             dose = float(obj.get("dose", obj.get("dose_mJ_cm2", 0.0)))
             ranges = obj.get("override_ranges", [])
             modifiers = obj.get("modifiers", [])
-            
+
             ranges_str = json.dumps(ranges, sort_keys=True)
             modifiers_str = json.dumps(modifiers, sort_keys=True)
-            
+
             key = (round(irr, 3), round(dose, 3), ranges_str, modifiers_str)
-            
+
             if key not in batches:
                 batches[key] = {
                    "irr": irr,
@@ -383,14 +435,16 @@ def slice_scene():
                    "stls": [],
                    "filenames": []
                 }
-            
+
             batches[key]["stls"].append(placed_stl)
-            batches[key]["filenames"].append(f.filename)
+            batches[key]["filenames"].append(orig_filename)
 
         # Process Batches
         batch_processing_info = []
-        global_layer_height = float(request.form.get("layer_height", 0.05))
+        global_layer_height = float(form_params.get("layer_height") or 0.05)
         if global_layer_height <= 0: global_layer_height = 0.05
+
+        n_batches = len(batches)
 
         for idx, (key, batch_data) in enumerate(batches.items()):
             b_dir = constructs_dir / f"batch_{idx}"
@@ -400,31 +454,28 @@ def slice_scene():
             
             irr = batch_data["irr"]
             dose = batch_data["dose"]
-            
+
+            _set_progress(job_id, 0.20 + 0.30 * (idx / max(n_batches, 1)),
+                          f"Slicing batch {idx+1}/{n_batches} with PrusaSlicer...")
+
             overrides = {}
             exposure_time = 0.0
             if irr > 1e-9:
                  exposure_time = dose / irr
                  overrides['exposure_time'] = str(exposure_time)
-                 # Default initial exposure to same unless overriden
                  overrides['initial_exposure_time'] = str(exposure_time)
-            
 
             overrides['layer_height'] = str(global_layer_height)
             overrides['initial_layer_height'] = str(global_layer_height)
 
-            overrides['layer_height'] = str(global_layer_height)
-            overrides['initial_layer_height'] = str(global_layer_height)
-            
             # --- Handle Adhesion / Initial Layers Overrides from Frontend ---
-
-            submitted_initial_lh = request.form.get("initial_layer_height")
-            submitted_initial_exp = request.form.get("initial_exposure_time")
-            submitted_faded_layers = request.form.get("faded_layers")
+            submitted_initial_lh  = form_params.get("initial_layer_height")
+            submitted_initial_exp = form_params.get("initial_exposure_time")
+            submitted_faded_layers = form_params.get("faded_layers")
 
             if submitted_initial_lh:
                  overrides['initial_layer_height'] = str(submitted_initial_lh)
-            
+
             if submitted_initial_exp:
                  overrides['initial_exposure_time'] = str(submitted_initial_exp)
 
@@ -451,7 +502,8 @@ def slice_scene():
                     combined_mesh.save(str(merged_name))
                     final_stl_for_slicing = merged_name
                 else:
-                    return jsonify({"error": "Failed to merge STLs"}), 500
+                    _set_progress(job_id, 0.0, "Failed to merge STLs", status="error")
+                    return
 
 
             
@@ -506,7 +558,8 @@ def slice_scene():
 
             if p.returncode != 0 or not sl1_out.exists():
                 print(f"Slicing Error:\nSTDOUT: {p.stdout}\nSTDERR: {p.stderr}")
-                return jsonify({"error": f"Slicing failed for batch {idx}. See server logs."}), 500
+                _set_progress(job_id, 0.0, f"PrusaSlicer failed for batch {idx+1}", status="error")
+                return
 
             # --- MODIFIERS POST-PROCESSING ---
             modifiers = batch_data.get("modifiers", [])
@@ -519,31 +572,38 @@ def slice_scene():
                 print(f"[DEBUG] Applying Modifiers to {sl1_out}...")
                 _t_mod = _t.time()
                 try:
-                    # 1. Extract to Memory/Temp
                     processed_images = []
                     dims = parse_ini_dims(config_path)
-                    
-                    # We need to read resolution from first image
-                    pixel_size_um = 50.0 # default
-                    
+                    pixel_size_um = 50.0
+
                     with zipfile.ZipFile(sl1_out, "r") as z:
                         png_list = sorted([n for n in z.namelist() if n.lower().endswith(".png") and "/" not in n])
-                        
+                        n_layers = len(png_list)
+
                         if png_list:
-                            # Get Resolution
                             with z.open(png_list[0]) as f0:
                                 with Image.open(f0) as img0:
                                     w_px, h_px = img0.size
                                     w_mm = dims.get("width", 120.96)
                                     if w_px > 0:
                                         pixel_size_um = (w_mm / w_px) * 1000.0
-                            
-                            # Process all images
-                            # NOTE: use 'layer_idx' to avoid shadowing the outer batch loop's 'idx'
+
+                            batch_progress_base = 0.50 + 0.35 * (idx / max(n_batches, 1))
+                            batch_progress_span = 0.35 / max(n_batches, 1)
+
                             for layer_idx, pname in enumerate(png_list):
+                                # Update progress every 10 layers to avoid flooding
+                                if layer_idx % 10 == 0 or layer_idx == n_layers - 1:
+                                    frac = layer_idx / max(n_layers - 1, 1)
+                                    _set_progress(
+                                        job_id,
+                                        batch_progress_base + frac * batch_progress_span,
+                                        f"Applying pattern — layer {layer_idx+1}/{n_layers}"
+                                    )
+
                                 with z.open(pname) as f_img:
                                     base_img = Image.open(f_img).convert("L")
-                                    base_img.load()  # Force load before closing zip entry
+                                    base_img.load()
 
                                     # Determine Active Modifiers for this layer.
                                     # Priority: range-level modifiers > global batch modifiers.
@@ -625,10 +685,11 @@ def slice_scene():
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        _set_progress(job_id, 0.0, f"Error: {e}", status="error")
+        return
 
     # --- BUILD MANIFEST ONLY (no disk I/O — PNGs served on-demand from ZIP) ---
-    _t5 = _t.time()
+    _set_progress(job_id, 0.88, "Building layer manifest...")
     
     final_layers = []
     max_layers = 0
@@ -726,19 +787,14 @@ def slice_scene():
         "name": "Unified Scene",
         "layer_count": len(final_layers),
         "physical_layer_count": len(final_layers),
-        "layers": final_layers 
+        "layers": final_layers
     }]
 
     (job_dir / "job.json").write_text(json.dumps(job_data, indent=2), encoding="utf-8")
 
-    print(f"[TIMING] build manifest: {_t.time()-_t5:.2f}s")
-    print(f"[TIMING] === TOTAL slice_scene: {_t.time()-_t0_total:.2f}s ===")
-
-    return jsonify({
-        "status": "ok", 
-        "job_id": job_id, 
-        "url": f"/job/{job_id}"
-    })
+    elapsed = _t.time() - _t0_total
+    print(f"[TIMING] === TOTAL slice_job: {elapsed:.2f}s ===")
+    _set_progress(job_id, 1.0, f"Done — {len(final_layers)} layers in {elapsed:.1f}s", status="done")
 
 
 @app.get("/job/<job_id>/manifest.json")

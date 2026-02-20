@@ -27,7 +27,10 @@ export default function App() {
 
   // Slicing State
   const [isSlicing, setIsSlicing] = useState(false);
-  const [sliceProgress, setSliceProgress] = useState<string>("Initializing...");
+  const [sliceProgress, setSliceProgress] = useState('');
+  const [slicePercent, setSlicePercent] = useState(0);
+  const [sliceError, setSliceError] = useState<string | null>(null);
+  const [sliceStartTime, setSliceStartTime] = useState(0);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
   // Global Print Settings (Physical machine constraints)
@@ -90,7 +93,7 @@ export default function App() {
       name: file.name,
       url,
       file,
-      isCube, // Store the flag
+      isCube,
       transform: {
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -241,7 +244,7 @@ export default function App() {
     setModels(newModels);
   };
 
-  // --- REAL SLICING LOGIC (Using Python Backend "Plan B") ---
+  // --- REAL SLICING LOGIC ---
   const handleSlice = async () => {
     if (models.length === 0) {
       alert("Please add a model before slicing.");
@@ -249,7 +252,10 @@ export default function App() {
     }
 
     setIsSlicing(true);
-    setSliceProgress("Preparing scene data...");
+    setSliceError(null);
+    setSlicePercent(0);
+    setSliceProgress('Preparing scene data...');
+    setSliceStartTime(Date.now());
 
     const formData = new FormData();
     const sceneData: SceneObject[] = [];
@@ -259,7 +265,6 @@ export default function App() {
     const adhesionLayers = globalSettings.adhesion?.layers ?? 0;
     const adhesionHeightMM = adhesionEnabled ? (adhesionLayers * (globalSettings.adhesion?.layerHeight ?? 50)) / 1000 : 0;
 
-    // Pass adhesion defaults for Global Config override if needed
     if (adhesionEnabled) {
       formData.append('initial_layer_height', ((globalSettings.adhesion?.layerHeight ?? 50) / 1000).toString());
       if (globalSettings.adhesion?.exposureTime) {
@@ -271,40 +276,30 @@ export default function App() {
     models.forEach((model, index) => {
       if (!model.file) return;
 
-      // Important: Must append files in the same order as scene_json
       formData.append('files[]', model.file);
 
-      // Calculate Dose: Exposure Time (s) * Intensity (mW/cm2) = mJ/cm2
       const dose = model.settings.exposureTime * model.settings.lightIntensity;
-
       const layerHeightMM = globalSettings.layerHeight / 1000;
 
-      // Correctly calculate ranges with start point accumulator
       let currentStartLayer = 0;
-
-      // If adhesion is enabled, we essentially "skip" controlling the first N layers via Advanced Settings
-      // because they are legally "Adhesion Layers".
       if (adhesionEnabled) {
         currentStartLayer = adhesionLayers;
       }
 
       const ranges = model.advancedSettings.enabled
         ? model.advancedSettings.segments.map(seg => {
-          // Correctly calculate layer index for the top limit, accounting for adhesion thickness
           let endLayer = 0;
           if (adhesionEnabled && seg.topLimit > adhesionHeightMM) {
             const extraHeight = seg.topLimit - adhesionHeightMM;
             const extraLayers = extraHeight / layerHeightMM;
             endLayer = adhesionLayers + Math.floor(extraLayers);
           } else {
-            // Fallback for uniform height or if segment ends within adhesion (unlikely due to UI constraints)
             const effectiveLH = adhesionEnabled && seg.topLimit <= adhesionHeightMM
               ? ((globalSettings.adhesion?.layerHeight ?? 50) / 1000)
               : layerHeightMM;
             endLayer = Math.floor(seg.topLimit / effectiveLH);
           }
 
-          // If the segment ends before start, ignore
           if (endLayer <= currentStartLayer) return null;
 
           const rangeObj: BackendRangeOverride = {
@@ -336,7 +331,6 @@ export default function App() {
     });
 
     console.log("[App] Slicing Scene Data:", JSON.stringify(sceneData, null, 2));
-    // Verify first model's ranges
     if (sceneData.length > 0) {
       console.log("[App] First Model Ranges:", sceneData[0].override_ranges);
       sceneData[0].override_ranges.forEach((r, i) => {
@@ -348,9 +342,8 @@ export default function App() {
     formData.append('layer_height', (globalSettings.layerHeight / 1000).toString());
 
     try {
-      setSliceProgress("Uploading & Processing...");
+      setSliceProgress('Uploading to server...');
 
-      // Connect to the Python Backend (default port 8000)
       const API_URL = 'http://127.0.0.1:8000/slice_scene';
 
       const response = await fetch(API_URL, {
@@ -364,26 +357,34 @@ export default function App() {
       }
 
       const data: SliceJobResponse = await response.json();
+      const jobId = data.job_id;
+      setCurrentJobId(jobId);
+      setSliceProgress('Waiting for slicer to start...');
 
-      if (data.status === 'ok') {
-        setSliceProgress("Downloading result manifest...");
-        setCurrentJobId(data.job_id);
-        setIsSlicing(false);
-        setIsSlicePreviewMode(true);
-      } else {
-        throw new Error("Backend returned invalid status");
-      }
+      // --- Poll /job/<id>/progress until done or error ---
+      await new Promise<void>((resolve, reject) => {
+        const poll = setInterval(async () => {
+          try {
+            const pRes = await fetch(`http://127.0.0.1:8000/job/${jobId}/progress`);
+            if (!pRes.ok) return;
+            const p = await pRes.json();
+            setSliceProgress(p.message || 'Processing...');
+            setSlicePercent(typeof p.progress === 'number' ? p.progress : 0);
+            if (p.status === 'done') { clearInterval(poll); resolve(); }
+            else if (p.status === 'error') { clearInterval(poll); reject(new Error(p.message || 'Slicing failed')); }
+          } catch { /* network hiccup — keep polling */ }
+        }, 500);
+      });
+
+      setIsSlicing(false);
+      setIsSlicePreviewMode(true);
 
     } catch (error) {
-      console.error("Slicing error:", error);
-
       const msg = (error as Error).message;
-      if (msg.includes("Failed to fetch")) {
-        alert("Connection Failed: Could not reach the Slicing Server.\n\n1. Ensure 'server.py' is running.\n2. Ensure 'flask-cors' is installed (pip install flask-cors).");
-      } else {
-        alert(`Slicing Failed: ${msg}`);
-      }
-      setIsSlicing(false);
+      setSliceError(msg.includes('Failed to fetch')
+        ? 'Cannot reach server.\nEnsure server.py is running.'
+        : msg);
+      // keep overlay open so the user sees the error; Dismiss button closes it
     }
   };
 
@@ -427,42 +428,37 @@ export default function App() {
     try {
       const zip = new JSZip();
 
-      // 1. Save Models and prepare metadata
       const modelsMetadata = await Promise.all(models.map(async (m, index) => {
         if (m.file) {
           const buffer = await fileToArrayBuffer(m.file);
-          // Save binary STL in ZIP with simple name
           const stlFilename = `model_${index}.stl`;
           zip.file(stlFilename, buffer);
 
           return {
             ...m,
-            file: undefined, // Remove File object from metadata
-            url: undefined,  // Remove Blob URL
-            externalFilename: stlFilename, // Reference to ZIP entry
+            file: undefined,
+            url: undefined,
+            externalFilename: stlFilename,
             originalFilename: m.file.name
           };
         }
         return m;
       }));
 
-      // 2. Save Metadata JSON
       const projectData = {
         models: modelsMetadata,
         globalSettings,
-        version: "2.0" // Version bump for ZIP format
+        version: "2.0"
       };
 
       zip.file("project.json", JSON.stringify(projectData, null, 2));
 
-      // 3. Generate ZIP blob
       const content = await zip.generateAsync({ type: "blob" });
 
-      // 4. Download
       const url = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `project-${new Date().toISOString().slice(0, 10)}.bpp`; // .bpp = BioPrint Project
+      link.download = `project-${new Date().toISOString().slice(0, 10)}.bpp`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -485,19 +481,16 @@ export default function App() {
       try {
         const zip = await JSZip.loadAsync(file);
 
-        // 1. Load Metadata
         const metadataFile = zip.file("project.json");
         if (!metadataFile) throw new Error("Invalid project file: missing project.json");
 
         const metadataText = await metadataFile.async("string");
         const projectData = JSON.parse(metadataText);
 
-        // 2. Restore Global Settings
         if (projectData.globalSettings) {
           setGlobalSettings(projectData.globalSettings);
         }
 
-        // 3. Restore Models
         if (projectData.models) {
           const rehydratedModels = await Promise.all(projectData.models.map(async (m: any) => {
             let fileObj = undefined;
@@ -507,7 +500,6 @@ export default function App() {
               const stlFile = zip.file(m.externalFilename);
               if (stlFile) {
                 const blob = await stlFile.async("blob");
-                // Restore original filename if available, or fallback
                 const originalName = m.originalFilename || m.externalFilename;
                 fileObj = new File([blob], originalName, { type: "model/stl" });
                 url = URL.createObjectURL(fileObj);
@@ -519,7 +511,6 @@ export default function App() {
               file: fileObj,
               url: url,
               id: m.id || generateUUID(),
-              // Cleanup internal fields
               externalFilename: undefined,
               originalFilename: undefined
             };
@@ -608,19 +599,85 @@ export default function App() {
           onDeletePattern={handleDeletePattern}
         />
 
-        {/* Slicing Loader Overlay */}
+        {/* ── Slicing Loader Overlay ── */}
         {isSlicing && (
-          <div className="absolute inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center text-white">
-            <div className="flex flex-col items-center gap-6 p-8 rounded-2xl bg-[#1a1a1a] border border-slate-700 shadow-2xl min-w-[320px]">
-              <div className="relative w-16 h-16">
-                <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <Icon name="settings" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl text-slate-400 animate-pulse" />
+          <div className="absolute inset-0 z-50 bg-slate-900/85 backdrop-blur-sm flex items-center justify-center text-white">
+            <div className="flex flex-col items-center gap-5 p-8 rounded-2xl bg-[#111827] border border-slate-700 shadow-2xl w-[400px]">
+
+              {/* Animated rings + percentage */}
+              <div className="relative w-20 h-20 flex-shrink-0">
+                <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
+                <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                {slicePercent > 0.05 && (
+                  <div
+                    className="absolute inset-2 rounded-full border-2 border-purple-400/40 border-b-transparent animate-spin"
+                    style={{ animationDirection: 'reverse', animationDuration: '1.8s' }}
+                  />
+                )}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold text-blue-400">
+                    {slicePercent > 0.02 ? `${Math.round(slicePercent * 100)}%` : '...'}
+                  </span>
+                </div>
               </div>
+
+              {/* Title + elapsed */}
               <div className="text-center">
-                <h3 className="text-xl font-bold tracking-tight mb-1">Slicing Model</h3>
-                <p className="text-sm text-blue-400 font-mono">{sliceProgress}</p>
+                <h3 className="text-lg font-bold tracking-tight mb-0.5">Slicing Model</h3>
+                <p className="text-xs text-slate-400">
+                  Elapsed: {Math.round((Date.now() - sliceStartTime) / 1000)}s
+                </p>
               </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(2, slicePercent * 100)}%` }}
+                />
+              </div>
+
+              {/* Live message or error */}
+              <div className="w-full bg-slate-800/60 rounded-lg px-4 py-3 min-h-[52px] flex items-start">
+                {sliceError ? (
+                  <div className="w-full">
+                    <p className="text-xs text-red-400 font-bold mb-1">Error</p>
+                    <p className="text-xs text-red-300 whitespace-pre-wrap">{sliceError}</p>
+                    <button
+                      onClick={() => { setIsSlicing(false); setSliceError(null); }}
+                      className="mt-2 text-xs font-bold text-red-400 hover:text-white underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-blue-300 font-mono leading-relaxed">
+                    {sliceProgress || 'Working...'}
+                  </p>
+                )}
+              </div>
+
+              {/* Step pills: Transform → Slicer → Pattern → Manifest */}
+              <div className="w-full grid grid-cols-4 gap-1.5">
+                {[
+                  { label: 'Transform', done: slicePercent >= 0.20, active: slicePercent > 0 && slicePercent < 0.20 },
+                  { label: 'Slicer', done: slicePercent >= 0.50, active: slicePercent >= 0.20 && slicePercent < 0.50 },
+                  { label: 'Pattern', done: slicePercent >= 0.88, active: slicePercent >= 0.50 && slicePercent < 0.88 },
+                  { label: 'Manifest', done: slicePercent >= 1.00, active: slicePercent >= 0.88 && slicePercent < 1.00 },
+                ].map((step, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1">
+                    <div className={`w-full h-1.5 rounded-full transition-all duration-500 ${step.done ? 'bg-green-500'
+                        : step.active ? 'bg-blue-500 animate-pulse'
+                          : 'bg-slate-700'
+                      }`} />
+                    <span className={`text-[9px] font-semibold uppercase tracking-wider ${step.done ? 'text-green-400'
+                        : step.active ? 'text-blue-400'
+                          : 'text-slate-600'
+                      }`}>{step.label}</span>
+                  </div>
+                ))}
+              </div>
+
             </div>
           </div>
         )}
