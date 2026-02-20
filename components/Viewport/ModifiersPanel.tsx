@@ -29,6 +29,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
             config: {
                 type: 'shell_core',
                 core_pattern: 'sponge',
+                shell_thickness: 1.0,
                 voronoi_cell_size: 1.0,
                 sponge_density: 0.5,
                 shell_gray: 0,
@@ -55,10 +56,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
 
     const onApplyToModel = (p: Pattern, modelData: import('../../types').ModelData) => {
         if (!onUpdateModifiers) return;
-
         console.log("Applying Pattern Config to Model:", p.config);
-
-        // Use a clean copy of the config
         const newMod: Modifier = JSON.parse(JSON.stringify(p.config));
         onUpdateModifiers([newMod]);
     };
@@ -104,191 +102,86 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
 
                     <div className="flex justify-center bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-100 dark:border-slate-700/50">
                         <PatternPreview
-                            type={mod.core_pattern || 'gradient'}
-                            cellSize={(mod.core_pattern === 'voronoi' || mod.core_pattern === 'sponge') ? (mod.voronoi_cell_size || 1.0) : (mod.gradient_radius || 5.0)}
-                            coreGray={(mod.core_pattern === 'voronoi' || mod.core_pattern === 'sponge') ? (mod.core_gray ?? (mod.core_pattern === 'sponge' ? 255 : 0)) : (mod.gradient_start_gray ?? 255)}
-                            shellGray={(mod.core_pattern === 'voronoi' || mod.core_pattern === 'sponge') ? (mod.shell_gray ?? (mod.core_pattern === 'sponge' ? 0 : 255)) : (mod.gradient_end_gray ?? 0)}
-                            power={mod.gradient_power || 1.0}
-                            thickness={mod.voronoi_wall_thickness || 0.5}
+                            type="sponge"
+                            cellSize={mod.voronoi_cell_size || 1.0}
+                            coreGray={mod.core_gray ?? 255}
+                            shellGray={mod.shell_gray ?? 0}
                             density={mod.sponge_density || 0.5}
                             width={180}
                             height={180}
                         />
                     </div>
 
+                    {/* Sponge — only supported pattern */}
                     <div className="space-y-3">
+                        {/* Shell (cortical bone) thickness */}
                         <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Pattern Type</label>
-                            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
-                                <button
-                                    onClick={() => updateDraft({ core_pattern: 'gradient' })}
-                                    className={`flex-1 text-[10px] py-1 rounded-md font-medium transition-colors ${mod.core_pattern !== 'voronoi' && mod.core_pattern !== 'sponge' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Gradient
-                                </button>
-                                <button
-                                    onClick={() => updateDraft({ core_pattern: 'voronoi' })}
-                                    className={`flex-1 text-[10px] py-1 rounded-md font-medium transition-colors ${mod.core_pattern === 'voronoi' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Voronoi
-                                </button>
-                                <button
-                                    onClick={() => updateDraft({ core_pattern: 'sponge' })}
-                                    className={`flex-1 text-[10px] py-1 rounded-md font-medium transition-colors ${mod.core_pattern === 'sponge' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500'}`}
-                                >
-                                    Sponge
-                                </button>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Shell Thickness</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="range" min="0" max="5" step="0.1"
+                                    value={mod.shell_thickness ?? 1.0}
+                                    onChange={(e) => updateDraft({ shell_thickness: parseFloat(e.target.value) })}
+                                    className="flex-1 h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                />
+                                <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 w-20 focus-within:border-purple-400 transition-colors">
+                                    <input
+                                        type="number" step="0.1" min="0" max="5"
+                                        value={mod.shell_thickness ?? 1.0}
+                                        onChange={(e) => updateDraft({ shell_thickness: parseFloat(e.target.value) })}
+                                        className="bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full"
+                                    />
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
+                                </div>
                             </div>
                         </div>
-
-                        {mod.core_pattern === 'sponge' ? (
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Pore Size</label>
-                                        <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
-                                            <input
-                                                type="number" step="0.1" min="0.1"
-                                                value={mod.voronoi_cell_size || 1.0}
-                                                onChange={(e) => updateDraft({ voronoi_cell_size: parseFloat(e.target.value) })}
-                                                className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
-                                            />
-                                            <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Density</label>
-                                        <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
-                                            <input
-                                                type="number" step="0.05" min="0" max="1"
-                                                value={mod.sponge_density || 0.5}
-                                                onChange={(e) => updateDraft({ sponge_density: parseFloat(e.target.value) })}
-                                                className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
-                                            />
-                                            <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Matrix Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.shell_gray ?? 0}
-                                            onChange={(e) => updateDraft({ shell_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Bone Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.core_gray ?? 255}
-                                            onChange={(e) => updateDraft({ core_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
+                        {/* Pore size + Density */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Pore Size</label>
+                                <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
+                                    <input
+                                        type="number" step="0.1" min="0.1"
+                                        value={mod.voronoi_cell_size || 1.0}
+                                        onChange={(e) => updateDraft({ voronoi_cell_size: parseFloat(e.target.value) })}
+                                        className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
+                                    />
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
                                 </div>
                             </div>
-                        ) : mod.core_pattern === 'voronoi' ? (
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Cell Size</label>
-                                        <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
-                                            <input
-                                                type="number" step="0.01" min="0.01"
-                                                value={mod.voronoi_cell_size || 0.1}
-                                                onChange={(e) => updateDraft({ voronoi_cell_size: parseFloat(e.target.value) })}
-                                                className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
-                                            />
-                                            <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Wall Thickness</label>
-                                        <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
-                                            <input
-                                                type="number" step="0.001" min="0.001"
-                                                value={mod.voronoi_wall_thickness || 0.01}
-                                                onChange={(e) => updateDraft({ voronoi_wall_thickness: parseFloat(e.target.value) })}
-                                                className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
-                                            />
-                                            <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Matrix Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.shell_gray ?? 125}
-                                            onChange={(e) => updateDraft({ shell_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Cell Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.core_gray ?? 150}
-                                            onChange={(e) => updateDraft({ core_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
+                            <div>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Density</label>
+                                <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
+                                    <input
+                                        type="number" step="0.05" min="0" max="1"
+                                        value={mod.sponge_density || 0.5}
+                                        onChange={(e) => updateDraft({ sponge_density: parseFloat(e.target.value) })}
+                                        className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
+                                    />
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">%</span>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Radius (mm)</label>
-                                        <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
-                                            <input
-                                                type="number" step="0.5" min="0.5"
-                                                value={mod.gradient_radius || 5.0}
-                                                onChange={(e) => updateDraft({ gradient_radius: parseFloat(e.target.value) })}
-                                                className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
-                                            />
-                                            <span className="text-[8px] text-slate-400 font-bold uppercase ml-1">mm</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-[9px] text-slate-400 font-bold uppercase mb-1">
-                                            <span>Falloff</span>
-                                            <span>{mod.gradient_power || 1.0}</span>
-                                        </div>
-                                        <input
-                                            type="range" min="0.1" max="5.0" step="0.1"
-                                            value={mod.gradient_power || 1.0}
-                                            onChange={(e) => updateDraft({ gradient_power: parseFloat(e.target.value) })}
-                                            className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Core Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.gradient_start_gray ?? 255}
-                                            onChange={(e) => updateDraft({ gradient_start_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Edge Color</label>
-                                        <input
-                                            type="number" min="0" max="255"
-                                            value={mod.gradient_end_gray ?? 0}
-                                            onChange={(e) => updateDraft({ gradient_end_gray: parseInt(e.target.value) })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
-                                        />
-                                    </div>
-                                </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Matrix Color</label>
+                                <input
+                                    type="number" min="0" max="255"
+                                    value={mod.shell_gray ?? 0}
+                                    onChange={(e) => updateDraft({ shell_gray: parseInt(e.target.value) })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
+                                />
                             </div>
-                        )}
+                            <div>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Bone Color</label>
+                                <input
+                                    type="number" min="0" max="255"
+                                    value={mod.core_gray ?? 255}
+                                    onChange={(e) => updateDraft({ core_gray: parseInt(e.target.value) })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-700 dark:text-slate-200 outline-none"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -327,12 +220,10 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                             <div className="flex items-center gap-3 p-2">
                                 <div className="w-12 h-12 rounded bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-100 dark:border-slate-700 shrink-0">
                                     <PatternPreview
-                                        type={p.config.core_pattern || 'gradient'}
-                                        cellSize={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
-                                        coreGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.core_gray ?? (p.config.core_pattern === 'sponge' ? 255 : 0)) : (p.config.gradient_start_gray ?? 255)}
-                                        shellGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.shell_gray ?? (p.config.core_pattern === 'sponge' ? 0 : 255)) : (p.config.gradient_end_gray ?? 0)}
-                                        power={p.config.gradient_power || 1.0}
-                                        thickness={p.config.voronoi_wall_thickness || 0.5}
+                                        type="sponge"
+                                        cellSize={p.config.voronoi_cell_size || 1.0}
+                                        coreGray={p.config.core_gray ?? 255}
+                                        shellGray={p.config.shell_gray ?? 0}
                                         density={p.config.sponge_density || 0.5}
                                         width={48}
                                         height={48}
@@ -340,7 +231,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{p.name}</h3>
-                                    <p className="text-[10px] text-slate-400 capitalize">{p.config.core_pattern}</p>
+                                    <p className="text-[10px] text-slate-400">Sponge</p>
                                 </div>
                                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
@@ -359,8 +250,6 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                     </button>
                                 </div>
                             </div>
-
-
                         </div>
                     ))}
                 </div>

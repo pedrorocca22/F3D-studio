@@ -539,32 +539,35 @@ def slice_scene():
                                         pixel_size_um = (w_mm / w_px) * 1000.0
                             
                             # Process all images
-                            for idx, pname in enumerate(png_list):
+                            # NOTE: use 'layer_idx' to avoid shadowing the outer batch loop's 'idx'
+                            for layer_idx, pname in enumerate(png_list):
                                 with z.open(pname) as f_img:
                                     base_img = Image.open(f_img).convert("L")
-                                    
-                                    # Determine Active Modifiers for this layer
-                                    # Start with global modifiers from the model
-                                    active_modifiers = list(modifiers)
-                                    
-                                    # Check for overrides in ranges
-                                    # In batch_data, the key is already 'ranges' (not override_ranges)
-                                    # This was the previous mismatch causing fails in Advanced Mode.
-                                    # ranges = batch_data.get("ranges", []) # Already fetched above
+                                    base_img.load()  # Force load before closing zip entry
 
-                                    # Iterate ranges to find match for current idx
+                                    # Determine Active Modifiers for this layer.
+                                    # Priority: range-level modifiers > global batch modifiers.
+                                    active_modifiers = list(modifiers)  # start with global
+
+                                    # Search for the range that covers this layer
                                     for r in ranges:
                                         r_start = int(r.get("start", 0))
-                                        r_end = int(r.get("end", 999999))
-                                        
-                                        if r_start <= idx < r_end:
+                                        r_end   = int(r.get("end", 999999))
+
+                                        if r_start <= layer_idx < r_end:
                                             if "modifiers" in r and r["modifiers"]:
+                                                # Range-level modifiers override global ones
                                                 active_modifiers = r["modifiers"]
+                                            # Range matched — stop searching even if no modifiers
                                             break
-                                    
+
                                     # APPLY PATTERN ENGINE
                                     if active_modifiers:
-                                        res_img = PatternEngine.apply_modifiers(base_img, active_modifiers, pixel_size_um=pixel_size_um, layer_index=idx)
+                                        res_img = PatternEngine.apply_modifiers(
+                                            base_img, active_modifiers,
+                                            pixel_size_um=pixel_size_um,
+                                            layer_index=layer_idx
+                                        )
                                         processed_images.append((pname, res_img))
                                     else:
                                         processed_images.append((pname, base_img))
