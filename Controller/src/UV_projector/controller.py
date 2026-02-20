@@ -105,6 +105,19 @@ class DLPC1438:
         This function exists primarily to keep a code more readable."""
         return self.i2c.write_i2c_block_data(self.addr,register,data)
 
+    def read_mode(self):
+        """Read the current operational mode of the DLPC1438 from register 0x06."""
+        try:
+            mode_val = self.__i2c_read(0x06, 1)[0]
+            # Try to return the enum if possible
+            for m in Mode:
+                if m.value == mode_val:
+                    return m
+            return mode_val # fallback to raw hex
+        except Exception as e:
+            print(f"Warning: Could not read mode: {e}")
+            return None
+
     def switch_mode(self, new_mode):
         """
         Switch between DLPC1438 operational modes.

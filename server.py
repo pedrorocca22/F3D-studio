@@ -16,6 +16,7 @@ from PIL import Image, ImageOps
 
 from flask_cors import CORS
 from print_manager import PrintManager
+from pattern_engine import PatternEngine
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -169,8 +170,18 @@ def transform_stl_to_scene(
     # Do NOT translate back to original center yet, we want to place it at (0,0,0) for scaling/positioning
     
     # --- SCALING ---
-    if scale != 1.0:
-        model_mesh.points *= scale # Efficient numpy scaling of all vertices
+    if isinstance(scale, (float, int)):
+        if scale != 1.0:
+            model_mesh.points *= scale # Efficient numpy scaling of all vertices
+    elif isinstance(scale, (tuple, list)) and len(scale) == 3:
+        # Non-uniform scaling
+        sx, sy, sz = scale
+        # numpy-stl exposes x, y, z arrays (shape: faces x 3)
+        model_mesh.x *= sx
+        model_mesh.y *= sy
+        model_mesh.z *= sz
+        
+    print(f"[DEBUG] Applied Scale: {scale}", flush=True)
 
     # --- POSITIONING ON BED ---
     # We want the CENTER of the scaled object to be at target_center_xy
@@ -262,6 +273,7 @@ def slice_scene():
 
     try:
         scene = json.loads(scene_json)
+        print(f"[DEBUG] Received Scene JSON: {json.dumps(scene, indent=2)}") # LOG ENTIRE SCENE
     except Exception as e:
         return jsonify({"error": f"Invalid scene_json: {e}"}), 400
 
@@ -313,7 +325,17 @@ def slice_scene():
             stl_path = in_dir / secure_filename(f.filename)
             f.save(stl_path)
 
-            scale = float(obj.get("scale", 1.0))
+            scale_x = float(obj.get("scale", obj.get("scale_x", 1.0)))
+            scale_y = float(obj.get("scale", obj.get("scale_y", 1.0)))
+            scale_z = float(obj.get("scale", obj.get("scale_z", 1.0)))
+            
+            # Prefer explicit scale_x/y/z if present (Frontend sends scale_x etc)
+            if "scale_x" in obj: scale_x = float(obj["scale_x"])
+            if "scale_y" in obj: scale_y = float(obj["scale_y"])
+            if "scale_z" in obj: scale_z = float(obj["scale_z"])
+            
+            scale = (scale_x, scale_y, scale_z)
+
             pos_x = float(obj.get("pos_x_mm", 0.0))
             pos_y = float(obj.get("pos_y_mm", 0.0))
 
@@ -341,20 +363,24 @@ def slice_scene():
                 rotation=(rot_x, rot_y, rot_z),
                 align_min_z_to_0=True
             )
-            print(f"⏱ [TIMING] transform_stl_to_scene: {_t.time()-_t1:.2f}s")
+            print(f"[TIMING] transform_stl_to_scene: {_t.time()-_t1:.2f}s")
             
             irr = float(obj.get("irradiance", obj.get("irradiance_mW_cm2", 0.0)))
             dose = float(obj.get("dose", obj.get("dose_mJ_cm2", 0.0)))
             ranges = obj.get("override_ranges", [])
+            modifiers = obj.get("modifiers", [])
             
             ranges_str = json.dumps(ranges, sort_keys=True)
-            key = (round(irr, 3), round(dose, 3), ranges_str)
+            modifiers_str = json.dumps(modifiers, sort_keys=True)
+            
+            key = (round(irr, 3), round(dose, 3), ranges_str, modifiers_str)
             
             if key not in batches:
                 batches[key] = {
                    "irr": irr,
                    "dose": dose,
                    "ranges": ranges,
+                   "modifiers": modifiers,
                    "stls": [],
                    "filenames": []
                 }
@@ -471,10 +497,10 @@ def slice_scene():
                 for k, v in overrides.items():
                     f_out.write(f"{k} = {v}\n")
             
-            print(f"⏱ [TIMING] config generation: {_t.time()-_t2:.2f}s")
+            print(f"[TIMING] config generation: {_t.time()-_t2:.2f}s")
             _t3 = _t.time()
             p = run_prusaslicer_export_sla([final_stl_for_slicing], job_config_path, sl1_out, overrides=None)
-            print(f"⏱ [TIMING] PrusaSlicer slicing: {_t.time()-_t3:.2f}s")
+            print(f"[TIMING] PrusaSlicer slicing: {_t.time()-_t3:.2f}s")
 
 
 
@@ -482,6 +508,90 @@ def slice_scene():
             if p.returncode != 0 or not sl1_out.exists():
                 print(f"Slicing Error:\nSTDOUT: {p.stdout}\nSTDERR: {p.stderr}")
                 return jsonify({"error": f"Slicing failed for batch {idx}. See server logs."}), 500
+
+            # --- MODIFIERS POST-PROCESSING ---
+            modifiers = batch_data.get("modifiers", [])
+            ranges = batch_data.get("ranges", [])
+            has_range_modifiers = any("modifiers" in r and r["modifiers"] for r in ranges)
+
+            print(f"[DEBUG] Batch {idx}: Global Modifiers: {len(modifiers)}, Range Modifiers: {has_range_modifiers}")
+
+            if (modifiers or has_range_modifiers) and sl1_out.exists():
+                print(f"[DEBUG] Applying Modifiers to {sl1_out}...")
+                _t_mod = _t.time()
+                try:
+                    # 1. Extract to Memory/Temp
+                    processed_images = []
+                    dims = parse_ini_dims(config_path)
+                    
+                    # We need to read resolution from first image
+                    pixel_size_um = 50.0 # default
+                    
+                    with zipfile.ZipFile(sl1_out, "r") as z:
+                        png_list = sorted([n for n in z.namelist() if n.lower().endswith(".png") and "/" not in n])
+                        
+                        if png_list:
+                            # Get Resolution
+                            with z.open(png_list[0]) as f0:
+                                with Image.open(f0) as img0:
+                                    w_px, h_px = img0.size
+                                    w_mm = dims.get("width", 120.96)
+                                    if w_px > 0:
+                                        pixel_size_um = (w_mm / w_px) * 1000.0
+                            
+                            # Process all images
+                            for idx, pname in enumerate(png_list):
+                                with z.open(pname) as f_img:
+                                    base_img = Image.open(f_img).convert("L")
+                                    
+                                    # Determine Active Modifiers for this layer
+                                    # Start with global modifiers from the model
+                                    active_modifiers = list(modifiers)
+                                    
+                                    # Check for overrides in ranges
+                                    # In batch_data, the key is already 'ranges' (not override_ranges)
+                                    # This was the previous mismatch causing fails in Advanced Mode.
+                                    # ranges = batch_data.get("ranges", []) # Already fetched above
+
+                                    # Iterate ranges to find match for current idx
+                                    for r in ranges:
+                                        r_start = int(r.get("start", 0))
+                                        r_end = int(r.get("end", 999999))
+                                        
+                                        if r_start <= idx < r_end:
+                                            if "modifiers" in r and r["modifiers"]:
+                                                active_modifiers = r["modifiers"]
+                                            break
+                                    
+                                    # APPLY PATTERN ENGINE
+                                    if active_modifiers:
+                                        res_img = PatternEngine.apply_modifiers(base_img, active_modifiers, pixel_size_um=pixel_size_um, layer_index=idx)
+                                        processed_images.append((pname, res_img))
+                                    else:
+                                        processed_images.append((pname, base_img))
+
+                    # 2. Update ZIP
+                    tmp_zip = sl1_out.with_suffix(".temp.sl1")
+                    with zipfile.ZipFile(sl1_out, "r") as z_in:
+                        with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as z_out:
+                            # Copy non-PNG files
+                            for item in z_in.infolist():
+                                if not item.filename.lower().endswith(".png"):
+                                    z_out.writestr(item, z_in.read(item.filename))
+                                    
+                            # Write processed images
+                            for pname, pimg in processed_images:
+                                buf = io.BytesIO()
+                                pimg.save(buf, format="PNG")
+                                z_out.writestr(pname, buf.getvalue())
+                                
+                    sl1_out.unlink()
+                    tmp_zip.rename(sl1_out)
+                    print(f"[TIMING] Pattern Modifiers: {_t.time()-_t_mod:.2f}s")
+                    
+                except Exception as e:
+                    print(f"Modifiers Error: {e}")
+                    traceback.print_exc()
 
             # Instead of extracting PNGs to disk, just count them and store ZIP path
             _t4 = _t.time()
@@ -494,7 +604,7 @@ def slice_scene():
                     )
             except zipfile.BadZipFile:
                 pass
-            print(f"⏱ [TIMING] list PNGs from SL1: {_t.time()-_t4:.2f}s")
+            print(f"[TIMING] list PNGs from SL1: {_t.time()-_t4:.2f}s")
             
             batch_processing_info.append({
                 "id": f"batch_{idx}",
@@ -619,8 +729,8 @@ def slice_scene():
 
     (job_dir / "job.json").write_text(json.dumps(job_data, indent=2), encoding="utf-8")
 
-    print(f"⏱ [TIMING] build manifest: {_t.time()-_t5:.2f}s")
-    print(f"⏱ [TIMING] === TOTAL slice_scene: {_t.time()-_t0_total:.2f}s ===")
+    print(f"[TIMING] build manifest: {_t.time()-_t5:.2f}s")
+    print(f"[TIMING] === TOTAL slice_scene: {_t.time()-_t0_total:.2f}s ===")
 
     return jsonify({
         "status": "ok", 
@@ -704,11 +814,13 @@ def layer_file(job_id, name):
                 img = img.convert("L") # Ensure Grayscale
                 arr = np.array(img)
                 
-                # Apply Intensity Mask
-                # White pixels (>128) become gray_val
-                mask = arr > 128
-                arr_processed = np.zeros_like(arr)
-                arr_processed[mask] = gray_val
+                # Apply Intensity Scaling (Modulation) logic
+                # This preserves patterns/gradients within the layer
+                # pixel_out = (pixel_in / 255.0) * gray_val
+                if gray_val < 255:
+                    arr_processed = (arr.astype(np.float32) / 255.0 * gray_val).astype(np.uint8)
+                else:
+                    arr_processed = arr
                 
                 if composite_arr is None:
                     composite_arr = arr_processed

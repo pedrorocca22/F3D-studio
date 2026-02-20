@@ -4,6 +4,8 @@ import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment } from '../../types';
 import { generateUUID } from '../../utils';
+import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
+import { PatternPreview } from '../Viewport/PatternPreview';
 
 interface LayersPanelProps {
   models: ModelData[];
@@ -15,12 +17,15 @@ interface LayersPanelProps {
   onTransformChange: (data: TransformData) => void;
   onUpdateSettings: (data: SliceSettings) => void;
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
+  onUpdateModifiers: (modifiers: any[]) => void;
   onApplySettingsToAll: (data: SliceSettings) => void;
   isAdvancedSliceMode: boolean;
 
+  onFileUpload: (file: File, isCube?: boolean) => void;
+  // Previously removed props that are actually used in the component body
   setIsAdvancedSliceMode: (val: boolean) => void;
   onSlice: () => void;
-  onFileUpload: (file: File) => void;
+  patterns: import('../../types').Pattern[];
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -33,15 +38,17 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   onTransformChange,
   onUpdateSettings,
   onUpdateAdvancedSettings,
+  onUpdateModifiers,
   onApplySettingsToAll,
   isAdvancedSliceMode,
-
   setIsAdvancedSliceMode,
   onSlice,
-  onFileUpload
+  onFileUpload,
+  patterns
 }) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    models: true, // Default open
+    models: true,
+    patterns: false,
     sliceSettings: false,
     advanceSlice: false,
     adhesion: false,
@@ -50,8 +57,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-
 
   const [adhesion, setAdhesion] = useState({
     enabled: globalSettings.adhesion?.enabled ?? false,
@@ -64,10 +69,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     targetDose: globalSettings.adhesion?.targetDose ?? ((globalSettings.adhesion?.exposureTime ?? 3.2) * (globalSettings.adhesion?.lightIntensity ?? 40))
   });
 
-  // Sync with global settings when they change externally (e.g. on load or reset)
-  // We only update if the global settings are different from current to avoid overwriting work-in-progress if possible, 
-  // but since this is a "Save" model, we generally assume global settings are the source of truth until edited.
-  // However, simpler approach: Update local state when globalSettings.adhesion changes identity.
+  // Sync with global settings when they change externally
   useEffect(() => {
     if (globalSettings.adhesion) {
       setAdhesion(prev => ({
@@ -86,24 +88,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     speedUp: 22
   });
 
-  // Derive current data from selected model or use defaults
   const selectedModel = models.find(m => m.id === selectedModelId);
-
-  const transformData = selectedModel?.transform || {
-    rotation: { x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
-    position: { x: 0, y: 0, z: 0 }
-  };
-
-  const currentSettings = selectedModel?.settings || {
-    exposureTime: 2.5,
-    lightIntensity: 15
-  };
-
-  const advancedSettings = selectedModel?.advancedSettings || {
-    enabled: false,
-    segments: []
-  };
 
   // Sync advanced mode state with accordion state
   useEffect(() => {
@@ -113,6 +98,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       setIsAdvancedSliceMode(false);
     }
   }, [openSections.advanceSlice, selectedModelId, setIsAdvancedSliceMode]);
+
+  const [segmentPatternPickers, setSegmentPatternPickers] = useState<Record<string, boolean>>({});
+  const [showGlobalPatternPicker, setShowGlobalPatternPicker] = useState(false);
 
   const toggleSection = (key: string) => {
     if (key === 'advanceSlice' && !selectedModelId) return;
@@ -135,7 +123,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     }
   };
 
+  const currentSettings = selectedModel?.settings || {
+    exposureTime: 2.5,
+    lightIntensity: 15
+  };
 
+  const advancedSettings = selectedModel?.advancedSettings || {
+    enabled: false,
+    segments: []
+  };
 
   const updateModelSettings = (key: keyof SliceSettings, value: number) => {
     if (!selectedModel) return;
@@ -150,20 +146,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     onUpdateAdvancedSettings(newSettings);
   };
 
-  // Segment Handling Logic
   const addSegment = () => {
     const segments = [...advancedSettings.segments];
-
-    // Calculate adhesion offset from saved global settings
     const adhesionOffset = (globalSettings.adhesion?.enabled)
       ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
       : 0;
-
     const modelZHeight = selectedModel?.size?.y ?? 0;
     const modelTop = modelZHeight > 0 ? modelZHeight : 10;
 
     if (segments.length === 0) {
-      // First segment: covers adhesionOffset → model top
       const newSegment: SliceSegment = {
         id: generateUUID(),
         topLimit: modelTop,
@@ -175,9 +166,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       const lastSegment = segments[segments.length - 1];
       const currentTop = lastSegment.topLimit;
 
-      // Check if there is a gap at the end (e.g. user shortened the last segment)
       if (modelTop - currentTop > 0.05) {
-        // FILL GAP mode: existing segment stays as is, new segment covers the gap
         const newSegment: SliceSegment = {
           id: generateUUID(),
           topLimit: modelTop,
@@ -186,29 +175,21 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         };
         updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
       } else {
-        // SPLIT mode: Split the last segment in half
         const prevStart = segments.length > 1
           ? segments[segments.length - 2].topLimit
           : adhesionOffset;
-
-        // Split the range [prevStart, currentTop]
         const midpoint = prevStart + (currentTop - prevStart) / 2;
         const splitPoint = Math.round(midpoint * 1000) / 1000;
-
-        // Update old last segment
         segments[segments.length - 1] = {
           ...lastSegment,
           topLimit: splitPoint
         };
-
-        // New segment takes the upper half
         const newSegment: SliceSegment = {
           id: generateUUID(),
           topLimit: currentTop,
           exposureTime: lastSegment.exposureTime,
           lightIntensity: lastSegment.lightIntensity
         };
-
         updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
       }
     }
@@ -220,20 +201,20 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
   };
 
-  const updateSegment = (index: number, field: keyof SliceSegment, value: number) => {
+  const updateSegment = (index: number, field: keyof SliceSegment, value: any) => {
+    console.log(`[LayersPanel] Updating Segment ${index} Field: ${field} Value:`, value);
     const newSegments = [...advancedSettings.segments];
     const segment = { ...newSegments[index], [field]: value };
 
-    // Ensure Top Limit respects constraints (must be > prev Top Limit)
     if (field === 'topLimit') {
       const prevTop = index > 0 ? newSegments[index - 1].topLimit : 0;
       if (value <= prevTop) value = prevTop + 0.1;
-
       const nextTop = index < newSegments.length - 1 ? newSegments[index + 1].topLimit : Infinity;
       if (value >= nextTop) value = nextTop - 0.1;
     }
 
     newSegments[index] = { ...segment, [field]: value };
+    console.log(`[LayersPanel] New Segments State:`, newSegments);
     updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
   };
 
@@ -250,16 +231,30 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   };
 
 
+  const handleAddCube = () => {
+    const blob = generateCubeStl(10);
+    const file = new File([blob], "Cube_10mm.stl", { type: "model/stl" });
+    onFileUpload(file, true);
+    setOpenSections(prev => ({ ...prev, advanceSlice: false }));
+  };
+
+  const handleAddCylinder = () => {
+    const blob = generateCylinderStl(5, 10, 64);
+    const file = new File([blob], "Cylinder_10mm.stl", { type: "model/stl" });
+    onFileUpload(file, false);
+    setOpenSections(prev => ({ ...prev, advanceSlice: false }));
+  };
 
   const inputClass = "w-28";
-
   return (
-    <aside className="w-[380px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
+    <aside className="w-[320px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-4 pb-6">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 pb-4">
+
+
 
         {/* Upload Button */}
-        <div className="mb-4">
+        <div className="mb-2 space-y-2">
           <input
             type="file"
             ref={fileInputRef}
@@ -270,11 +265,27 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           />
           <button
             onClick={handleUploadClick}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg shadow-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors"
           >
-            <Icon name="upload_file" />
+            <Icon name="upload_file" className="text-sm" />
             Upload Model
           </button>
+
+          {/* Quick Shapes */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleAddCube}
+              className="py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors uppercase flex items-center justify-center gap-1"
+            >
+              <Icon name="check_box_outline_blank" className="text-xs" /> Cube
+            </button>
+            <button
+              onClick={handleAddCylinder}
+              className="py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors uppercase flex items-center justify-center gap-1"
+            >
+              <Icon name="circle" className="text-xs" /> Cylinder
+            </button>
+          </div>
         </div>
 
         {/* Models List */}
@@ -283,21 +294,21 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           isOpen={openSections.models}
           onToggle={() => toggleSection('models')}
         >
-          <div className="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+          <div className="space-y-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
             {models.map(model => (
               <div
                 key={model.id}
                 onClick={() => onSelectModel(model.id)}
-                className={`flex items-center justify-between py-1.5 px-3 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
+                className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
                   ? 'border-primary bg-primary text-white shadow-sm'
                   : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
                   }`}
               >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={`w-6 h-6 rounded flex-shrink-0 flex items-center justify-center transition-colors ${selectedModelId === model.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                    <Icon name="view_in_ar" className="text-sm" />
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors ${selectedModelId === model.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                    <Icon name="view_in_ar" className="text-xs" />
                   </div>
-                  <span className="text-sm font-medium truncate" title={model.name}>{model.name}</span>
+                  <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
@@ -320,6 +331,49 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           </div>
         </AccordionSection>
 
+        {/* Pattern Library Section */}
+        <AccordionSection
+          title="Pattern Library"
+          isOpen={openSections.patterns}
+          onToggle={() => toggleSection('patterns')}
+        >
+          <div className="grid grid-cols-3 gap-2 py-1">
+            {patterns.map(p => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  if (selectedModel) {
+                    // Using the new onUpdateModifiers to replace/set correct modifiers
+                    const newMod = JSON.parse(JSON.stringify(p.config));
+                    onUpdateModifiers([newMod]);
+                  }
+                }}
+                className="aspect-square bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary transition-all p-0.5"
+                title={`Apply ${p.name} to model`}
+              >
+                <div className="w-full h-full rounded-sm overflow-hidden flex items-center justify-center bg-slate-200 dark:bg-slate-900">
+                  <PatternPreview
+                    type={p.config.core_pattern || 'gradient'}
+                    cellSize={p.config.core_pattern === 'voronoi' ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
+                    coreGray={p.config.core_pattern === 'voronoi' ? (p.config.core_gray ?? 0) : (p.config.gradient_start_gray ?? 255)}
+                    shellGray={p.config.core_pattern === 'voronoi' ? (p.config.shell_gray ?? 255) : (p.config.gradient_end_gray ?? 0)}
+                    power={p.config.gradient_power || 1.0}
+                    thickness={p.config.voronoi_wall_thickness || 0.5}
+                    width={60}
+                    height={60}
+                  />
+                </div>
+              </button>
+            ))}
+            {patterns.length === 0 && (
+              <div className="col-span-3 text-center py-4 text-[10px] text-slate-400">
+                No patterns in library
+              </div>
+            )}
+          </div>
+        </AccordionSection>
+
+
 
 
         {/* Slice Settings */}
@@ -328,15 +382,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             title="Slice settings"
             isOpen={openSections.sliceSettings}
             onToggle={() => toggleSection('sliceSettings')}
-            headerActions={
-              <button
-                onClick={(e) => { e.stopPropagation(); handleApplyToAll(); }}
-                className="hover:text-primary transition-colors text-slate-400 flex items-center gap-1"
-                title="Apply exposure and intensity to all models"
-              >
-                <Icon name="check" className="text-sm" />
-              </button>
-            }
+
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Mode</span>
@@ -443,7 +489,85 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </div>
             )}
 
+
             <div className="h-2"></div>
+
+            {/* Global Pattern Picker */}
+            <div className="border-t border-slate-100 dark:border-slate-700/50 pt-2 mb-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Pattern</span>
+                <div className="flex items-center gap-2">
+                  {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
+                    <span className="text-[9px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded border border-purple-100 dark:border-purple-900/30 truncate max-w-[80px]">
+                      {patterns.find(p => JSON.stringify(p.config) === JSON.stringify(selectedModel.modifiers?.[0]))?.name || "Custom"}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowGlobalPatternPicker(!showGlobalPatternPicker)}
+                    className={`p-1 rounded transition-colors ${selectedModel?.modifiers && selectedModel.modifiers.length > 0 ? 'text-purple-500 hover:text-purple-600 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    title="Select Pattern"
+                  >
+                    <Icon name="palette" className="text-sm" />
+                  </button>
+                  {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
+                    <button
+                      onClick={() => onUpdateModifiers([])}
+                      className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Remove Pattern"
+                    >
+                      <Icon name="close" className="text-xs" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {showGlobalPatternPicker && (
+                <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-100 dark:border-slate-700/50 mb-3 animate-in fade-in zoom-in-95 duration-200">
+                  <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {patterns.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          onUpdateModifiers([p.config]);
+                          setShowGlobalPatternPicker(false);
+                        }}
+                        className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5 relative group"
+                        title={p.name}
+                      >
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+                          <PatternPreview
+                            type={p.config.core_pattern || 'gradient'}
+                            cellSize={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
+                            coreGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.core_gray ?? (p.config.core_pattern === 'sponge' ? 255 : 0)) : (p.config.gradient_start_gray ?? 255)}
+                            shellGray={(p.config.core_pattern === 'voronoi' || p.config.core_pattern === 'sponge') ? (p.config.shell_gray ?? (p.config.core_pattern === 'sponge' ? 0 : 255)) : (p.config.gradient_end_gray ?? 0)}
+                            power={p.config.gradient_power || 1.0}
+                            thickness={p.config.voronoi_wall_thickness || 0.5}
+                            density={p.config.sponge_density || 0.5}
+                            width={40}
+                            height={40}
+                          />
+                        </div>
+                      </button>
+                    ))}
+                    {patterns.length === 0 && (
+                      <div className="col-span-4 text-center py-2 text-[10px] text-slate-400">
+                        No patterns available. Create one in Designer.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleApplyToAll}
+              className="w-full py-2 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 shadow-sm"
+              title="Copy these settings to all other models"
+            >
+              <Icon name="done_all" className="text-sm" />
+              Apply to All Models
+            </button>
           </AccordionSection>
         </div>
 
@@ -653,16 +777,67 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         >
                           {segment.exposureMode === 'dose' ? 'DOSE' : 'TIME'}
                         </button>
-                        {index > 0 && (
-                          <button
-                            onClick={() => removeSegment(index)}
-                            className="text-slate-400 hover:text-red-500 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          >
-                            <Icon name="delete" className="text-sm" />
-                          </button>
-                        )}
+
+                        {/* Delete Button - Available for ALL segments */}
+                        <button
+                          onClick={() => setSegmentPatternPickers(prev => ({ ...prev, [segment.id]: !prev[segment.id] }))}
+                          className={`p-0.5 rounded transition-colors ${segment.modifiers && segment.modifiers.length > 0 ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary'}`}
+                          title="Apply Pattern"
+                        >
+                          <Icon name="palette" className="text-sm" />
+                        </button>
+                        <button
+                          onClick={() => removeSegment(index)}
+                          className="text-slate-400 hover:text-red-500 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title="Remove Segment"
+                        >
+                          <Icon name="delete" className="text-sm" />
+                        </button>
                       </div>
                     </div>
+
+                    {segmentPatternPickers[segment.id] && (
+                      <div className="p-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
+                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {patterns.map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                const patternConfig = JSON.parse(JSON.stringify(p.config));
+                                updateSegment(index, 'modifiers' as any, [patternConfig]);
+                                setSegmentPatternPickers(prev => ({ ...prev, [segment.id]: false }));
+                              }}
+                              className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
+                            >
+                              <PatternPreview
+                                type={p.config.core_pattern || 'gradient'}
+                                cellSize={p.config.core_pattern === 'voronoi' ? (p.config.voronoi_cell_size || 1.0) : (p.config.gradient_radius || 5.0)}
+                                coreGray={p.config.core_pattern === 'voronoi' ? (p.config.core_gray ?? 0) : (p.config.gradient_start_gray ?? 255)}
+                                shellGray={p.config.core_pattern === 'voronoi' ? (p.config.shell_gray ?? 255) : (p.config.gradient_end_gray ?? 0)}
+                                power={p.config.gradient_power || 1.0}
+                                thickness={p.config.voronoi_wall_thickness || 0.5}
+                                width={40}
+                                height={40}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Segment Pattern Display if exists */}
+                    {segment.modifiers && segment.modifiers.length > 0 && (
+                      <div className="px-3 py-1 bg-purple-50 dark:bg-purple-900/10 border-b border-purple-100 dark:border-purple-900/20 flex items-center justify-between">
+                        <span className="text-[9px] font-bold text-purple-600 uppercase">Pattern Applied</span>
+                        <button
+                          onClick={() => updateSegment(index, 'modifiers' as any, [] as any)}
+                          className="font-bold text-[9px] text-purple-400 hover:text-red-500"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
 
                     <div className="p-3 space-y-2">
                       <div className="flex items-center justify-between">
@@ -801,12 +976,16 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         )}
       </div>
 
-      <div className="p-6 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-surface-light dark:bg-surface-dark">
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-surface-light dark:bg-surface-dark">
         <button
-          onClick={onSlice}
-          className="w-full py-2.5 px-4 text-sm font-bold bg-primary text-white rounded hover:bg-blue-600 transition-colors shadow-sm uppercase tracking-wide"
+          onClick={() => {
+            console.log("Slice button clicked");
+            onSlice();
+          }}
+          className="w-full py-3 px-4 text-sm font-bold bg-primary text-white rounded hover:bg-blue-600 transition-colors shadow-lg shadow-primary/30 uppercase tracking-wide flex items-center justify-center gap-2"
         >
-          SLICE
+          <Icon name="layers" className="text-lg" />
+          SLICE MODEL
         </button>
       </div>
     </aside>

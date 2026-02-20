@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
+import { CalibrationTool } from './components/CalibrationTool';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
@@ -22,6 +23,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
+  const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
 
   // Slicing State
   const [isSlicing, setIsSlicing] = useState(false);
@@ -38,6 +40,40 @@ export default function App() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Pattern Library State
+  const [patterns, setPatterns] = useState<import('./types').Pattern[]>([]);
+
+  // Load patterns from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('dlp3_patterns');
+    if (saved) {
+      try {
+        setPatterns(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse saved patterns", e);
+      }
+    }
+  }, []);
+
+  // Save patterns to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('dlp3_patterns', JSON.stringify(patterns));
+  }, [patterns]);
+
+  const handleSavePattern = (pattern: import('./types').Pattern) => {
+    setPatterns(prev => {
+      const exists = prev.find(p => p.id === pattern.id);
+      if (exists) {
+        return prev.map(p => p.id === pattern.id ? pattern : p);
+      }
+      return [...prev, pattern];
+    });
+  };
+
+  const handleDeletePattern = (id: string) => {
+    setPatterns(prev => prev.filter(p => p.id !== id));
+  };
+
   useEffect(() => {
     const html = document.documentElement;
     if (darkMode) {
@@ -47,13 +83,14 @@ export default function App() {
     }
   }, [darkMode]);
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = (file: File, isCube = false) => {
     const url = URL.createObjectURL(file);
     const newModel: ModelData = {
       id: generateUUID(),
       name: file.name,
       url,
       file,
+      isCube, // Store the flag
       transform: {
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -98,6 +135,12 @@ export default function App() {
     ));
   };
 
+  const handleUpdateModifiers = (id: string, modifiers: any[]) => {
+    setModels(prev => prev.map(m =>
+      m.id === id ? { ...m, modifiers } : m
+    ));
+  };
+
   const handleApplySettingsToAll = (settings: SliceSettings) => {
     setModels(prev => prev.map(m => ({
       ...m,
@@ -133,8 +176,8 @@ export default function App() {
         ...modelToClone.transform,
         position: {
           x: modelToClone.transform.position.x + 10,
-          y: modelToClone.transform.position.y,
-          z: modelToClone.transform.position.z + 10
+          y: modelToClone.transform.position.y + 10,
+          z: modelToClone.transform.position.z
         },
         rotation: { ...modelToClone.transform.rotation },
         scale: { ...modelToClone.transform.scale }
@@ -164,7 +207,7 @@ export default function App() {
       const col = index % cols;
       const row = Math.floor(index / cols);
       const width = model.size ? model.size.x : 10;
-      const depth = model.size ? model.size.z : 10;
+      const depth = model.size ? model.size.y : 10;
       if (width > colWidths[col]) colWidths[col] = width;
       if (depth > rowDepths[row]) rowDepths[row] = depth;
     });
@@ -173,7 +216,7 @@ export default function App() {
     const totalDepth = rowDepths.reduce((a, b) => a + b, 0) + (spacing * (rows - 1));
 
     const startX = -totalWidth / 2;
-    const startZ = -totalDepth / 2;
+    const startY = -totalDepth / 2;
 
     const newModels = models.map((model, index) => {
       const col = index % cols;
@@ -182,15 +225,15 @@ export default function App() {
       for (let i = 0; i < col; i++) xPos += colWidths[i] + spacing;
       xPos += colWidths[col] / 2;
 
-      let zPos = startZ;
-      for (let i = 0; i < row; i++) zPos += rowDepths[i] + spacing;
-      zPos += rowDepths[row] / 2;
+      let yPos = startY;
+      for (let i = 0; i < row; i++) yPos += rowDepths[i] + spacing;
+      yPos += rowDepths[row] / 2;
 
       return {
         ...model,
         transform: {
           ...model.transform,
-          position: { ...model.transform.position, x: xPos, z: zPos }
+          position: { ...model.transform.position, x: xPos, y: yPos }
         }
       };
     });
@@ -264,11 +307,12 @@ export default function App() {
           // If the segment ends before start, ignore
           if (endLayer <= currentStartLayer) return null;
 
-          const rangeObj = {
+          const rangeObj: BackendRangeOverride = {
             start: currentStartLayer,
             end: endLayer,
             irr: seg.lightIntensity,
-            exposure: seg.exposureTime
+            exposure: seg.exposureTime,
+            ...(seg.modifiers && seg.modifiers.length > 0 ? { modifiers: seg.modifiers } : {})
           };
           currentStartLayer = endLayer;
           return rangeObj;
@@ -278,14 +322,27 @@ export default function App() {
       sceneData.push({
         original_filename: model.file.name,
         pos_x_mm: model.transform.position.x,
-        pos_y_mm: model.transform.position.z,
+        pos_y_mm: model.transform.position.y,
         scale: model.transform.scale.x,
+        scale_x: model.transform.scale.x,
+        scale_y: model.transform.scale.y,
+        scale_z: model.transform.scale.z,
         irradiance_mW_cm2: model.settings.lightIntensity,
         dose_mJ_cm2: dose,
         rotation: { x: model.transform.rotation.x, y: model.transform.rotation.y, z: model.transform.rotation.z },
-        override_ranges: ranges
+        override_ranges: ranges,
+        modifiers: model.modifiers && model.modifiers.length > 0 ? [...model.modifiers] : []
       });
     });
+
+    console.log("[App] Slicing Scene Data:", JSON.stringify(sceneData, null, 2));
+    // Verify first model's ranges
+    if (sceneData.length > 0) {
+      console.log("[App] First Model Ranges:", sceneData[0].override_ranges);
+      sceneData[0].override_ranges.forEach((r, i) => {
+        console.log(`[App] Range ${i} Modifiers:`, r.modifiers);
+      });
+    }
 
     formData.append('scene_json', JSON.stringify(sceneData));
     formData.append('layer_height', (globalSettings.layerHeight / 1000).toString());
@@ -507,7 +564,12 @@ export default function App() {
         toggleDarkMode={() => setDarkMode(!darkMode)}
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
+        onOpenCalibration={() => setIsCalibrationOpen(true)}
       />
+
+      {isCalibrationOpen && (
+        <CalibrationTool onClose={() => setIsCalibrationOpen(false)} />
+      )}
 
       <div className="flex flex-1 overflow-hidden relative">
         <LayersPanel
@@ -520,11 +582,12 @@ export default function App() {
           onTransformChange={(data) => selectedModelId && handleTransformChange(selectedModelId, data)}
           onUpdateSettings={(data) => selectedModelId && handleUpdateSettings(selectedModelId, data)}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
-          onApplySettingsToAll={handleApplySettingsToAll}
+          onUpdateModifiers={(mods) => selectedModelId && handleUpdateModifiers(selectedModelId, mods)}
           onApplySettingsToAll={handleApplySettingsToAll}
           isAdvancedSliceMode={isAdvancedSliceMode}
           setIsAdvancedSliceMode={setIsAdvancedSliceMode}
           onSlice={handleSlice}
+          patterns={patterns}
           onFileUpload={handleFileUpload}
         />
         <Viewport
@@ -534,11 +597,15 @@ export default function App() {
           onTransformChange={handleTransformChange}
           onUpdateModelSize={handleUpdateModelSize}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
+          onUpdateModifiers={(mods) => selectedModelId && handleUpdateModifiers(selectedModelId, mods)}
           onCloneModel={handleCloneModel}
           onArrayModels={handleArrayModels}
           onFileUpload={handleFileUpload}
           isAdvancedSliceMode={isAdvancedSliceMode}
           globalSettings={globalSettings}
+          patterns={patterns}
+          onSavePattern={handleSavePattern}
+          onDeletePattern={handleDeletePattern}
         />
 
         {/* Slicing Loader Overlay */}

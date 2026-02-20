@@ -6,35 +6,45 @@ interface HeaderProps {
   toggleDarkMode: () => void;
   onSaveProject: () => void;
   onLoadProject: () => void;
+  onOpenCalibration?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSaveProject, onLoadProject }) => {
+export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSaveProject, onLoadProject, onOpenCalibration }) => {
   return (
     <>
       {/* Top accent line */}
       <div className="h-1 bg-slate-800 dark:bg-slate-900 w-full flex-shrink-0"></div>
 
       {/* Main Header - Dark Gray Background */}
-      <header className="h-14 flex-shrink-0 border-b border-[#333] bg-[#1a1a1a] text-white flex items-center justify-between px-4 z-20 relative shadow-md">
+      <header className="h-12 flex-shrink-0 border-b border-[#333] bg-[#1a1a1a] text-white flex items-center justify-between px-4 z-20 relative shadow-md">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 select-none">
-            <Icon name="print" className="text-primary text-xl" />
-            <span className="font-bold tracking-wide">BioPrint Pro</span>
+            <span className="font-bold tracking-wide text-lg text-primary">BIOLIGHT</span>
           </div>
 
-          <div className="h-6 w-px bg-slate-700 mx-2"></div>
+          <div className="h-5 w-px bg-slate-700 mx-2"></div>
 
           <div className="flex items-center gap-2">
-            <button onClick={onLoadProject} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded border border-slate-700 transition-colors">
-              <Icon name="folder_open" className="text-sm" /> Load
+            <button onClick={onLoadProject} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium rounded border border-slate-700 transition-colors">
+              <Icon name="folder_open" className="text-xs" /> Load
             </button>
-            <button onClick={onSaveProject} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded border border-slate-700 transition-colors">
-              <Icon name="save" className="text-sm" /> Save
+            <button onClick={onSaveProject} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium rounded border border-slate-700 transition-colors">
+              <Icon name="save" className="text-xs" /> Save
+            </button>
+            <button onClick={onOpenCalibration} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium rounded border border-slate-700 transition-colors">
+              <Icon name="science" className="text-xs" /> Calibrate
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {/* TODO: Implement Connection Logic */ }}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md font-bold shadow-lg transition-all text-xs uppercase tracking-wider"
+          >
+            <Icon name="link" className="text-sm" />
+            Connect
+          </button>
           <button
             className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
             onClick={toggleDarkMode}

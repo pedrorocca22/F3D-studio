@@ -253,10 +253,11 @@ class PrintManager:
                                 arr = np.array(img)
                                 
                                 # Apply Mask: if pixel > 128 -> gray_val
-                                # We use np.where for speed
-                                mask = arr > 128
-                                arr_processed = np.zeros_like(arr)
-                                arr_processed[mask] = gray_val
+                                # Apply Intensity Scaling (Modulation) logic
+                                if gray_val < 255:
+                                    arr_processed = (arr.astype(np.float32) / 255.0 * gray_val).astype(np.uint8)
+                                else:
+                                    arr_processed = arr
                                 
                                 # Merge into Composite
                                 if composite_arr is None:
@@ -307,7 +308,7 @@ class PrintManager:
                             gray_val = self.calibration.get_gray_for_irradiance(target_irradiance)
                             with Image.open(io.BytesIO(raw_data)) as img:
                                 img = img.convert("L")
-                                img_processed = img.point(lambda p: gray_val if p > 128 else 0)
+                                img_processed = img.point(lambda p: int(p / 255.0 * gray_val))
                                 output = io.BytesIO()
                                 img_processed.save(output, format="PNG")
                                 png_data = output.getvalue()

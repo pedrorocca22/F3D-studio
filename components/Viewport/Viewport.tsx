@@ -4,7 +4,8 @@ import { Canvas, useLoader, useThree, ThreeEvent, useFrame } from '@react-three/
 import { OrbitControls, ContactShadows, useCursor, TransformControls, Environment, Grid } from '@react-three/drei';
 import { STLLoader } from 'three-stdlib';
 import * as THREE from 'three';
-import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings } from '../../types';
+import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings, Modifier } from '../../types';
+import { ModifiersPanel } from './ModifiersPanel';
 import { ThreeElements } from '@react-three/fiber';
 
 declare global {
@@ -36,20 +37,24 @@ interface ViewportProps {
   onTransformChange: (id: string, data: TransformData) => void;
   onUpdateModelSize: (id: string, size: { x: number, y: number, z: number }) => void;
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
+  onUpdateModifiers?: (modifiers: Modifier[]) => void;
   onCloneModel: (id: string) => void;
   onArrayModels: (spacing: number) => void;
   onFileUpload?: (file: File) => void;
   isAdvancedSliceMode?: boolean;
   globalSettings: GlobalSettings;
+  patterns: import('../../types').Pattern[];
+  onSavePattern: (pattern: import('../../types').Pattern) => void;
+  onDeletePattern: (id: string) => void;
 }
 
 // --- CLIPPING PLANE LOGIC ---
 const clippingPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
 
 const BUILD_VOLUME = {
-  width: 120.96,
-  depth: 68.04,
-  height: 150
+  width: 71.11,
+  depth: 40.0,
+  height: 60
 };
 
 // Distinct colors for segments
@@ -68,7 +73,7 @@ const getSegmentColor = (index: number) => SEGMENT_COLORS[index % SEGMENT_COLORS
 
 type CameraMode = 'orbit' | 'pan';
 type ObjectTool = 'translate' | 'rotate' | 'scale' | 'orient' | 'modify';
-type ViewMode = 'solid' | 'wireframe' | 'transparent';
+type ViewMode = 'solid' | 'transparent';
 
 // --- Model Info Panel Component ---
 const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = ({ model, adhesionOffset }) => {
@@ -95,11 +100,11 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
         </div>
         <div className="bg-white dark:bg-slate-900 rounded p-1.5 border border-slate-100 dark:border-slate-700/50">
           <span className="block text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Size Y</span>
-          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.z?.toFixed(1) || '-'}</span>
+          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.y?.toFixed(1) || '-'}</span>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded p-1.5 border border-slate-100 dark:border-slate-700/50">
           <span className="block text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Size Z</span>
-          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.y?.toFixed(1) || '-'}</span>
+          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.z?.toFixed(1) || '-'}</span>
         </div>
       </div>
 
@@ -112,6 +117,14 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
         <div className="flex items-center justify-between text-xs px-1">
           <span className="text-slate-500 flex items-center gap-1.5 font-medium"><Icon name="flash_on" className="text-[14px] text-slate-400" /> Intensity</span>
           <span className="font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-[11px]">{model.settings.lightIntensity} mW</span>
+        </div>
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="text-slate-500 flex items-center gap-1.5 font-medium"><Icon name="science" className="text-[14px] text-slate-400" /> Dose</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-[11px]">
+            {(model.settings.exposureMode === 'dose' && model.settings.targetDose
+              ? model.settings.targetDose
+              : model.settings.exposureTime * model.settings.lightIntensity).toFixed(1)} mJ
+          </span>
         </div>
       </div>
 
@@ -144,9 +157,12 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
   );
 };
 
+import { Text } from '@react-three/drei';
+
 const BuildPlate = () => {
   return (
     <group>
+      {/* Floor Plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
         <planeGeometry args={[BUILD_VOLUME.width, BUILD_VOLUME.depth]} />
         <meshStandardMaterial
@@ -158,17 +174,39 @@ const BuildPlate = () => {
           side={THREE.DoubleSide}
         />
       </mesh>
-      <gridHelper
-        args={[Math.max(BUILD_VOLUME.width, BUILD_VOLUME.depth) * 2, 20, 0x94a3b8, 0xe2e8f0]}
-        position={[0, 0.05, 0]}
-      />
+
+      {/* Build Volume wireframe */}
       <group position={[0, BUILD_VOLUME.height / 2, 0]}>
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(BUILD_VOLUME.width, BUILD_VOLUME.height, BUILD_VOLUME.depth)]} />
           <lineBasicMaterial color="#cbd5e1" linewidth={1} />
         </lineSegments>
       </group>
-      <axesHelper args={[20]} position={[-BUILD_VOLUME.width / 2 - 10, 0, BUILD_VOLUME.depth / 2 + 10]} />
+
+      {/* Dimensions Text labels on the ground plane (Z=0) */}
+      {/* Width Label (X-axis) */}
+      <group position={[0, 0.1, BUILD_VOLUME.depth / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <Text
+          fontSize={4}
+          color="#94a3b8"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {BUILD_VOLUME.width}mm
+        </Text>
+      </group>
+
+      {/* Depth Label (Z-axis) - Placed on the side */}
+      <group position={[BUILD_VOLUME.width / 2 + 5, 0.1, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 2]}>
+        <Text
+          fontSize={4}
+          color="#94a3b8"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {BUILD_VOLUME.depth}mm
+        </Text>
+      </group>
     </group>
   );
 };
@@ -233,7 +271,7 @@ const CameraManager = ({ viewTrigger, focusTarget }: { viewTrigger: { mode: stri
       const currentTarget = orb.target.clone();
 
       const dir = new THREE.Vector3().subVectors(currentPos, currentTarget).normalize();
-      const newPos = new THREE.Vector3().copy(focusTarget).add(dir.multiplyScalar(80));
+      const newPos = new THREE.Vector3().copy(focusTarget).add(dir.multiplyScalar(150));
 
       desiredPos.current.copy(newPos);
       desiredTarget.current.copy(focusTarget);
@@ -429,6 +467,9 @@ const Model: React.FC<ModelProps> = ({
   }, [result]);
 
   const meshRef = useRef<THREE.Mesh>(null!);
+  const posGroupRef = useRef<THREE.Group>(null!);
+  const scaleGroupRef = useRef<THREE.Group>(null!);
+  const rotGroupRef = useRef<THREE.Group>(null!);
   const materialRef = useRef<THREE.MeshPhysicalMaterial>(null!);
   const [hovered, setHover] = useState(false);
   const transformControlsRef = useRef<any>(null);
@@ -494,7 +535,7 @@ const Model: React.FC<ModelProps> = ({
     
                    if (activeSegmentIndex != -1) {
                        vec3 segColor = uColors[activeSegmentIndex];
-                       gl_FragColor = vec4(mix(gl_FragColor.rgb, segColor, 0.6), gl_FragColor.a);
+                       gl_FragColor = mix(gl_FragColor, vec4(segColor, 1.0), 0.6);
                    }
                }
            }
@@ -555,80 +596,42 @@ const Model: React.FC<ModelProps> = ({
   }, []);
 
   useEffect(() => {
-    if (meshRef.current) {
-      // Force update matrix to ensure bounding box is accurate to current transforms
-      meshRef.current.position.set(transformData.position.x, transformData.position.y, transformData.position.z);
-      meshRef.current.rotation.set(
-        THREE.MathUtils.degToRad(transformData.rotation.x),
-        THREE.MathUtils.degToRad(transformData.rotation.y),
-        THREE.MathUtils.degToRad(transformData.rotation.z)
-      );
-      meshRef.current.scale.set(transformData.scale.x, transformData.scale.y, transformData.scale.z);
-      meshRef.current.updateMatrixWorld(true);
+    if (meshRef.current && posGroupRef.current && scaleGroupRef.current && rotGroupRef.current) {
+      const isDragging = transformControlsRef.current?.dragging;
+      if (!isDragging) {
+        // Hierarchy: PosGroup (Universal Position) -> ScaleGroup (Universal Scale) -> RotGroup (Local Rotation) -> Mesh
 
-      const box = new THREE.Box3().setFromObject(meshRef.current);
+        // 1. Position Group (Universal Coordinates)
+        posGroupRef.current.position.set(transformData.position.x, transformData.position.z, transformData.position.y);
+
+        // 2. Scale Group (Universal Scaling - Bed Aligned)
+        scaleGroupRef.current.scale.set(transformData.scale.x, transformData.scale.z, transformData.scale.y);
+
+        // 3. Rotation Group (Local Rotation)
+        rotGroupRef.current.rotation.set(
+          THREE.MathUtils.degToRad(transformData.rotation.x),
+          THREE.MathUtils.degToRad(transformData.rotation.z), // Data Z -> Three Y
+          THREE.MathUtils.degToRad(transformData.rotation.y)  // Data Y -> Three Z
+        );
+      }
+
+      // CRITICAL: Force update from the root of our transform hierarchy
+      posGroupRef.current.updateMatrixWorld(true);
+
+      const box = new THREE.Box3().setFromObject(posGroupRef.current);
       const size = new THREE.Vector3();
       box.getSize(size);
 
-      // Notify parent of size update via ref to avoid dependency loop
-      onUpdateSizeRef.current({ x: size.x, y: size.y, z: size.z });
+      // Report size: Three Y is Vertical (Z), Three Z is Depth (Y)
+      onUpdateSizeRef.current({
+        x: size.x,
+        y: size.z, // Three Z -> Data Y (Depth)
+        z: size.y  // Three Y -> Data Z (Height)
+      });
 
       checkBounds();
     }
-  }, [geometry, transformData, checkBounds]);
-
-  const adjustPositionToFloor = (updateIfChanged = true) => {
-    if (!meshRef.current || !geometry.boundingBox) return;
-    const matrix = new THREE.Matrix4();
-    const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-      THREE.MathUtils.degToRad(transformData.rotation.x),
-      THREE.MathUtils.degToRad(transformData.rotation.y),
-      THREE.MathUtils.degToRad(transformData.rotation.z)
-    ));
-    const scale = new THREE.Vector3(transformData.scale.x, transformData.scale.y, transformData.scale.z);
-    matrix.compose(new THREE.Vector3(0, 0, 0), quaternion, scale);
-
-    const box = geometry.boundingBox;
-    const corners = [
-      new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-      new THREE.Vector3(box.min.x, box.min.y, box.max.z),
-      new THREE.Vector3(box.min.x, box.max.y, box.min.z),
-      new THREE.Vector3(box.min.x, box.max.y, box.max.z),
-      new THREE.Vector3(box.max.x, box.min.y, box.min.z),
-      new THREE.Vector3(box.max.x, box.min.y, box.max.z),
-      new THREE.Vector3(box.max.x, box.max.y, box.min.z),
-      new THREE.Vector3(box.max.x, box.max.y, box.max.z),
-    ];
-
-    let minY = Infinity;
-    corners.forEach(p => { p.applyMatrix4(matrix); if (p.y < minY) minY = p.y; });
-
-    const requiredY = -minY;
-    if (updateIfChanged && Math.abs(requiredY - transformData.position.y) > 0.001) {
-      onTransformChange({ ...transformData, position: { ...transformData.position, y: requiredY } });
-    }
-  };
-
-  useEffect(() => { adjustPositionToFloor(); }, [transformData.scale, transformData.rotation]);
-  useEffect(() => {
-    const { x, y, z } = transformData.position;
-    if (x === 0 && y === 0 && z === 0) adjustPositionToFloor();
-  }, [transformData.position]);
-
-  useEffect(() => {
-    if (meshRef.current) {
-      const isDragging = transformControlsRef.current?.dragging;
-      if (!isDragging) {
-        meshRef.current.scale.set(transformData.scale.x, transformData.scale.y, transformData.scale.z);
-        meshRef.current.rotation.set(
-          THREE.MathUtils.degToRad(transformData.rotation.x),
-          THREE.MathUtils.degToRad(transformData.rotation.y),
-          THREE.MathUtils.degToRad(transformData.rotation.z)
-        );
-        meshRef.current.position.set(transformData.position.x, transformData.position.y, transformData.position.z);
-      }
-    }
-  }, [transformData, geometry]);
+  }, [transformData, geometry, checkBounds]);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (!isVisible) return;
@@ -644,137 +647,167 @@ const Model: React.FC<ModelProps> = ({
       const newQuat = alignQuat.multiply(meshRef.current.quaternion.clone());
       const newEuler = new THREE.Euler().setFromQuaternion(newQuat);
 
-      const tempMesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
-      tempMesh.scale.copy(meshRef.current.scale);
-      tempMesh.quaternion.copy(newQuat);
-      tempMesh.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(tempMesh);
-
+      // Just update rotation - the adjustPositionToFloor effect will handle the Z snap perfectly
       onTransformChange({
         ...transformData,
         rotation: {
           x: Math.round(THREE.MathUtils.radToDeg(newEuler.x)),
-          y: Math.round(THREE.MathUtils.radToDeg(newEuler.y)),
-          z: Math.round(THREE.MathUtils.radToDeg(newEuler.z)),
-        },
-        position: { ...transformData.position, y: -box.min.y }
+          y: Math.round(THREE.MathUtils.radToDeg(newEuler.z)), // Swap Back
+          z: Math.round(THREE.MathUtils.radToDeg(newEuler.y)), // Swap Back
+        }
       });
     }
   };
 
   const handleTransformComplete = () => {
-    if (meshRef.current) {
+    if (posGroupRef.current && scaleGroupRef.current && rotGroupRef.current) {
+      // Map current group states back to flat transformData
       onTransformChange({
         ...transformData,
-        position: { x: meshRef.current.position.x, y: meshRef.current.position.y, z: meshRef.current.position.z },
-        rotation: {
-          x: Math.round(THREE.MathUtils.radToDeg(meshRef.current.rotation.x)),
-          y: Math.round(THREE.MathUtils.radToDeg(meshRef.current.rotation.y)),
-          z: Math.round(THREE.MathUtils.radToDeg(meshRef.current.rotation.z)),
+        position: {
+          x: posGroupRef.current.position.x,
+          y: posGroupRef.current.position.z, // Three Z -> Data Y
+          z: posGroupRef.current.position.y  // Three Y -> Data Z
         },
-        scale: { x: meshRef.current.scale.x, y: meshRef.current.scale.y, z: meshRef.current.scale.z }
+        rotation: {
+          x: Math.round(THREE.MathUtils.radToDeg(rotGroupRef.current.rotation.x)),
+          y: Math.round(THREE.MathUtils.radToDeg(rotGroupRef.current.rotation.z)), // Three Z -> Data Y
+          z: Math.round(THREE.MathUtils.radToDeg(rotGroupRef.current.rotation.y)), // Three Y -> Data Z
+        },
+        scale: {
+          x: scaleGroupRef.current.scale.x,
+          y: scaleGroupRef.current.scale.z, // Three Scale Z -> Data Scale Y
+          z: scaleGroupRef.current.scale.y  // Three Scale Y -> Data Scale Z
+        }
       });
     }
-    // Re-check one last time to be sure
     checkBounds();
   };
 
+  const adjustPositionToFloor = useCallback((updateIfChanged = true) => {
+    if (!geometry.boundingBox) return;
+
+    // 1. Construct the hierarchy math to find the world bounding box base
+    // Note: We use the hierarchy: UniversalPos * UniversalScale * LocalRot * Mesh
+    // To find the base, we calculate (Scale * Rot * Box) and see how far below 0 its Y is.
+
+    const rotMatrix = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(
+      THREE.MathUtils.degToRad(transformData.rotation.x),
+      THREE.MathUtils.degToRad(transformData.rotation.z), // Data Z -> Three Y
+      THREE.MathUtils.degToRad(transformData.rotation.y)  // Data Y -> Three Z
+    ));
+
+    const scaleMatrix = new THREE.Matrix4().makeScale(
+      transformData.scale.x,
+      transformData.scale.z,
+      transformData.scale.y
+    );
+
+    const worldMatrix = new THREE.Matrix4().multiplyMatrices(scaleMatrix, rotMatrix);
+    const box = geometry.boundingBox.clone().applyMatrix4(worldMatrix);
+
+    const requiredZ = -box.min.y;
+
+    if (updateIfChanged && Math.abs(requiredZ - transformData.position.z) > 0.001) {
+      onTransformChange({
+        ...transformData,
+        position: { ...transformData.position, z: requiredZ }
+      });
+    }
+  }, [geometry, transformData.scale, transformData.rotation, transformData.position.z, onTransformChange]);
+
+  useEffect(() => {
+    adjustPositionToFloor();
+  }, [geometry, transformData.scale, transformData.rotation]);
+
+  useEffect(() => {
+    const { x, y, z } = transformData.position;
+    // Initial grounding if we are at the center/bottom defaults
+    if (x === 0 && y === 0 && z === 0) adjustPositionToFloor();
+  }, [transformData.position]);
+
   return (
     <>
-      <mesh
-        ref={meshRef}
-        visible={isVisible}
-        geometry={geometry}
-        onClick={handleClick}
-        onPointerOver={() => isVisible && setHover(true)}
-        onPointerOut={() => setHover(false)}
-        castShadow
-        receiveShadow
-      >
-        <meshPhysicalMaterial
-          ref={materialRef}
-          onBeforeCompile={onBeforeCompile}
-          color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : "#94a3b8")}
-          roughness={0.4}
-          reflectivity={0.5}
-          clearcoat={1.0}
-          clearcoatRoughness={0.7}
-          specularIntensity={1.0}
-          metalness={0.1}
-          envMapIntensity={1.0}
-          wireframe={viewMode === 'wireframe'}
-          transparent={viewMode === 'transparent'}
-          opacity={viewMode === 'transparent' ? 0.4 : 1.0}
-          side={THREE.DoubleSide}
-          clippingPlanes={isClipping ? [clippingPlane] : []}
-          clipShadows
-          stencilWrite={true}
-          stencilRef={0}
-          stencilFunc={THREE.AlwaysStencilFunc}
-          stencilFail={THREE.KeepStencilOp}
-          stencilZFail={THREE.KeepStencilOp}
-          stencilZPass={THREE.KeepStencilOp}
-        />
-      </mesh>
+      <group ref={posGroupRef}>
+        <group ref={scaleGroupRef}>
+          <group ref={rotGroupRef}>
+            <mesh
+              ref={meshRef}
+              visible={isVisible}
+              geometry={geometry}
+              onClick={handleClick}
+              onPointerOver={() => isVisible && setHover(true)}
+              onPointerOut={() => setHover(false)}
+              castShadow
+              receiveShadow
+            >
+              <meshPhysicalMaterial
+                ref={materialRef}
+                onBeforeCompile={onBeforeCompile}
+                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : "#94a3b8")}
+                roughness={0.4}
+                reflectivity={0.5}
+                clearcoat={1.0}
+                clearcoatRoughness={0.7}
+                specularIntensity={1.0}
+                metalness={0.1}
+                envMapIntensity={1.0}
+                wireframe={false}
+                transparent={viewMode === 'transparent'}
+                opacity={viewMode === 'transparent' ? 0.4 : 1.0}
+                side={THREE.DoubleSide}
+                clippingPlanes={isClipping ? [clippingPlane] : []}
+                clipShadows
+                stencilWrite={true}
+                stencilRef={0}
+                stencilFunc={THREE.AlwaysStencilFunc}
+                stencilFail={THREE.KeepStencilOp}
+                stencilZFail={THREE.KeepStencilOp}
+                stencilZPass={THREE.KeepStencilOp}
+              />
+            </mesh>
 
-      {/* SOLID CAP RENDERING LOGIC (Stencil method) */}
-      {/* 1. Render Back faces to increment stencil buffer where object is clipped */}
-      {isClipping && isVisible && (
-        <mesh
-          geometry={geometry}
-          position={[transformData.position.x, transformData.position.y, transformData.position.z]}
-          rotation={[
-            THREE.MathUtils.degToRad(transformData.rotation.x),
-            THREE.MathUtils.degToRad(transformData.rotation.y),
-            THREE.MathUtils.degToRad(transformData.rotation.z)
-          ]}
-          scale={[transformData.scale.x, transformData.scale.y, transformData.scale.z]}
-        >
-          <meshBasicMaterial
-            color="black"
-            side={THREE.BackSide}
-            clippingPlanes={[clippingPlane]}
-            stencilWrite={true}
-            stencilRef={0} // Constant value to compare against/write? Actually we want to Increment
-            stencilFunc={THREE.AlwaysStencilFunc}
-            stencilFail={THREE.IncrementWrapStencilOp}
-            stencilZFail={THREE.IncrementWrapStencilOp}
-            stencilZPass={THREE.IncrementWrapStencilOp}
-            colorWrite={false}
-            depthWrite={false}
-          />
-        </mesh>
-      )}
+            {/* SOLID CAP RENDERING LOGIC (Stencil method) */}
+            {isClipping && isVisible && (
+              <mesh geometry={geometry}>
+                <meshBasicMaterial
+                  color="black"
+                  side={THREE.BackSide}
+                  clippingPlanes={[clippingPlane]}
+                  stencilWrite={true}
+                  stencilRef={0}
+                  stencilFunc={THREE.AlwaysStencilFunc}
+                  stencilFail={THREE.IncrementWrapStencilOp}
+                  stencilZFail={THREE.IncrementWrapStencilOp}
+                  stencilZPass={THREE.IncrementWrapStencilOp}
+                  colorWrite={false}
+                  depthWrite={false}
+                />
+              </mesh>
+            )}
 
-      {/* 2. Render Front faces to decrement stencil buffer */}
-      {isClipping && isVisible && (
-        <mesh
-          geometry={geometry}
-          position={[transformData.position.x, transformData.position.y, transformData.position.z]}
-          rotation={[
-            THREE.MathUtils.degToRad(transformData.rotation.x),
-            THREE.MathUtils.degToRad(transformData.rotation.y),
-            THREE.MathUtils.degToRad(transformData.rotation.z)
-          ]}
-          scale={[transformData.scale.x, transformData.scale.y, transformData.scale.z]}
-        >
-          <meshBasicMaterial
-            color="black"
-            side={THREE.FrontSide}
-            clippingPlanes={[clippingPlane]}
-            stencilWrite={true}
-            stencilRef={0}
-            stencilFunc={THREE.AlwaysStencilFunc}
-            stencilFail={THREE.DecrementWrapStencilOp}
-            stencilZFail={THREE.DecrementWrapStencilOp}
-            stencilZPass={THREE.DecrementWrapStencilOp}
-            colorWrite={false}
-            depthWrite={false}
-          />
-        </mesh>
-      )}
+            {isClipping && isVisible && (
+              <mesh geometry={geometry}>
+                <meshBasicMaterial
+                  color="black"
+                  side={THREE.FrontSide}
+                  clippingPlanes={[clippingPlane]}
+                  stencilWrite={true}
+                  stencilRef={0}
+                  stencilFunc={THREE.AlwaysStencilFunc}
+                  stencilFail={THREE.DecrementWrapStencilOp}
+                  stencilZFail={THREE.DecrementWrapStencilOp}
+                  stencilZPass={THREE.DecrementWrapStencilOp}
+                  colorWrite={false}
+                  depthWrite={false}
+                />
+              </mesh>
+            )}
+          </group>
+        </group>
+      </group>
 
-      {/* 3. Render the Cap Plane (where Stencil != 0) */}
+      {/* 3. Render the Cap Plane (where Stencil != 0) is GLOBAL, so outside the hierarchy */}
       {isClipping && isVisible && (
         <mesh
           position={[0, clippingHeight, 0]}
@@ -798,7 +831,11 @@ const Model: React.FC<ModelProps> = ({
       {isSelected && objectTool !== 'orient' && isVisible && !isAdvancedMode && (
         <TransformControls
           ref={transformControlsRef}
-          object={meshRef}
+          object={
+            objectTool === 'scale' ? scaleGroupRef.current :
+              objectTool === 'rotate' ? rotGroupRef.current :
+                posGroupRef.current
+          }
           mode={objectTool === 'rotate' ? 'rotate' : objectTool === 'scale' ? 'scale' : 'translate'}
           onMouseUp={handleTransformComplete}
           onChange={checkBounds}
@@ -820,11 +857,16 @@ export const Viewport: React.FC<ViewportProps> = ({
   onArrayModels,
   onFileUpload,
   isAdvancedSliceMode,
-  globalSettings
+  globalSettings,
+  patterns,
+  onSavePattern,
+  onDeletePattern,
+  onUpdateModifiers
 }) => {
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [objectTool, setObjectTool] = useState<ObjectTool>('translate');
   const [viewMode, setViewMode] = useState<ViewMode>('solid');
+  const [activeTab, setActiveTab] = useState<'properties' | 'modifiers'>('properties');
   const [zoomTrigger, setZoomTrigger] = useState(0);
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
@@ -871,7 +913,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const setView = (mode: string) => setViewTrigger(prev => ({ mode, t: prev.t + 1 }));
 
   const cycleViewMode = () => {
-    const modes: ViewMode[] = ['solid', 'wireframe', 'transparent'];
+    const modes: ViewMode[] = ['solid', 'transparent'];
     setViewMode(modes[(modes.indexOf(viewMode) + 1) % modes.length]);
   };
 
@@ -888,7 +930,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   // Dynamic max height calculation — use real model Z height
   const sliderMaxHeight = useMemo(() => {
     if (!selectedModel?.size) return BUILD_VOLUME.height;
-    const modelHeight = selectedModel.size.y || 0;
+    const modelHeight = selectedModel.size.z || 0;
     // Add 5% padding, but never exceed build volume
     return Math.min(Math.max(modelHeight * 1.05, 0.5), BUILD_VOLUME.height);
   }, [selectedModel]);
@@ -1005,223 +1047,257 @@ export const Viewport: React.FC<ViewportProps> = ({
 
       {/* Right Sidebar - Inspector */}
       <div className="w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl z-30 flex flex-col h-full">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Icon name="tune" className="text-lg text-primary" />
-            Inspector
-          </h2>
-          {/* Global View Mode Toggle */}
-          <button onClick={cycleViewMode} className="flex items-center gap-1.5 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700" title="Toggle View Mode">
-            <div className={`w-2.5 h-2.5 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-800 border-slate-800 dark:bg-slate-200 dark:border-slate-200' : 'border-slate-400'}`}></div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase">{viewMode}</span>
-          </button>
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wide">
+              <Icon name="tune" className="text-base text-primary" />
+              Inspector
+            </h2>
+            {/* Global View Mode Toggle */}
+            <button onClick={cycleViewMode} className="flex items-center gap-1.5 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700" title="Toggle View Mode">
+              <div className={`w-2 h-2 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-800 border-slate-800 dark:bg-slate-200 dark:border-slate-200' : 'border-slate-400'}`}></div>
+              <span className="text-[9px] font-bold text-slate-500 uppercase">{viewMode}</span>
+            </button>
+          </div>
+
+          {/* TAB SWITCHER */}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('properties')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded transition-all text-[10px] font-bold uppercase ${activeTab === 'properties'
+                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+            >
+              <Icon name="list" className="text-sm" /> Properties
+            </button>
+            <button
+              onClick={() => setActiveTab('modifiers')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded transition-all text-[10px] font-bold uppercase ${activeTab === 'modifiers'
+                ? 'bg-white dark:bg-slate-700 text-purple-500 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+            >
+              <Icon name="extension" className="text-sm" /> Modifiers
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
 
           {selectedModel ? (
-            <>
-              {/* Model Info Section */}
-              <section>
-                <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Model Information
-                </div>
-                <ModelInfoPanel
-                  model={selectedModel}
-                  adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
-                />
-              </section>
-
-              {/* Transform Section */}
-              {!isAdvancedSliceMode && (
+            activeTab === 'modifiers' ? (
+              <ModifiersPanel
+                model={selectedModel}
+                patterns={patterns}
+                onSavePattern={onSavePattern}
+                onDeletePattern={onDeletePattern}
+                onUpdateModifiers={(mods) => onUpdateModifiers && onUpdateModifiers(mods)}
+              />
+            ) : (
+              <>
+                {/* Model Info Section */}
                 <section>
-                  <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Transform
+                  <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Model Information
                   </div>
+                  <ModelInfoPanel
+                    model={selectedModel}
+                    adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
+                  />
+                </section>
 
-                  <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-1 mb-3">
-                    <div className="grid grid-cols-4 gap-1">
-                      {[
-                        { id: 'translate', icon: 'open_with', label: 'Move' },
-                        { id: 'rotate', icon: 'rotate_right', label: 'Rotate' },
-                        { id: 'scale', icon: 'aspect_ratio', label: 'Scale' },
-                        { id: 'modify', icon: 'build', label: 'Tools' },
-                      ].map(tool => (
-                        <button
-                          key={tool.id}
-                          onClick={() => setObjectTool(tool.id as ObjectTool)}
-                          className={`flex flex-col items-center justify-center py-2 rounded-lg transition-all ${objectTool === tool.id
-                            ? 'bg-white dark:bg-slate-700 shadow-sm text-primary ring-1 ring-slate-200 dark:ring-slate-600'
-                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
-                          title={tool.label}
-                        >
-                          <Icon name={tool.icon} className="text-xl mb-0.5" />
-                        </button>
-                      ))}
+                {/* Transform Section */}
+                {!isAdvancedSliceMode && (
+                  <section>
+                    <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Transform
                     </div>
-                  </div>
 
-                  {/* Transform Inputs */}
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-                    {objectTool === 'modify' ? (
-                      <div className="flex flex-col gap-4">
-                        {/* Arrange Section */}
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-2">
-                            <Icon name="grid_view" className="text-sm" /> Arrange Models
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={arraySpacing}
-                              onChange={(e) => setArraySpacing(parseFloat(e.target.value) || 0)}
-                              className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary outline-none"
-                              placeholder="Spacing (mm)"
-                            />
+                    <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 mb-2">
+                      <div className="grid grid-cols-4 gap-0.5">
+                        {[
+                          { id: 'translate', icon: 'open_with', label: 'Move' },
+                          { id: 'rotate', icon: 'rotate_right', label: 'Rotate' },
+                          { id: 'scale', icon: 'aspect_ratio', label: 'Scale' },
+                          { id: 'modify', icon: 'build', label: 'Tools' },
+                        ].map(tool => (
+                          <button
+                            key={tool.id}
+                            onClick={() => setObjectTool(tool.id as ObjectTool)}
+                            className={`flex flex-col items-center justify-center py-1.5 rounded-lg transition-all ${objectTool === tool.id
+                              ? 'bg-white dark:bg-slate-700 shadow-sm text-primary ring-1 ring-slate-200 dark:ring-slate-600'
+                              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            title={tool.label}
+                          >
+                            <Icon name={tool.icon} className="text-lg mb-0.5" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Transform Inputs */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+                      {objectTool === 'modify' ? (
+                        <div className="flex flex-col gap-3">
+                          {/* Arrange Section */}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-2">
+                              <Icon name="grid_view" className="text-sm" /> Arrange Models
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={arraySpacing}
+                                onChange={(e) => setArraySpacing(parseFloat(e.target.value) || 0)}
+                                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary outline-none"
+                                placeholder="Spacing (mm)"
+                              />
+                              <button
+                                onClick={() => onArrayModels(arraySpacing)}
+                                className="h-[30px] px-3 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-all"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="h-px bg-slate-100 dark:bg-slate-700/50"></div>
+
+                          {/* Quick Actions */}
+                          <div className="grid grid-cols-1 gap-2">
                             <button
-                              onClick={() => onArrayModels(arraySpacing)}
-                              className="h-[34px] px-4 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded transition-all"
+                              onClick={() => selectedModelId && onCloneModel(selectedModelId)}
+                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
                             >
-                              Apply
+                              <Icon name="content_copy" className="text-xs" /> Duplication
+                            </button>
+                            <button
+                              onClick={() => selectedModelId && onTransformChange(selectedModelId, { ...selectedModel.transform, position: { x: 0, y: 0, z: 0 } })}
+                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Icon name="center_focus_strong" className="text-xs" /> Center to Build Plate
+                            </button>
+                            <button
+                              onClick={() => setObjectTool('orient')}
+                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                            >
+                              <Icon name="vertical_align_bottom" className="text-xs" /> Orient Face to Bed
                             </button>
                           </div>
                         </div>
-
-                        <div className="h-px bg-slate-100 dark:bg-slate-700/50"></div>
-
-                        {/* Quick Actions */}
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={() => selectedModelId && onCloneModel(selectedModelId)}
-                            className="w-full py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-xs font-bold rounded transition-colors flex items-center justify-center gap-2"
-                          >
-                            <Icon name="content_copy" className="text-sm" /> Duplication
-                          </button>
-                          <button
-                            onClick={() => selectedModelId && onTransformChange(selectedModelId, { ...selectedModel.transform, position: { x: 0, y: 0, z: 0 } })}
-                            className="w-full py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-xs font-bold rounded transition-colors flex items-center justify-center gap-2"
-                          >
-                            <Icon name="center_focus_strong" className="text-sm" /> Center to Build Plate
-                          </button>
-                          <button
-                            onClick={() => setObjectTool('orient')}
-                            className="w-full py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-xs font-bold rounded transition-colors flex items-center justify-center gap-2"
-                          >
-                            <Icon name="vertical_align_bottom" className="text-sm" /> Orient Face to Bed
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {/* Quick Uniform Toggle for Scale */}
-                        {objectTool === 'scale' && (
-                          <div className="flex items-center justify-end mb-2">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                              <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform Scaling</span>
-                              <div className={`w-4 h-4 border rounded flex items-center justify-center transition-colors ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
-                                {uniformScale && <Icon name="check" className="text-[12px] text-white font-bold" />}
-                              </div>
-                              <input type="checkbox" className="hidden" checked={uniformScale} onChange={(e) => setUniformScale(e.target.checked)} />
-                            </label>
-                          </div>
-                        )}
-
-                        {['x', 'y', 'z'].map((axis) => {
-                          const value = objectTool === 'translate'
-                            ? selectedModel.transform.position[axis as 'x' | 'y' | 'z']
-                            : objectTool === 'rotate'
-                              ? selectedModel.transform.rotation[axis as 'x' | 'y' | 'z']
-                              : selectedModel.transform.scale[axis as 'x' | 'y' | 'z'];
-
-                          return (
-                            <div key={axis} className="flex items-center gap-2 group">
-                              <div className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">
-                                {axis}
-                              </div>
-                              <div className="relative flex-1">
-                                <input
-                                  type="number"
-                                  step={objectTool === 'rotate' ? 15 : objectTool === 'scale' ? 0.1 : 1}
-                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-right text-sm font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all"
-                                  value={value !== undefined ? Number(value).toFixed(objectTool === 'scale' ? 2 : 1) : 0}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
-                                    if (isNaN(val)) return;
-
-                                    const newTransform = { ...selectedModel.transform };
-                                    if (objectTool === 'translate') newTransform.position = { ...newTransform.position, [axis]: val };
-                                    if (objectTool === 'rotate') newTransform.rotation = { ...newTransform.rotation, [axis]: val };
-                                    if (objectTool === 'scale') {
-                                      if (uniformScale) {
-                                        newTransform.scale = { x: val, y: val, z: val };
-                                      } else {
-                                        newTransform.scale = { ...newTransform.scale, [axis]: val };
-                                      }
-                                    }
-
-                                    onTransformChange(selectedModel.id, newTransform);
-                                  }}
-                                />
-                                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 pointer-events-none">
-                                  {objectTool === 'rotate' ? 'deg' : objectTool === 'scale' ? 'x' : 'mm'}
-                                </span>
-                              </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {/* Quick Uniform Toggle for Scale */}
+                          {objectTool === 'scale' && (
+                            <div className="flex items-center justify-end mb-1">
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform Scaling</span>
+                                <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
+                                  {uniformScale && <Icon name="check" className="text-[10px] text-white font-bold" />}
+                                </div>
+                                <input type="checkbox" className="hidden" checked={uniformScale} onChange={(e) => setUniformScale(e.target.checked)} />
+                              </label>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          )}
+
+                          {['x', 'y', 'z'].map((axis) => {
+                            const value = objectTool === 'translate'
+                              ? selectedModel.transform.position[axis as 'x' | 'y' | 'z']
+                              : objectTool === 'rotate'
+                                ? selectedModel.transform.rotation[axis as 'x' | 'y' | 'z']
+                                : selectedModel.transform.scale[axis as 'x' | 'y' | 'z'];
+
+                            return (
+                              <div key={axis} className="flex items-center gap-2 group">
+                                <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase">
+                                  {axis}
+                                </div>
+                                <div className="relative flex-1">
+                                  <input
+                                    type="number"
+                                    step={objectTool === 'rotate' ? 15 : objectTool === 'scale' ? 0.1 : 1}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 pr-6 text-right text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all appearance-none"
+                                    value={value !== undefined ? Number(value).toFixed(objectTool === 'scale' ? 2 : 1) : ''}
+                                    placeholder="0.0"
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      if (isNaN(val)) return;
+
+                                      const newTransform = { ...selectedModel.transform };
+                                      if (objectTool === 'translate') newTransform.position = { ...newTransform.position, [axis]: val };
+                                      if (objectTool === 'rotate') newTransform.rotation = { ...newTransform.rotation, [axis]: val };
+                                      if (objectTool === 'scale') {
+                                        if (uniformScale) {
+                                          newTransform.scale = { x: val, y: val, z: val };
+                                        } else {
+                                          newTransform.scale = { ...newTransform.scale, [axis]: val };
+                                        }
+                                      }
+
+                                      onTransformChange(selectedModel.id, newTransform);
+                                    }}
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-medium pointer-events-none select-none bg-transparent">
+                                    {objectTool === 'rotate' ? '°' : objectTool === 'scale' ? 'x' : 'mm'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
+
+                {/* Cross Section Analysis */}
+                <section>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <Icon name="layers" className="text-xs" /> Cross-Section
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
+                      <div className="w-7 h-4 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
                   </div>
+
+                  {isClipping && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2 border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex justify-between items-baseline mb-2">
+                        <span className="text-[10px] text-slate-500 font-medium">Cut Height</span>
+                        <span className="font-mono text-primary font-bold text-xs">{clippingHeight.toFixed(1)}mm</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="150"
+                        step="0.1"
+                        value={clippingHeight}
+                        onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-400 mt-1 font-mono">
+                        <span>0mm</span>
+                        <span>150mm</span>
+                      </div>
+                    </div>
+                  )}
                 </section>
-              )}
-            </>
+              </>
+            )
           ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-              <Icon name="inbox" className="text-4xl mb-2 opacity-50" />
-              <span className="text-xs font-medium">No Model Selected</span>
+            <div className="flex flex-col items-center justify-center h-32 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+              <Icon name="inbox" className="text-3xl mb-1 opacity-50" />
+              <span className="text-[10px] font-medium">No Model Selected</span>
             </div>
           )}
-
-          <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
-
-          {/* Cross Section Analysis */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <Icon name="layers" className="text-sm" /> Cross-Section
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
-                <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
-
-            {isClipping && (
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
-                <div className="flex justify-between items-baseline mb-2">
-                  <span className="text-[10px] text-slate-500 font-medium">Cut Height</span>
-                  <span className="font-mono text-primary font-bold">{clippingHeight.toFixed(1)}mm</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="150"
-                  step="0.1"
-                  value={clippingHeight}
-                  onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
-                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-                  <span>0mm</span>
-                  <span>150mm</span>
-                </div>
-              </div>
-            )}
-          </section>
-
         </div>
       </div>
-    </main>
+    </main >
   );
 };

@@ -84,10 +84,8 @@ Ejemplo para L=40mm: distancia=78.5mm, lado largo=71.1mm, pixel=55.5µm
 dlp3-main/
 ├── server.py                    # Flask server principal (PC)
 ├── print_manager.py             # Gestión de impresión y calibración
-├── calibrate_irradiance.py      # Calibración por PWM (legacy)
 ├── calibrate_grayscale.py       # Calibración por escala de grises ✅ NUEVO
 ├── test_projection.py           # Test rápido del proyector
-├── calibration.json             # Datos calibración PWM (legacy)
 ├── calibration_gray.json        # Datos calibración greyscale ✅ NUEVO
 ├── _deploy_projector_info.py    # Script de despliegue a RPi
 ├── fetch_logs.py                # Obtener logs del servicio RPi
@@ -202,34 +200,44 @@ El DMD es binario (espejo ON/OFF). Los 256 niveles se logran dividiendo cada fra
 
 ## Etapas Pendientes 🔜
 
-### 6. Integrar Greyscale en PrintManager ✅
+### 7. Estabilización y Robustez (16 Feb 2026) ✅
+- **Imágenes Estáticas 2K**: Se sustituye la generación en tiempo real (PIL) por 256 imágenes pre-renderizadas (`gray_scales/0.png` a `255.png`) a resolución nativa **2560x1440**. Eliminando glitches y carga de CPU.
+- **Limpieza de Pantalla Rápida**: Implementado `clear_screen_fast()` que usa SPI directo para borrar el buffer (negro) en milisegundos, reemplazando el comando de registro lento que causaba timeouts.
+- **Persistencia de Pines**: Eliminado `GPIO.cleanup()` destructivo en rutinas de standby, permitiendo sesiones continuas de impresión/calibración sin reiniciar el servicio.
+- **Cancelación Real**: Botón OFF en UI ahora aborta peticiones en vuelo (`AbortController`) y apaga instantáneamente.
+
+---
+
+## Etapas Pendientes 🔜
+
+### 8. Integrar Greyscale en PrintManager ✅
 - `CalibrationManager` ahora carga `calibration_gray.json` por defecto.
 - Implementado `get_gray_for_irradiance(target_mw)` con interpolación lineal.
 - Soporte para mezcla de imágenes en tiempo real durante la impresión.
 
-### 7. Flujo de Impresión Greyscale ✅
+### 9. Flujo de Impresión Greyscale ✅
 - Implementado en el lado del PC (`PrintManager`) para maximizar rendimiento y evitar complejidad en RPi.
 - El servidor RPi recibe la imagen final ya procesada (pixel values 0-255).
 - Soporte para "Composite Layers": mezcla automática de objetos con diferente irradiancia en la misma capa física.
 - Irradiancia variable controlada por píxel (Dose Control).
 
-### 8. Slicer con Soporte Greyscale ✅
+### 10. Slicer con Soporte Greyscale ✅
 - `server.py` modificado para generar "Composite Layers" en lugar de secuencias.
 - Detecta y agrupa objetos por irradiancia.
 - Genera un manifiesto de trabajo (`job.json`) con metadatos `sources` para fusión en tiempo de impresión.
 - Endpoint de visualización `/layer/<name>` mezcla dinámicamente las capas para preview en Frontend.
 
-### 9. Calibración Fina (Pendiente de montaje robusto)
+### 11. Calibración Fina (Pendiente de montaje robusto)
 - Calibración de 1 en 1 (255 puntos) cuando el sensor tenga anclaje fijo
 - Eliminará los picos de ruido por vibración
 - Generar tabla definitiva para producción
 
-### 10. Compensación de Uniformidad Óptica
+### 12. Compensación de Uniformidad Óptica
 - Medir la distribución de irradiancia en el plano focal
 - Crear mapa de corrección por píxel
 - Asegurar dosis uniforme en toda la superficie de impresión
 
-### 11. Frontend (React con Vite)
+### 13. Frontend (React con Vite)
 - **Framework**: React 18 + TypeScript + Vite
 - **Estilos**: TailwindCSS
 - **3D Engine**: React Three Fiber (Three.js)
@@ -238,7 +246,7 @@ El DMD es binario (espejo ON/OFF). Los 256 niveles se logran dividiendo cada fra
   - `Model`: Renderizado de STLs con shaders personalizados para visualización de capas.
   - `Slicer`: Lógica de corte en cliente/servidor.
 
-### 12. Investigación de Patrones Nativos (Hardware) 🔍
+### 14. Investigación de Patrones Nativos (Hardware) 🔍
 El controlador DLPC1438 y la FPGA tienen capacidades integradas para generar patrones de prueba sin enviar datos por SPI.
 - **Objetivo**: Encontrar el comando para mostrar una **retícula (Grid)** nativa.
 - **Pista**: El registro `0x67` controla el generador de patrones.
@@ -246,25 +254,28 @@ El controlador DLPC1438 y la FPGA tienen capacidades integradas para generar pat
   - Byte 2: ID del patrón (actualmente se usa `0x0B` en `test_FPGA`).
 - **Acción**: Iterar valores del Byte 2 (`0x01`, `0x02`...) para identificar patrones útiles (Grid, Checkerboard, Full White) que sirvan para enfoque y calibración óptica sin depender de la RPi.
 
-### 13. Arquitectura de Interfaz (Viewport)
-El diseño se ha consolidado en una estructura de "Single Screen App" para maximizar el área de trabajo 3D.
+### 15. Arquitectura de Interfaz (Viewport)
+El diseño se ha consolidado en una estructura de **Tres Columnas** para maximizar el área de trabajo 3D y organizar lógicamente los controles:
 
-#### Canvas Area
-- Ocupa el espacio central/izquierdo.
-- Contiene el `BuildPlate` y los modelos 3D.
-- **Camera Bar**: Pill flotante inferior con accesos rápidos (ISO, TOP, FNT, RGT).
+1.  **Panel Izquierdo (Gestor de Escena)**:
+    - Lista de objetos cargados.
+    - Configuración Global de Impresión (Capa, Adhesión).
+    - Botón de Acción Principal (SLICE).
 
-#### Inspector (Sidebar Derecho)
-Panel fijo de 320px (`w-80`) que centraliza toda la manipulación:
-1.  **Header**: Control global de modo de vista (Solid/Wireframe).
-2.  **Model Info**: Tarjeta con metadatos del objeto seleccionado (Dimensiones, Settings).
-3.  **Transform Tools**:
-    - Selectores para Translate, Rotate, Scale.
-    - Inputs numéricos precisos.
-    - Herramientas de modificación: Arrange, Clone, Center.
-4.  **Cross-Section**: Slider para inspección de capas internas (Clipping Plane).
+2.  **Canvas Central (Viewport 3D)**:
+    - Ocupa el espacio restante flexible.
+    - Contiene el `BuildPlate` y los modelos 3D.
+    - **Camera Bar**: Pill flotante inferior con accesos rápidos (ISO, TOP, FNT, RGT).
 
-### 14. Actualización de Hardware (Futuro) 🔮
+3.  **Panel Derecho (Inspector)**:
+    - Panel fijo de 320px (`w-80`) para propiedades de selección.
+    - **Contextual**: Solo muestra información si hay un objeto seleccionado.
+    - **Funciones**:
+        - **Model Info**: Metadatos, Dosis, Tiempo.
+        - **Transform Tools**: Posición, Rotación, Escala.
+        - **Cross-Section**: Herramienta de corte visual.
+
+### 16. Actualización de Hardware (Futuro) 🔮
 Para mejorar la robustez y simplificar la electrónica, se planea una migración de hardware:
 
 
@@ -304,9 +315,9 @@ Para mejorar la robustez y simplificar la electrónica, se planea una migración
 ### Calibración
 | Método | Endpoint | Descripción | Body |
 |--------|----------|-------------|------|
-| POST | `/calibration/setup` | Setup inicial | `{"pwm": 700, "mode": "grayscale"}` |
+| POST | `/calibration/setup` | Setup inicial (Fast, no clear) | `{"pwm": 700, "mode": "grayscale"}` |
 | POST | `/calibration/pwm` | Cambiar PWM (legacy) | `{"pwm": 350}` |
-| POST | `/calibration/gray` | Cambiar gray value | `{"gray": 128}` |
+| POST | `/calibration/gray` | Cargar img estática (0-255.png) | `{"gray": 128}` |
 
 ### Motor
 | Método | Endpoint | Descripción | Body |
@@ -378,23 +389,163 @@ Condiciones: PWM=700, SPI=30MHz, distancia=fija, sensor Arduino
 
 ---
 
-## Despliegue
+### 21. Nota sobre Portabilidad y Entorno Virtual (`.venv`) ⚠️
 
-Para desplegar cambios a la RPi:
-```bash
-python _deploy_projector_info.py
-```
+Al trabajar con este proyecto desde un **disco externo en diferentes PCs**, es fundamental tener en cuenta:
 
-Archivos desplegados (definidos en `_deploy_projector_info.py`):
-- `rpi_node/server.py`
-- `rpi_node/projector_driver.py`
-- `rpi_node/focus_pattern.py`
-- `rpi_node/off.py`
-- `Controller/src/UV_projector/controller.py`
-- `rpi_node/calibracion.png`
-
-El script también reinicia el servicio `dlp3-rpi` automáticamente.
+- **Entorno Virtual No Portable**: La carpeta `.venv` contiene rutas absolutas al ejecutable de Python del sistema donde se creó. Si la letra de la unidad cambia (ej. de `E:` a `D:`) o la ruta de instalación de Python es distinta en el segundo PC, el entorno **fallará**.
+- **Solución**: Si encuentras errores de "Python no encontrado" o librerías faltantes al cambiar de PC, la solución más rápida es borrar la carpeta `.venv` y recrearla:
+  ```bash
+  rmdir /s /q .venv
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
+- **Contexto de IA**: La "memoria" de Antigravity reside en el PC local. Al cambiar de máquina, lo primero que debes hacer es pedirle al agente que lea este archivo (`ARCHITECTURE.md`) para que se ponga al día con el estado actual del código en el disco externo.
 
 ---
 
-*Última actualización: 16 de Febrero de 2026*
+*Última actualización: 18 de Febrero de 2026 (Nota de Portabilidad y Estabilidad)*
+
+### 3D Pattern Engine Architecture
+## Overview
+The Pattern Engine applies procedural textures to 3D model slices.
+Key features implemented:
+1. **Spongy Bone (Trabecular) Pattern**:
+   - Replaces Voronoi for performance and biomimetic accuracy.
+   - Uses **Gradient Noise & Thresholding** instead of geometric cells.
+   - **3D Morphing**: Uses keyframe-based noise interpolation (morphing) every ~20 layers to create continuous, interconnected 3D structures (no diagonal tubes).
+   - **Caching**: Extremely fast generation by caching raw noise fields and masks.
+   
+2. **Performance Improvements**:
+   - `cv2.resize` with linear interpolation for smooth upscale.
+   - `uint8` image processing to support full grayscale range (Phantom mode).
+   - **Mask Caching**: Stores 2D logical masks to avoid re-computation.
+
+3. **Frontend Integration**:
+   - **Visual Preview**: `PatternPreview.tsx` updated with custom GLSL noise shader to match backend output.
+   - **Control**: Exposed Cell Size (Granularity) and Gray Levels (Matrix/Cell colors).
+   - **Data Flow**: `apply_modifiers` receives full layer context (`z_index`) for 3D generation.
+
+4. **Current Status (Pending Debug)**:
+   - Backend logic is verified to produce distinct gray values (e.g., [0, 125, 150]).
+   - Frontend preview is aligned.
+   - **Issue**: User reports persistent "Black & Gray" output despite configuration changes. Requires clean restart/cache clear to verify fix.
+
+## Modifiers Pipeline
+1. **Slice**: PrusaSlicer generates base PNGs.
+2. **Filter**: Server identifies layers with active descriptors.
+3. **PatternEngine**:
+   - Loads base image.
+   - Generates/Retrieves 3D Noise Mask for current Z.
+   - Applies Shell/Core logic using morphological erosion.
+   - Composes final image using User-Defined Grays (Matrix/Cell).
+   - Returns optimized PNG.
+
+#### Concepto
+Permite controlar la densidad y porosidad del material impreso mediante:
+1.  **Separación Shell/Core**: Definición de un perímetro sólido y un interior con patrón.
+2.  **Patrones Procedurales**: Generación matemática de tramas (Grid, Checkerboard, Gradient) en el núcleo.
+3.  **Control de Grises (Dosis)**: Asignación independiente de valores de irradiancia (0-255) para la cáscara y el núcleo.
+
+#### Implementación Frontend (React)
+- **ModifiersPanel**: Nuevo componente en el `UnifiedInspector` (Pestaña "Modifiers").
+- **Interfaz de Usuario**:
+    - Selectores para Tipo de Modificador (actualmente "Shell/Core").
+    - Inputs para `Shell Thickness` (mm), `Cell Size` (mm) y `Density` (0-1).
+    - Sliders para `Shell Gray` y `Core Gray`.
+- **Estructura de Datos**:
+    - Se añade el campo `modifiers: Modifier[]` a la interfaz `SceneObject`.
+    - Estos datos se envían al backend dentro del payload de `slice_scene`.
+
+#### Implementación Backend (Python)
+- **Módulo `PatternEngine` (`pattern_engine.py`)**:
+    - Motor de procesamiento de imagen basado en **NumPy** y **OpenCV** (o SciPy).
+    - **`generate_shell_core_mask`**: Usa erosión morfológica (`cv2.erode`) para determinar la región del núcleo basándose en el espesor de pared solicitado.
+    - **`generate_pattern_mask`**: Genera máscaras booleanas para patrones:
+        - *Checkerboard*: Tablero de ajedrez basado en coordenadas de píxel.
+        - *Grid*: Retícula de líneas con grosor variable según densidad.
+        - *Gradient*: Degradados lineales o radiales.
+    - **`apply_modifiers`**: Función principal que toma la imagen binaria de la capa (slice), aplica las máscaras y compone la imagen final en escala de grises.
+        - `Pixel Final = (ShellMask * ShellGray) + (CoreMask * PatternMask * CoreGray)`
+
+#### Integración en el Slicer
+- En `server.py`, la función `slice_scene` ahora extrae la lista de modificadores de cada modelo.
+- Durante la generación de capas (ya sea en `manifest` o `layer_file`), se invoca al `PatternEngine` para procesar la imagen RAW del slice antes de guardarla o enviarla a imprimir.
+- Esto permite que cada capa tenga información compleja de píxeles (0-255) más allá de la simple geometría booleana.
+
+### 18. Librería de Patrones y Modificaciones por Segmento (17 Feb 2026 - Tarde) ✅
+
+Se ha evolucionado el sistema de modificadores hacia una arquitectura de **Librería de Patrones** persistente, permitiendo la creación de estructuras complejas reutilizables y su aplicación granular por regiones de altura (Z).
+
+#### Refactorización del Diseñador de Patrones
+- **Diseñador Persistente**: La pestaña "Modifiers" ahora actúa como un **Pattern Designer** independiente. Los patrones se crean, previsualizan en tiempo real (WebGL) y se guardan con nombre en el almacenamiento local del navegador (`LocalStorage`).
+- **Previsualización de Alto Rendimiento**: Refactorización del componente `PatternPreview` para usar **Shaders de WebGL**. Esto permite renderizar patrones de Voronoi y degradados complejos a 60fps, facilitando el diseño interactivo.
+- **Parámetros de Alta Precisión**: Soporte para control sub-milimétrico (`0.001mm` de grosor de pared en Voronoi), esencial para aplicaciones de micro-bioimpresión.
+
+#### Aplicación Granular por Segmento (Z-Region)
+- **Modificadores por Tramo**: En el modo "Advanced Slice", los usuarios pueden asignar patrones diferentes a cada tramo de altura definido. 
+- **Integración en `LayersPanel`**: Se ha añadido un acordeón de "Pattern Library" que permite arrastrar o seleccionar patrones para aplicarlos a modelos globales o segmentos específicos.
+- **Lógica de Composición por Segmento**:
+    ```json
+    {
+      "topLimit": 10.0,
+      "exposureTime": 2.5,
+      "modifiers": [ { "core_pattern": "voronoi", "voronoi_cell_size": 0.1 } ]
+    }
+    ```
+- **Fusión en Backend**: El servidor de corte (`server.py`) y el motor de patrones (`pattern_engine.py`) ahora procesan modificadores a nivel de segmento, permitiendo que un solo objeto STL cambie de estructura interna (ej. de sólido a poroso) a medida que crece en Z.
+
+#### Flujo de Datos Actualizado
+1. **Frontend**: Se definen los patrones -> Se guardan en la librería.
+2. **Setup de Escena**: Se asocian patrones a Modelos o a `SliceSegments`.
+3. **Slicing**: El payload de `slice_scene` incluye los modificadores anidados en cada segmento.
+4. **Processing**: El backend genera máscaras por cada capa física basándose en el segmento activo, aplicando la irradiancia y el patrón correspondiente.
+
+### 19. Sistema de Coordenadas Universales y Auto-Grounding (18 Feb 2026) ✅
+
+Se ha implementado una arquitectura de transformaciones desacopladas para garantizar que el sistema de coordenadas de la interfaz sea intuitivo ("Z-Up") y que las piezas mantengan su integridad respecto a la cama de impresión.
+
+#### Jerarquía de Transformación "Universal"
+Para resolver el problema donde el escalado seguía la orientación local de la pieza (causando que al rotar una pieza, el eje "Z" se inclinara con ella), se ha reestructurado el componente `Model` en una jerarquía de grupos anidados:
+1.  **PosGroup (Posición Universal)**: Maneja la ubicación absoluta en el volumen (X, Y para cama, Z para altura).
+2.  **ScaleGroup (Escalado Universal)**: Este grupo envuelve a la rotación. Al escalar aquí, la pieza se estira siempre respecto a los ejes de la impresora (Ancho/Fondo/Alto), independientemente de cómo esté rotada internamente.
+3.  **RotGroup (Rotación Local)**: Permite orientar la pieza libremente sin afectar a la lógica de escalado anterior.
+
+#### Mapeo de Ejes Sincronizado
+Se ha unificado el criterio de ejes en toda la stack (UI -> 3D -> Slicer):
+- **X (Ancho)**: Lado a lado de la cama.
+- **Y (Profundidad)**: De adelante hacia atrás (Mapeado a Eje-Z de Three.js).
+- **Z (Altura/Vertical)**: De la cama al techo (Mapeado a Eje-Y de Three.js).
+
+#### Lógica de Grounding Proactiva (Auto-Snap)
+Se ha eliminado la dependencia de ciclos de renderizado para el asentado de piezas:
+- **Cálculo Matemático Directo**: La función `adjustPositionToFloor` ahora calcula el punto más bajo del objeto mediante álgebra matricial (proyectando el bounding box de la geometría contra la escala y rotación actuales) antes de actualizar el estado.
+- **Snap Instantáneo**: Las piezas se adhieren automáticamente a `Z=0` durante cualquier operación de:
+    - Carga de archivo.
+    - Cambio de orientación (Orient Face to Bed).
+    - Reescalado (específicamente importante en escalados no uniformes).
+- **Sincronización de UI**: Se fuerza la actualización de matrices (`updateMatrixWorld(true)`) desde la raíz de la jerarquía antes de reportar el tamaño al panel derecho, eliminando el lag visual en las medidas de selección.
+
+### 20. Calibración Óptica y Estabilidad del Proyector (18 Feb 2026 - Tarde) ✅
+
+Se ha optimizado el sistema de calibración manual para garantizar una proyección de luz estable (flicker-free) y se ha ampliado la lógica de patrones procedimentales tanto en el frontend como en el backend.
+
+#### Optimización de Estabilidad (Anti-Flicker)
+- **Gestión Inteligente de Modos**: El `ProjectorDriver` ahora lee el estado actual del hardware antes de intentar cambiar de modo. Si el proyector ya está en `EXTERNALPRINT`, se omite el cambio de modo (que causa un blackout de 0.4s) y solo se actualiza el PWM, eliminando parpadeos durante bucles de calibración.
+- **Carga Silenciosa de Buffers**: Rediseño de `clear_screen_fast` y `display_image` para preparar el buffer inactivo sin forzar el intercambio (`swap`) hasta que la imagen esté lista, evitando destellos negros intermedios.
+- **Sincronización de Hardware**: Ajuste de `dark_frames=5` y control manual de exposición infinita (`-1`) para permitir que el secuenciador del DLPC1438 estabilice los datos SPI antes de encender la luz UV.
+
+#### Calibración con Rejilla (Grid Mode)
+- **Integración de Patrones de Enfoque**: Soporte para proyectar una imagen de malla (`grid_calibration.png`) directamente desde la herramienta de calibración manual.
+- **Lógica de Conmutación**: El endpoint `/calibration/gray` ahora acepta valores numéricos (0-255) para niveles de irradiancia o la clave `"grid"` para herramientas de geometría/enfoque.
+- **Conversión Forzada**: El módulo `img_convert.py` ahora fuerza la conversión a 8-bit Grayscale (`L`) en todas las imágenes subidas, garantizando compatibilidad con el formato SPI independientemente del origen del archivo.
+
+#### Corrección del Motor de Patrones (Slicer)
+- **Soporte para Advanced Slice**: Se ha corregido la lógica de aplicación de modificadores en `server.py`. El sistema ahora mapea correctamente los `override_ranges` definidos por el usuario a cada capa física del archivo SL1.
+- **Manejo de Tipos de Datos**: El `PatternEngine` ahora inicializa las imágenes finales como `np.uint8` de forma explita, resolviendo problemas de pérdida de datos en el procesamiento de patrones complejos (Voronoi/Spongy).
+- **Consistencia ZIP**: Restaurada la lógica de reconstrucción de archivos `.sl1` para asegurar que las imágenes procesadas se reinserten correctamente sin corromper el metadato del trabajo.
+
+---
+
+*Última actualización: 18 de Febrero de 2026 (Calibración Óptica y Estabilidad)*

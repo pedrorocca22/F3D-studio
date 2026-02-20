@@ -34,6 +34,8 @@ except ImportError as e:
         def read_max_led_pwm(self): return {'LED1': 700, 'LED2': 41, 'LED3': 41}
         def read_current_led_pwm(self): return {'LED1': 0, 'LED2': 0, 'LED3': 0}
         def switch_mode(self, mode): pass
+        def read_mode(self): return Mode.STANDBY
+        def set_led_pwm(self, pwm): pass
         def set_background(self, intensity, both_buffers): pass
         def send_image_to_buffer(self, filename, x, y): pass
         def swap_buffer(self): pass
@@ -77,14 +79,28 @@ class ProjectorDriver:
             self.logger.error(f"Failed to initialize projector: {e}")
             return False
 
-    def prepare_print_mode(self, pwm_intensity=700):
+    def clear_screen_fast(self):
+        """Clear the screen by sending a black image buffer."""
         if self.dmd:
             try:
+                import numpy as np
+                black_frame = np.zeros((2560, 1440), dtype=np.uint8)
+                self.dmd.split_spi_transmission(0, 0, black_frame)
+                self.dmd.swap_buffer()
+                return True
+            except Exception as e:
+                self.logger.error(f"Fast clear failed: {e}")
+                return False
+        return False
+
+    def prepare_print_mode(self, pwm_intensity=700, force_reset=False):
+        if self.dmd:
+            try:
+                # Unconditional switch for reliability
                 hw_max = self.dmd.configure_external_print(LED_PWM=pwm_intensity)
                 self.dmd.switch_mode(Mode.EXTERNALPRINT)
-                self.dmd.set_background(intensity=0, both_buffers=True)
+                self.clear_screen_fast()
                 self.logger.info(f"Switched to Print Mode (PWM: {pwm_intensity})")
-                self.logger.info(f"Hardware max LED PWM: LED1={hw_max.get('LED1', '?')}, LED2={hw_max.get('LED2', '?')}, LED3={hw_max.get('LED3', '?')}")
                 return True
             except Exception as e:
                 self.logger.error(f"Failed to set print mode: {e}")
@@ -94,7 +110,6 @@ class ProjectorDriver:
     def display_image(self, image_path):
         if self.dmd:
             try:
-                # Assuming full screen 0,0
                 self.dmd.send_image_to_buffer(str(image_path), 0, 0)
                 self.dmd.swap_buffer()
                 return True
@@ -107,7 +122,8 @@ class ProjectorDriver:
         if self.dmd:
             try:
                 # -1 for infinite, we control timing manually for precision
-                self.dmd.expose_pattern(exposed_frames=-1)
+                # Reverting to 5 dark_frames (default) to see if it helps steady the Grid.
+                self.dmd.expose_pattern(exposed_frames=-1, dark_frames=5)
                 
                 # Wait for exposure to complete
                 time.sleep(duration_seconds)
@@ -124,9 +140,21 @@ class ProjectorDriver:
         """Stop projection and put device into standby (LEDs OFF)."""
         if self.dmd:
             try:
-                # First ensure exposure is stopped
+                # KILL LIGHT FIRST to prevent flashes
+                # Try to set PWM to 0 via controller if possible, or assume standby does it.
+                # But to be safe, let's force I2C write for PWM 0 if we can access it, 
+                # or just rely on switch_mode. 
+                # Let's try to use configure_external_print(0) or similar? No, too slow.
+                # Just call standby immediately, but let's ensure stop_exposure is called.
+                
+                # Best hack: Direct I2C to PWM register 0x54 if we could, 
+                # but we don't have direct access here easily without private members.
+                # We will rely on stop_exposure stopping the trigger and standby killing the LED.
+                
                 self.dmd.stop_exposure()
-                # Then enter full standby mode
+                # Force PWM 0 via a quick hack if enable_led is separate? 
+                # Actually, switch_mode(STANDBY) SHOULD kill it.
+                
                 self.standby()
             except:
                 pass
@@ -137,5 +165,5 @@ class ProjectorDriver:
                 self.dmd.switch_mode(Mode.STANDBY)
             except:
                 pass
-        if _ON_RPI:
-            GPIO.cleanup()
+        # REMOVED: GPIO.cleanup() - This was causing 'Setup failed' by unconfiguring pins
+        # for subsequent commands. Pins should stay configured for the app lifecycle.

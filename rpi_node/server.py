@@ -1,7 +1,8 @@
 
 import os
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
+from PIL import Image
 from motor_driver import MotorDriver
 from projector_driver import ProjectorDriver
 
@@ -9,6 +10,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RPiNode")
 
 app = Flask(__name__)
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
+# Handle preflight OPTIONS requests globally
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def options_handler(path):
+    return add_cors_headers(make_response())
+
 # Global projector instance
 try:
     projector = ProjectorDriver() 
@@ -116,8 +131,9 @@ def calib_setup():
              return jsonify({"error": "Failed to enter print mode"}), 500
 
         if mode == 'grayscale':
-            # For grayscale cal: set white background (gray will be changed per step)
-            projector.dmd.set_background(255, both_buffers=True)
+            # We no longer set background to 255 here to avoid flickering/conflicts
+            # with the solid images loaded in the next step.
+            pass
         else:
             # For PWM cal: load white image
             import os
@@ -135,14 +151,31 @@ def calib_setup():
 
 @app.route('/calibration/gray', methods=['POST'])
 def calib_gray():
-    """Update gray value for all pixels (for grayscale calibration)."""
+    """Update displayed image for calibration (grayscale or grid)."""
     data = request.json
-    gray = int(data.get('gray', 0))
-    gray = max(0, min(255, gray))  # Clamp to 0-255
+    gray = data.get('gray')
+    
     if projector.dmd:
-        projector.dmd.set_background(gray)
-        projector.dmd.swap_buffer()
-        return jsonify({"status": "ok", "gray": gray})
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            if gray == 'grid':
+                filepath = os.path.join(base_dir, 'gray_scales', 'grid_calibration.png')
+                filename = "grid_calibration.png"
+            else:
+                gray_val = int(gray) if gray is not None else 0
+                gray_val = max(0, min(255, gray_val))
+                filepath = os.path.join(base_dir, 'gray_scales', f"{gray_val}.png")
+                filename = f"{gray_val}.png"
+            
+            if os.path.exists(filepath):
+                projector.display_image(filepath)
+                return jsonify({"status": "ok", "image": filename})
+            else:
+                return jsonify({"error": f"Image {filename} missing."}), 404
+                
+        except Exception as e:
+            return jsonify({"error": f"Failed to set image: {str(e)}"}), 500
     return jsonify({"error": "Projector not ready"}), 500
 
 @app.route('/calibration/pwm', methods=['POST'])
@@ -167,46 +200,15 @@ def set_pwm():
         
     try:
         pwm = int(pwm)
-        # Use prepare_print_mode to configure the PWM
-        # This writes to register 0x54 and ensures we are in the right mode
-        success = projector.prepare_print_mode(pwm_intensity=pwm)
-        
-        # Show full white screen to ensure sensor sees the light
-        # We need to ensure a pattern is displayed
-        upload_folder = 'uploads'
-        # Check if we have a white pattern, if not we can generate one or just assume 
-        # the user handles it. But prepare_print_mode sets background to 0 (black).
-        # We should probably set background to full white for calibration measurement?
-        # The user said "ejecute un plano de luz completo".
-        # Let's verify if prepare_print_mode sets background to 0. 
-        # Yes: self.dmd.set_background(intensity=0, both_buffers=True) 
-        
-        # So we must set background to 255 OR display a white image.
-        # Let's set background to 255 (Max intensity) for calibration immediately after.
-        if success and projector.dmd:
-             import os
-             base_dir = os.path.dirname(os.path.abspath(__file__))
-             img_path = os.path.join(base_dir, 'calibracion.png')
-             
-             if os.path.exists(img_path):
-                 try:
-                     projector.dmd.send_image_to_buffer(img_path, 0, 0)
-                     projector.dmd.swap_buffer()
-                     # Exposure will be triggered by a separate call or manually
-                 except Exception as e:
-                     return jsonify({"error": f"Failed to project image: {str(e)}"}), 500
-             else:
-                 return jsonify({"error": "calibracion.png not found on RPi"}), 404
-             
-             # projector.dmd.expose_pattern(exposed_frames=-1) # Already called above
-        
-        return jsonify({
-            "status": "ok" if success else "failed", 
-            "pwm": pwm,
-            "hw_limited": pwm > 700 # Just a hint, real limit is in logs
-        })
-    except ValueError:
-        return jsonify({"error": "pwm must be an integer"}), 400
+        if projector.dmd:
+             # Fast PWM update without reloading mode or images
+             projector.dmd.set_led_pwm(pwm)
+             return jsonify({
+                "status": "ok", 
+                "pwm": pwm,
+                "hw_limited": pwm > 700
+            })
+        return jsonify({"error": "Projector not ready"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -234,6 +236,37 @@ def projector_info():
         except Exception as e:
             info["current_pwm_error"] = str(e)
     return jsonify(info)
+
+@app.route('/i2c/write', methods=['POST'])
+def i2c_write():
+    """Low-level I2C write for debugging."""
+    try:
+        data = request.json
+        reg = int(data.get('reg', 0))
+        dataset = data.get('data', [])
+        if projector.dmd:
+             # Access private method for debug/test purposes 
+             # (Python allows this, though it's technically private)
+             projector.dmd._DLPC1438__i2c_write(reg, dataset)
+             return jsonify({"status": "ok", "reg": hex(reg), "data": [hex(x) for x in dataset]})
+        return jsonify({"error": "Projector not ready"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/i2c/read', methods=['POST'])
+def i2c_read():
+    """Low-level I2C read for debugging."""
+    try:
+        data = request.json
+        reg = int(data.get('reg', 0))
+        length = int(data.get('len', 1))
+        if projector.dmd:
+             # Access private method
+             val = projector.dmd._DLPC1438__i2c_read(reg, length)
+             return jsonify({"status": "ok", "reg": hex(reg), "val": [hex(x) for x in val]})
+        return jsonify({"error": "Projector not ready"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Run on all interfaces, port 5000
