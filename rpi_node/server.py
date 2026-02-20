@@ -3,8 +3,9 @@ import os
 import logging
 from flask import Flask, request, jsonify, make_response
 from PIL import Image
-from motor_driver import MotorDriver
 from projector_driver import ProjectorDriver
+# NOTE: Motor (Z-axis) will be controlled via Moonraker/Klipper API
+# on the CM4 board. No serial motor driver needed here.
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RPiNode")
@@ -32,9 +33,6 @@ except Exception as e:
     logging.error(f"Startup crash: {e}")
     projector = None
 
-# Initialize Drivers
-# NOTE: Config paths or ports might need adjustment on actual Pi
-motor = MotorDriver(port='/dev/ttyUSB0')
 
 @app.route('/projector/force_init', methods=['POST'])
 def force_init():
@@ -56,40 +54,21 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({
-        "motor_connected": motor.ser is not None and motor.ser.is_open,
         "projector_initialized": projector.dmd is not None
     })
 
 @app.route('/init', methods=['POST'])
 def initialize():
-    m_ok = motor.connect()
     p_ok = projector.initialize()
     if p_ok:
         projector.prepare_print_mode()
-    
     return jsonify({
-        "motor": "connected" if m_ok else "failed",
         "projector": "initialized" if p_ok else "failed"
     })
 
-@app.route('/motor/move_z', methods=['POST'])
-def move_z():
-    data = request.json
-    dist = data.get('distance_mm', 0)
-    speed = data.get('speed', 300)
-    relative = data.get('relative', True)
-    
-    if relative:
-        motor.move_z_relative(dist, speed)
-    else:
-        motor.move_z_absolute(dist, speed)
-        
-    return jsonify({"status": "ok"})
-
-@app.route('/motor/home', methods=['POST'])
-def home_z():
-    motor.home_z()
-    return jsonify({"status": "ok"})
+# --- Motor routes removed ---
+# Z-axis motor will be controlled via Moonraker/Klipper API.
+# See: https://moonraker.readthedocs.io/en/latest/web_api/#gcode-apis
 
 @app.route('/projector/display', methods=['POST'])
 def display():
@@ -215,7 +194,6 @@ def set_pwm():
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
     projector.standby()
-    motor.disconnect()
     return jsonify({"status": "ok", "message": "Hardware shutdown"})
 
 @app.route('/projector/info', methods=['GET'])
