@@ -58,7 +58,7 @@ export interface Modifier {
   type: 'shell_core' | 'volume';
   shell_thickness?: number;     // mm — cortical/perimeter shell thickness (sent to backend)
   shell_thickness_mm?: number;  // legacy alias
-  core_pattern?: 'solid' | 'sponge';
+  core_pattern?: 'solid' | 'sponge' | 'vascular';
   core_density?: number;
   sponge_density?: number;      // 0–1: bone fraction inside the core
   pattern_cell_mm?: number;

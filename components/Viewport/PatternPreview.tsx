@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
 interface PatternPreviewProps {
-    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge';
+    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge' | 'vascular';
     cellSize: number; // mm
     shellGray?: number;
     coreGray?: number;
@@ -50,7 +50,7 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
         const fsSource = `
             precision highp float;
             varying vec2 vUv;
-            uniform int uType; // 0=solid, 1=gradient, 2=voronoi/legacy, 3=sponge
+            uniform int uType; // 0=solid, 1=gradient, 2=voronoi/legacy, 3=sponge, 4=vascular
             uniform float uCellSize; // mm
             uniform float uThickness; // mm
             uniform float uCoreGray;
@@ -114,6 +114,22 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
                     // Mix between Matrix (Background) and Cell (Bone)
                     gray = mix(uShellGray, uCoreGray, val);
                 }
+                else if (uType == 4) { // Vascular
+                    float previewSizeMM = 20.0; 
+                    float scale = previewSizeMM / max(0.1, uCellSize);
+                    
+                    // Ridged noise: abs of noise creates sharp valleys at 0
+                    float n = abs(noise(uv * scale));
+                    
+                    // We want valleys to be the "veins" (ShellGray/Void), 
+                    // and everything else to be Tissue (CoreGray/Solid).
+                    // Density controls the width of the veins.
+                    float width = uDensity * 0.3; // 0 to 0.3 max width
+                    float val = smoothstep(width - 0.02, width + 0.02, n);
+                    
+                    // val=0 in veins, val=1 in tissue
+                    gray = mix(uShellGray, uCoreGray, val);
+                }
 
                 gl_FragColor = vec4(vec3(gray / 255.0), 1.0);
             }
@@ -154,7 +170,7 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
         gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
         // Uniforms
-        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, grid: 0, checkerboard: 0 };
+        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, vascular: 4, grid: 0, checkerboard: 0 };
         gl.uniform1i(gl.getUniformLocation(program, 'uType'), typeMap[type] ?? 0);
         gl.uniform1f(gl.getUniformLocation(program, 'uCellSize'), cellSize);
         gl.uniform1f(gl.getUniformLocation(program, 'uThickness'), thickness);

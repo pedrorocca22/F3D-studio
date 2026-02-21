@@ -100,9 +100,21 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                         />
                     </div>
 
+                    <div>
+                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Pattern Algorithm</label>
+                        <select
+                            value={mod.core_pattern || 'sponge'}
+                            onChange={(e) => updateDraft({ core_pattern: e.target.value as any })}
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
+                        >
+                            <option value="sponge">Sponge (Trabecular Bone)</option>
+                            <option value="vascular">Vascular Tree (Perfusion)</option>
+                        </select>
+                    </div>
+
                     <div className="flex justify-center bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-100 dark:border-slate-700/50">
                         <PatternPreview
-                            type="sponge"
+                            type={mod.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
                             cellSize={mod.voronoi_cell_size || 1.0}
                             coreGray={mod.core_gray ?? 255}
                             shellGray={mod.shell_gray ?? 0}
@@ -112,7 +124,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                         />
                     </div>
 
-                    {/* Sponge — only supported pattern */}
+                    {/* Dynamic settings based on pattern algorithm */}
                     <div className="space-y-3">
                         {/* Shell (cortical bone) thickness */}
                         <div>
@@ -135,10 +147,12 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </div>
                             </div>
                         </div>
-                        {/* Pore size + Density */}
+                        {/* Parameter size + Density */}
                         <div className="grid grid-cols-2 gap-2">
                             <div>
-                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Pore Size</label>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
+                                    {mod.core_pattern === 'vascular' ? 'Vascular Branch Freq.' : 'Pore Size'}
+                                </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input
                                         type="number" step="0.1" min="0.1"
@@ -150,7 +164,9 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </div>
                             </div>
                             <div>
-                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Density</label>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
+                                    {mod.core_pattern === 'vascular' ? 'Vein Width' : 'Density'}
+                                </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input
                                         type="number" step="0.05" min="0" max="1"
@@ -220,7 +236,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                             <div className="flex items-center gap-3 p-2">
                                 <div className="w-12 h-12 rounded bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-100 dark:border-slate-700 shrink-0">
                                     <PatternPreview
-                                        type="sponge"
+                                        type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
                                         cellSize={p.config.voronoi_cell_size || 1.0}
                                         coreGray={p.config.core_gray ?? 255}
                                         shellGray={p.config.shell_gray ?? 0}
@@ -231,7 +247,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{p.name}</h3>
-                                    <p className="text-[10px] text-slate-400">Sponge</p>
+                                    <p className="text-[10px] text-slate-400">{p.config.core_pattern === 'vascular' ? 'Vascular Tree' : 'Sponge'}</p>
                                 </div>
                                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button

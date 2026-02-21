@@ -12,8 +12,8 @@ class PatternEngine:
     @staticmethod
     def generate_pattern_mask(shape, pattern_type, cell_size_mm, pixel_size_mm=0.0555, z_index=0, density=0.5):
         """
-        Generates a boolean mask for the sponge pattern with 3D variation.
-        Only 'sponge' is supported as core_pattern.
+        Generates a boolean mask for the 3D core patterns.
+        Supported patterns: 'sponge', 'vascular'.
         """
         height, width = shape
         cell_px = max(1, int(cell_size_mm / pixel_size_mm))
@@ -54,9 +54,20 @@ class PatternEngine:
             # Blend between keyframes
             blended = cv2.addWeighted(noise_a, 1.0 - progress, noise_b, progress, 0)
 
-            # Density 1.0 -> threshold 0 (all solid), Density 0.0 -> threshold 255 (all void)
-            threshold_val = int(255 * (1.0 - density))
-            return blended > threshold_val
+            if pattern_type == 'vascular':
+                # Ridged Noise: Fold the noise at 128 to create thin interconnected valleys (veins)
+                dist = np.abs(blended.astype(np.int16) - 128)
+                dist_normalized = dist / 127.0
+                
+                # We want the valleys (veins) to be False (void), ridges (tissue) to be True (solid).
+                # Density parameter controls the width of the vein threshold.
+                vein_width = density * 0.8  # Max 80% vein width
+                return dist_normalized > vein_width
+            else:
+                # Default Sponge: Standard thresholding
+                # Density 1.0 -> threshold 0 (all solid), Density 0.0 -> threshold 255 (all void)
+                threshold_val = int(255 * (1.0 - density))
+                return blended > threshold_val
 
         except Exception as e:
             print(f"[ERROR] PatternEngine 3D generation failed: {e}", flush=True)
@@ -75,8 +86,14 @@ class PatternEngine:
         noise = cv2.GaussianBlur(noise, (3, 3), 0)
         noise_smooth = cv2.resize(noise, (width, height), interpolation=cv2.INTER_LINEAR)
 
-        threshold = int(255 * (1.0 - density))
-        mask = noise_smooth > threshold
+        if pattern_type == 'vascular':
+            dist = np.abs(noise_smooth.astype(np.int16) - 128)
+            dist_normalized = dist / 127.0
+            vein_width = density * 0.8
+            mask = dist_normalized > vein_width
+        else:
+            threshold = int(255 * (1.0 - density))
+            mask = noise_smooth > threshold
 
         PatternEngine._mask_cache[key] = mask
         return mask
@@ -117,8 +134,9 @@ class PatternEngine:
             core_gray = int(mod.get('core_gray', 255))
             cell_size = float(mod.get('voronoi_cell_size', mod.get('cell_size', 1.0)))
             density = float(mod.get('sponge_density', 0.5))
+            core_pattern = mod.get('core_pattern', 'sponge')
 
-            print(f"[DEBUG] Layer {layer_index}: Sponge — CellSize={cell_size}mm, Density={density}, ShellGray={shell_gray}, CoreGray={core_gray}", flush=True)
+            print(f"[DEBUG] Layer {layer_index}: {core_pattern} — CellSize={cell_size}mm, Density={density}, ShellGray={shell_gray}, CoreGray={core_gray}", flush=True)
 
             # 1. Erode to get core region
             kernel_size = max(1, int(shell_thickness_mm / pixel_size_mm))
@@ -126,9 +144,9 @@ class PatternEngine:
             core_mask_img = cv2.erode(binary_base, kernel, iterations=1)
             shell_mask_img = cv2.subtract(binary_base, core_mask_img)
 
-            # 2. Generate sponge mask
+            # 2. Generate mask (vascular or sponge)
             pattern_mask = PatternEngine.generate_pattern_mask(
-                layer_image.shape, 'sponge', cell_size, pixel_size_mm,
+                layer_image.shape, core_pattern, cell_size, pixel_size_mm,
                 z_index=layer_index, density=density
             )
 

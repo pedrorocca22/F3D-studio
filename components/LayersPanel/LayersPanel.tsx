@@ -101,6 +101,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   }, [openSections.advanceSlice, selectedModelId, setIsAdvancedSliceMode]);
 
   const [segmentPatternPickers, setSegmentPatternPickers] = useState<Record<string, boolean>>({});
+  const [globalPatternPickerOpen, setGlobalPatternPickerOpen] = useState(false);
 
   const toggleSection = (key: string) => {
     if (key === 'advanceSlice' && !selectedModelId) return;
@@ -451,6 +452,66 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
             <div className="h-2"></div>
 
+            {/* GLOBAL PATTERN PICKER */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden mb-3">
+              <div className="flex justify-between items-center px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700/50">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                  <Icon name="extension" className="text-sm" />
+                  Global Pattern
+                </span>
+                <button
+                  onClick={() => setGlobalPatternPickerOpen(!globalPatternPickerOpen)}
+                  className={`p-0.5 rounded transition-colors ${selectedModel?.modifiers && selectedModel.modifiers.length > 0 ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary'}`}
+                  title={globalPatternPickerOpen ? 'Close Library' : 'Open Library'}
+                >
+                  <Icon name="palette" className="text-sm" />
+                </button>
+              </div>
+
+              {globalPatternPickerOpen && (
+                <div className="p-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
+                  <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {patterns.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          const patternConfig = JSON.parse(JSON.stringify(p.config));
+                          onUpdateModifiers([patternConfig]);
+                          setGlobalPatternPickerOpen(false);
+                        }}
+                        className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
+                      >
+                        <PatternPreview
+                          type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
+                          cellSize={p.config.voronoi_cell_size || 1.0}
+                          coreGray={p.config.core_gray ?? 255}
+                          shellGray={p.config.shell_gray ?? 0}
+                          density={p.config.sponge_density || 0.5}
+                          width={40}
+                          height={40}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
+                <div className="px-3 py-1 bg-purple-50 dark:bg-purple-900/10 flex items-center justify-between">
+                  <span className="text-[9px] font-bold text-purple-600 uppercase">
+                    {(selectedModel.modifiers[0].core_pattern === 'vascular') ? 'Vascular Applied' : 'Sponge Applied'}
+                  </span>
+                  <button
+                    onClick={() => onUpdateModifiers([])}
+                    className="font-bold text-[9px] text-purple-400 hover:text-red-500"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleApplyToAll}
               className="w-full py-2 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 shadow-sm"
@@ -702,7 +763,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                               className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                             >
                               <PatternPreview
-                                type="sponge"
+                                type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
                                 cellSize={p.config.voronoi_cell_size || 1.0}
                                 coreGray={p.config.core_gray ?? 255}
                                 shellGray={p.config.shell_gray ?? 0}
