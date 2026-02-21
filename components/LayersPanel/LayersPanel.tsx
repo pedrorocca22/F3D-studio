@@ -172,7 +172,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           id: generateUUID(),
           topLimit: modelTop,
           exposureTime: lastSegment.exposureTime,
-          lightIntensity: lastSegment.lightIntensity
+          lightIntensity: lastSegment.lightIntensity,
+          gradientMode: 'flat'
         };
         updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
       } else {
@@ -189,7 +190,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           id: generateUUID(),
           topLimit: currentTop,
           exposureTime: lastSegment.exposureTime,
-          lightIntensity: lastSegment.lightIntensity
+          lightIntensity: lastSegment.lightIntensity,
+          gradientMode: 'flat'
         };
         updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
       }
@@ -212,6 +214,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       if (value <= prevTop) value = prevTop + 0.1;
       const nextTop = index < newSegments.length - 1 ? newSegments[index + 1].topLimit : Infinity;
       if (value >= nextTop) value = nextTop - 0.1;
+    }
+
+    if (field === 'gradientMode' && value === 'gradient') {
+      if (segment.endLightIntensity === undefined) segment.endLightIntensity = segment.lightIntensity;
+      if (segment.endExposureTime === undefined) segment.endExposureTime = segment.exposureTime;
+      if (segment.endTargetDose === undefined) segment.endTargetDose = segment.targetDose;
     }
 
     newSegments[index] = { ...segment, [field]: value };
@@ -246,9 +254,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     setOpenSections(prev => ({ ...prev, advanceSlice: false }));
   };
 
-  const inputClass = "w-28";
+  const inputClass = "w-32";
   return (
-    <aside className="w-[320px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
+    <aside className="w-[500px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 pb-4">
 
@@ -721,16 +729,21 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     <div className="flex justify-between items-center px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700/50">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Segment {index + 1}</span>
                       <div className="flex items-center gap-2">
-                        {/* Segment Mode Toggle */}
-                        <button
-                          onClick={() => updateSegment(index, 'exposureMode', segment.exposureMode === 'dose' ? 'time' : 'dose' as any)}
-                          className="text-[9px] text-slate-400 uppercase font-bold hover:text-primary transition-colors"
-                          title="Toggle Mode"
-                        >
-                          {segment.exposureMode === 'dose' ? 'DOSE' : 'TIME'}
-                        </button>
-
-                        {/* Delete Button - Available for ALL segments */}
+                        {/* Gradient vs Mode Toggle */}
+                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded mr-1">
+                          <button
+                            onClick={() => updateSegment(index, 'gradientMode', 'flat')}
+                            className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${(!segment.gradientMode || segment.gradientMode === 'flat') ? 'bg-white dark:bg-slate-600 text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            Flat
+                          </button>
+                          <button
+                            onClick={() => updateSegment(index, 'gradientMode', 'gradient')}
+                            className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${(segment.gradientMode === 'gradient') ? 'bg-gradient-to-r from-orange-400 to-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            Gradient
+                          </button>
+                        </div>
                         <button
                           onClick={() => setSegmentPatternPickers(prev => ({ ...prev, [segment.id]: !prev[segment.id] }))}
                           className={`p-0.5 rounded transition-colors ${segment.modifiers && segment.modifiers.length > 0 ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary'}`}
@@ -792,101 +805,146 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
                     <div className="p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500">Range (mm):</span>
+                        <span className="text-[10px] text-slate-500">Range (Z mm):</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-slate-500 bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded min-w-[3rem] text-center border border-slate-200 dark:border-slate-700">
-                            {prevTop.toFixed(3)}
-                          </span>
-                          <span className="text-slate-300">-</span>
-                          <NumericInput
-                            className="w-28"
-                            value={segment.topLimit}
-                            onChange={v => updateSegment(index, 'topLimit', v)}
-                            step={0.01}
-                            min={prevTop + 0.05}
-                          />
+                          {segment.gradientMode === 'gradient' ? (
+                            <div className="flex items-center gap-1 w-64">
+                              <NumericInput
+                                className="w-full text-center px-1"
+                                value={segment.bottomLimit ?? prevTop}
+                                onChange={v => updateSegment(index, 'bottomLimit', v)}
+                                step={0.01}
+                                min={0}
+                              />
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px]">&rarr;</span>
+                              <NumericInput
+                                className="w-full text-center px-1 border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-900/10"
+                                value={segment.topLimit}
+                                onChange={v => updateSegment(index, 'topLimit', v)}
+                                step={0.01}
+                                min={(segment.bottomLimit ?? prevTop) + 0.05}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-xs font-mono text-slate-500 bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded min-w-[3rem] text-center border border-slate-200 dark:border-slate-700">
+                                {prevTop.toFixed(3)}
+                              </span>
+                              <span className="text-slate-300">-</span>
+                              <NumericInput
+                                className="w-48"
+                                value={segment.topLimit}
+                                onChange={v => updateSegment(index, 'topLimit', v)}
+                                step={0.01}
+                                min={prevTop + 0.05}
+                              />
+                            </>
+                          )}
                         </div>
                       </div>
 
+                      {/* --- LIGHT INTENSITY MULTI-INPUT (START/END) --- */}
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500">Intensity (mW):</span>
-                        <NumericInput
-                          className="w-28"
-                          value={segment.lightIntensity}
-                          onChange={v => {
-                            const newSegments = [...advancedSettings.segments];
-                            const currentSeg = newSegments[index];
-                            const updates: any = { lightIntensity: v };
+                        <span className="text-[10px] text-slate-500">
+                          {segment.gradientMode === 'gradient' ? 'Intensity Range (mW):' : 'Intensity (mW):'}
+                        </span>
 
-                            if (currentSeg.exposureMode === 'dose' && currentSeg.targetDose) {
-                              const t = v > 0 ? (currentSeg.targetDose / v) : 0;
-                              updates.exposureTime = parseFloat(t.toFixed(2));
-                            } else {
-                              const d = v * currentSeg.exposureTime;
-                              updates.targetDose = parseFloat(d.toFixed(1));
-                            }
-
-                            newSegments[index] = { ...currentSeg, ...updates };
-                            updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
-                          }}
-                          step={1}
-                        />
-                      </div>
-
-                      {segment.exposureMode === 'dose' ? (
-                        <div className="flex items-start justify-between">
-                          <span className="text-[10px] text-slate-500 text-primary font-semibold mt-1.5">Dose (mJ):</span>
-                          <div className="flex flex-col w-28">
+                        {segment.gradientMode === 'gradient' ? ( // Gradient Dual Input
+                          <div className="flex items-center gap-1 w-64">
                             <NumericInput
-                              className="w-full"
-                              value={segment.targetDose || 0}
-                              onChange={v => {
-                                const newSegments = [...advancedSettings.segments];
-                                const currentSeg = newSegments[index];
-                                const irr = currentSeg.lightIntensity;
-                                const t = irr > 0 ? (v / irr) : 0;
-
-                                newSegments[index] = {
-                                  ...currentSeg,
-                                  targetDose: v,
-                                  exposureTime: parseFloat(t.toFixed(2))
-                                };
-                                updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
-                              }}
+                              className="w-full text-center px-1"
+                              value={segment.lightIntensity}
+                              onChange={v => updateSegment(index, 'lightIntensity', v)}
                               step={1}
                             />
-                            <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
-                              ≈ {segment.exposureTime.toFixed(2)}s
+                            <span className="text-slate-300 dark:text-slate-600 text-[10px]">&rarr;</span>
+                            <NumericInput
+                              className="w-full text-center px-1 border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-900/10"
+                              value={segment.endLightIntensity ?? segment.lightIntensity}
+                              onChange={v => updateSegment(index, 'endLightIntensity', v)}
+                              step={1}
+                            />
+                          </div>
+                        ) : ( // Flat Single Input
+                          <NumericInput
+                            className="w-48"
+                            value={segment.lightIntensity}
+                            onChange={v => {
+                              const newSegments = [...advancedSettings.segments];
+                              const currentSeg = newSegments[index];
+                              const updates: any = { lightIntensity: v };
+
+                              if (currentSeg.exposureMode === 'dose' && currentSeg.targetDose) {
+                                const t = v > 0 ? (currentSeg.targetDose / v) : 0;
+                                updates.exposureTime = parseFloat(t.toFixed(2));
+                              } else {
+                                const d = v * currentSeg.exposureTime;
+                                updates.targetDose = parseFloat(d.toFixed(1));
+                              }
+
+                              newSegments[index] = { ...currentSeg, ...updates };
+                              updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
+                            }}
+                            step={1}
+                          />
+                        )}
+                      </div>
+
+                      {/* --- NOISE/DOSE/TIME MULTI-INPUT (START/END) --- */}
+                      <div className="flex items-start justify-between mt-2">
+                        <span className="text-[10px] text-slate-500 mt-1.5 flex flex-col">
+                          <span>{segment.exposureMode === 'dose' ? 'Target Dose (mJ):' : 'Exposure Time (s):'}</span>
+                          <button
+                            onClick={() => updateSegment(index, 'exposureMode', segment.exposureMode === 'dose' ? 'time' : 'dose' as any)}
+                            className="text-[8px] text-blue-500 hover:underline uppercase text-left mt-0.5"
+                          >
+                            Switch to {segment.exposureMode === 'dose' ? 'Time' : 'Dose'}
+                          </button>
+                        </span>
+
+                        {segment.gradientMode === 'gradient' ? ( // Gradient Dual Input
+                          <div className="flex flex-col w-64 gap-1">
+                            <div className="flex items-center gap-1">
+                              <NumericInput
+                                className="w-full text-center px-1"
+                                value={segment.exposureMode === 'dose' ? (segment.targetDose || 0) : segment.exposureTime}
+                                onChange={v => {
+                                  if (segment.exposureMode === 'dose') updateSegment(index, 'targetDose', v);
+                                  else updateSegment(index, 'exposureTime', v);
+                                }}
+                                step={segment.exposureMode === 'dose' ? 1 : 0.1}
+                              />
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px]">&rarr;</span>
+                              <NumericInput
+                                className="w-full text-center px-1 border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-900/10"
+                                value={segment.exposureMode === 'dose' ? (segment.endTargetDose ?? segment.targetDose ?? 0) : (segment.endExposureTime ?? segment.exposureTime)}
+                                onChange={v => {
+                                  if (segment.exposureMode === 'dose') updateSegment(index, 'endTargetDose', v);
+                                  else updateSegment(index, 'endExposureTime', v);
+                                }}
+                                step={segment.exposureMode === 'dose' ? 1 : 0.1}
+                              />
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between">
-                          <span className="text-[10px] text-slate-500 mt-1.5">Exposure (s):</span>
-                          <div className="flex flex-col w-28">
+                        ) : ( // Flat Single Input
+                          <div className="flex flex-col w-48">
                             <NumericInput
                               className="w-full"
-                              value={segment.exposureTime}
+                              value={segment.exposureMode === 'dose' ? (segment.targetDose || 0) : segment.exposureTime}
                               onChange={v => {
-                                const newSegments = [...advancedSettings.segments];
-                                const currentSeg = newSegments[index];
-                                const d = v * currentSeg.lightIntensity;
-
-                                newSegments[index] = {
-                                  ...currentSeg,
-                                  exposureTime: v,
-                                  targetDose: parseFloat(d.toFixed(1))
-                                };
-                                updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
+                                if (segment.exposureMode === 'dose') updateSegment(index, 'targetDose', v);
+                                else updateSegment(index, 'exposureTime', v);
                               }}
-                              step={0.1}
+                              step={segment.exposureMode === 'dose' ? 1 : 0.1}
                             />
-                            <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
+                            <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
                               ≈ {(segment.exposureTime * segment.lightIntensity).toFixed(1)} mJ/cm²
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      <div className="h-1"></div>
 
                       <div className="h-1"></div>
 
@@ -908,8 +966,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         {/* Other Sections (Hidden when advanced active) */}
         {!isAdvancedSliceMode && (
           <>
-
-
             <AccordionSection title="Bioink heating" isOpen={openSections.heating} onToggle={() => toggleSection('heating')} info>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-500">Temp (°C):</span>

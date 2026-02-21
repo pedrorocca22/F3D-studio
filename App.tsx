@@ -289,6 +289,21 @@ export default function App() {
       const ranges = model.advancedSettings.enabled
         ? model.advancedSettings.segments.map(seg => {
           let endLayer = 0;
+          let startLayer = currentStartLayer;
+
+          if (seg.bottomLimit !== undefined) {
+            const startH = seg.bottomLimit;
+            if (adhesionEnabled && startH > adhesionHeightMM) {
+              const extraHeight = startH - adhesionHeightMM;
+              startLayer = adhesionLayers + Math.floor(extraHeight / layerHeightMM);
+            } else {
+              const effectiveLH = adhesionEnabled && startH <= adhesionHeightMM
+                ? ((globalSettings.adhesion?.layerHeight ?? 50) / 1000)
+                : layerHeightMM;
+              startLayer = Math.floor(startH / effectiveLH);
+            }
+          }
+
           if (adhesionEnabled && seg.topLimit > adhesionHeightMM) {
             const extraHeight = seg.topLimit - adhesionHeightMM;
             const extraLayers = extraHeight / layerHeightMM;
@@ -300,13 +315,18 @@ export default function App() {
             endLayer = Math.floor(seg.topLimit / effectiveLH);
           }
 
-          if (endLayer <= currentStartLayer) return null;
+          if (endLayer <= startLayer) return null;
 
           const rangeObj: BackendRangeOverride = {
-            start: currentStartLayer,
+            start: startLayer,
             end: endLayer,
+            gradientMode: seg.gradientMode || 'flat',
             irr: seg.lightIntensity,
             exposure: seg.exposureTime,
+            ...(seg.gradientMode === 'gradient' ? {
+              endLightIntensity: seg.endLightIntensity ?? seg.lightIntensity,
+              endExposureTime: seg.endExposureTime ?? seg.exposureTime
+            } : {}),
             ...(seg.modifiers && seg.modifiers.length > 0 ? { modifiers: seg.modifiers } : {})
           };
           currentStartLayer = endLayer;
@@ -667,12 +687,12 @@ export default function App() {
                 ].map((step, i) => (
                   <div key={i} className="flex flex-col items-center gap-1">
                     <div className={`w-full h-1.5 rounded-full transition-all duration-500 ${step.done ? 'bg-green-500'
-                        : step.active ? 'bg-blue-500 animate-pulse'
-                          : 'bg-slate-700'
+                      : step.active ? 'bg-blue-500 animate-pulse'
+                        : 'bg-slate-700'
                       }`} />
                     <span className={`text-[9px] font-semibold uppercase tracking-wider ${step.done ? 'text-green-400'
-                        : step.active ? 'text-blue-400'
-                          : 'text-slate-600'
+                      : step.active ? 'text-blue-400'
+                        : 'text-slate-600'
                       }`}>{step.label}</span>
                   </div>
                 ))}

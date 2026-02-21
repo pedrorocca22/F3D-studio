@@ -739,10 +739,30 @@ def _run_slice_job(job_id, scene, saved_files, config_path, job_dir, constructs_
                         start = r.get("start", 0)
                         end = r.get("end", 999999)
                         if start <= l_idx < end:
-                            if "exposure" in r:
-                                curr_exp = float(r["exposure"])
-                            if "irr" in r:
-                                curr_irr = float(r["irr"])
+                            # Is this a gradient?
+                            gradient_mode = r.get("gradientMode", "flat")
+                            
+                            if gradient_mode == "gradient":
+                                # Calculate interpolation factor (0.0 at start, 1.0 at end-1)
+                                range_len = max(1, (end - start) - 1)
+                                t = (l_idx - start) / range_len
+                                
+                                # Interpolate Exposure
+                                start_exp = float(r.get("exposure", curr_exp))
+                                end_exp = float(r.get("endExposureTime", start_exp))
+                                curr_exp = start_exp + t * (end_exp - start_exp)
+                                
+                                # Interpolate Irradiance 
+                                start_irr = float(r.get("irr", curr_irr))
+                                end_irr = float(r.get("endLightIntensity", start_irr))
+                                curr_irr = start_irr + t * (end_irr - start_irr)
+                                
+                            else:
+                                # Flat
+                                if "exposure" in r:
+                                    curr_exp = float(r["exposure"])
+                                if "irr" in r:
+                                    curr_irr = float(r["irr"])
                             break
                 
                 layer_sources.append({

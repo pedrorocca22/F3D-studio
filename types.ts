@@ -20,10 +20,15 @@ export interface SliceSettings {
 export interface SliceSegment {
   id: string;
   topLimit: number;
-  exposureTime: number;
-  lightIntensity: number;
+  bottomLimit?: number;         // NEW: Optional independent start for a gradient segment
+  lightIntensity: number;       // Start intensity if gradient, flat intensity else
+  exposureTime: number;         // Start time if gradient
+  endLightIntensity?: number;   // NEW: Target end intensity for gradient
+  endExposureTime?: number;     // NEW: Target end exposure for gradient
   exposureMode?: 'time' | 'dose';
   targetDose?: number;
+  endTargetDose?: number;       // NEW: Target end dose
+  gradientMode?: 'flat' | 'gradient'; // NEW: Is this segment a gradient?
   modifiers?: Modifier[];
 }
 
@@ -98,8 +103,11 @@ export interface ModelData {
 export interface BackendRangeOverride {
   start: number;
   end: number;
+  gradientMode?: 'flat' | 'gradient';
   irr: number;
+  endLightIntensity?: number;
   exposure?: number; // Added optional exposure override
+  endExposureTime?: number;
   modifiers?: Modifier[];
 }
 
