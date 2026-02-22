@@ -925,6 +925,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 step={segment.exposureMode === 'dose' ? 1 : 0.1}
                               />
                             </div>
+                            <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
+                              ≈ {(segment.exposureTime * segment.lightIntensity).toFixed(1)} &rarr; {((segment.endExposureTime ?? segment.exposureTime) * (segment.endLightIntensity ?? segment.lightIntensity)).toFixed(1)} mJ/cm²
+                            </div>
                           </div>
                         ) : ( // Flat Single Input
                           <div className="flex flex-col w-48">

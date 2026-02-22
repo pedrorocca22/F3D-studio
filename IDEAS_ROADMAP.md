@@ -10,6 +10,7 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 - [ ] **B. Mapeo Metabólico y Gradientes Funcionales (Math-Gradient Stiffness)**
 - [ ] **C. Control de Sangrado Lumínico de Alta Precisión (Anti-Bleeding Microfluidics)**
 - [ ] **D. Dosimetría Pulsada Dinámica (Cell Viability Saver)**
+- [x] **E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)**
 
 ---
 
@@ -42,6 +43,17 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 * **El Problema:** Exposiciones a proyectores UV prolongadas (ej. 5 o 6 segundos a toda potencia) matan a las colonias celulares alojadas en la resina, debido a la toxicidad del foto-iniciador al fraccionarse, o por picos súbitos en la temperatura del gel (reacción exotérmica).
 * **La Solución (Software):** Modificar el bucle de impresión en `print_manager.py` para permitir la "Exposición Pulsada". Alcanzar la mJ/cm² deseado fraccionándolo. Por ejemplo, en vez de iluminar `3s continuo`, la máquina flashea secuencias termodinámicas de `[0.5s ON] -> [0.5s OFF]` hasta acumular la dosis completa permitiendo a los tejidos enfriarse.
 * **Impacto en Investigación:** Resuelve el mayor terror en el bio-printing: las tasas de supervivencia. Protegeremos radicalmente la viabilidad de los microorganismos de cara a cultivos de larga duración.
+
+### E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)
+**Estado:** 🟢 Terminado (`Done`)
+
+* **El Problema:** Al hacer el "slice" de piezas con geometrías internas complejas (microfluídica, andamios, patrones generados algorítmicamente), la revisión capa por capa en 2D puro estático no brinda contexto tridimensional suficiente, y las aproximaciones de renderizado volumétrico total (Raymarching) resultan costosas en hardware, ruidosas y engañosas en cuanto a fidelidad de conductos.
+* **La Solución (Software):** Desarrollar un "Isometric Layer Viewer" que fusione la exploración clásica 2D con un entorno espacial. Se traza un volumen de construcción alámbrico tridimensional y, al darle "Play", se reproduce una animación de crecimiento paramétrico flotando en el eje Z de una plancha interactiva.
+* **Arquitectura de Implementación:** 
+    - Apoyarse en `Three.js` y `React Three Fiber` utilizando una `OrthographicCamera`.
+    - Eliminar la lógica ineficiente de empaquetado `Uint8Array`. En su lugar, proyectar en tiempo real la propia imagen extraída del Backend usando la memoria nativa de textura 2D del `Canvas`.
+    - Fusionar aditivamente (`THREE.AdditiveBlending`) la escala de grises de la textura sobre un polígono matemático (`PlaneGeometry`) que sube coordinadamente según el reloj de animación o el control del Slider manual.
+* **Impacto en Investigación:** Proporciona un rápido entendimiento espacial. El científico o ingeniero puede revisar dinámicamente cómo crece la geometría a nivel de la cubeta de impresión capa a capa sin consumir los limitados recursos de cómputo del laboratorio, garantizando que los micropatrones se vean en máxima resolución fotográfica (Pixel-Perfect).
 
 ---
 
