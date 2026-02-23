@@ -7,10 +7,10 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 ## 🚦 Estado General del Proyecto
 
 - [x] **A. Generador de Redes Vasculares (Vascular Tree / Voronoi Perfusion)**
-- [ ] **B. Mapeo Metabólico y Gradientes Funcionales (Math-Gradient Stiffness)**
+- [x] **B. Mapeo Metabólico y Gradientes Funcionales (Math-Gradient Stiffness)**
 - [ ] **C. Control de Sangrado Lumínico de Alta Precisión (Anti-Bleeding Microfluidics)**
 - [ ] **D. Dosimetría Pulsada Dinámica (Cell Viability Saver)**
-- [x] **E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)**
+- [ ] **E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)**
 
 ---
 
@@ -24,7 +24,7 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 * **Impacto en Investigación:** Permite al científico imprimir un andamio sólido, conectarle una bomba de fluido externo e irrigar nutrientes o sangre a través de los canales directamente a las células más profundas.
 
 ### B. Mapeo Metabólico y Gradientes Funcionales (Math-Gradient Stiffness)
-**Estado:** 🔴 Por hacer (`To Do`)
+**Estado:** � Terminado (`Done`)
 
 * **El Problema:** El tejido biológico real (ej. osteocondral, transición hueso-cartílago) no tiene una dureza uniforme.
 * **La Solución (Software):** Explotar la tabla matemática de escala de grises (`calibration_gray.json`). Se añadirá una opción interactiva a la UI que modifique la potencia de gris a lo largo del eje Z o radialmente. Así, la pieza puede pasar de curarse a 24.2 mW/cm² (duro) en la base a 5.0 mW/cm² (blando) en la cúspide.
@@ -45,15 +45,14 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 * **Impacto en Investigación:** Resuelve el mayor terror en el bio-printing: las tasas de supervivencia. Protegeremos radicalmente la viabilidad de los microorganismos de cara a cultivos de larga duración.
 
 ### E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)
-**Estado:** 🟢 Terminado (`Done`)
+**Estado:** � En Análisis (`To Do / Rethink`)
 
-* **El Problema:** Al hacer el "slice" de piezas con geometrías internas complejas (microfluídica, andamios, patrones generados algorítmicamente), la revisión capa por capa en 2D puro estático no brinda contexto tridimensional suficiente, y las aproximaciones de renderizado volumétrico total (Raymarching) resultan costosas en hardware, ruidosas y engañosas en cuanto a fidelidad de conductos.
-* **La Solución (Software):** Desarrollar un "Isometric Layer Viewer" que fusione la exploración clásica 2D con un entorno espacial. Se traza un volumen de construcción alámbrico tridimensional y, al darle "Play", se reproduce una animación de crecimiento paramétrico flotando en el eje Z de una plancha interactiva.
-* **Arquitectura de Implementación:** 
-    - Apoyarse en `Three.js` y `React Three Fiber` utilizando una `OrthographicCamera`.
-    - Eliminar la lógica ineficiente de empaquetado `Uint8Array`. En su lugar, proyectar en tiempo real la propia imagen extraída del Backend usando la memoria nativa de textura 2D del `Canvas`.
-    - Fusionar aditivamente (`THREE.AdditiveBlending`) la escala de grises de la textura sobre un polígono matemático (`PlaneGeometry`) que sube coordinadamente según el reloj de animación o el control del Slider manual.
-* **Impacto en Investigación:** Proporciona un rápido entendimiento espacial. El científico o ingeniero puede revisar dinámicamente cómo crece la geometría a nivel de la cubeta de impresión capa a capa sin consumir los limitados recursos de cómputo del laboratorio, garantizando que los micropatrones se vean en máxima resolución fotográfica (Pixel-Perfect).
+* **El Problema:** Al hacer el "slice" de piezas con geometrías internas complejas (microfluídica, andamios, patrones generados algorítmicamente), la revisión capa por capa en 2D puro estático no brinda contexto tridimensional suficiente. Además, **los patrones fotocurables no son blanco y negro puro**, sino que contienen degradados y gradientes (mapeo metabólico). Resulta engañoso y difícil tratar de crear mallas sólidas 3D de elementos difusos como una vena vascularizada.
+* **La Solución (Software / En Análisis):** Repensar el renderizado volumétrico desde un enfoque **holográfico o difuminado**. En vez de intentar construir geometría tridimensional sólida que represente falsas paredes, interpretar los mapas de escala de grises de cada capa como "densidades lumínicas" o niveles de opacidad dentro de un volumen.
+* **Arquitectura Probable:**
+    - Avaluar shaders volumétricos o apilación dinámica de capas 2D con transparencia múltiple (`Alpha Blending / Additive Blending`).
+    - Renderizar los píxeles degradados como una "neblina" o "gel" luminoso (holográfico) para representar las dosis continuas de curado y la morfología de la vascularización.
+* **Impacto en Investigación:** Proporciona un visor fidedigno donde el científico pueda entender de inmediato cómo la energía de luz interactuará tridimensionalmente con su material, permitiendo evaluar estructuras orgánicas y translúcidas de forma natural sin confundirse por bordes artificialmente afilados.
 
 ---
 

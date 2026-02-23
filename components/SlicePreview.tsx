@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icon';
 import { PrintMonitor } from './PrintMonitor';
-import { IsometricLayerViewer } from './Viewport/IsometricLayerViewer';
 import { JobManifest, JobLayer } from '../types';
 
 interface SlicePreviewProps {
@@ -42,6 +41,19 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
     }, playSpeed);
     return () => clearInterval(interval);
   }, [isPlaying, playSpeed, totalExposureEvents]);
+
+  // Pre-cargar imágenes silenciosamente en caché (look-ahead buffer)
+  // Para garantizar que al darle a Play la velocidad de 60fps funcione sin red
+  useEffect(() => {
+    if (layersData.length === 0) return;
+    // Precargar las siguientes 20 capas en memoria
+    const maxPreload = Math.min(layersData.length - 1, currentLayerIndex + 20);
+    for (let i = currentLayerIndex; i <= maxPreload; i++) {
+      const url = `${BACKEND_URL}/job/${jobId}/layer/${layersData[i].filename}`;
+      const img = new Image();
+      img.src = url;
+    }
+  }, [currentLayerIndex, layersData, jobId]);
 
   // Fetch Job Manifest to get layers
   useEffect(() => {
@@ -156,23 +168,8 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
 
         </div>
 
-        {/* 2D / 3D Toggle & Playback */}
+        {/* Playback Controls */}
         <div className="flex items-center gap-4">
-          <div className="flex bg-[#1a1a1a] rounded-md p-1 border border-[#333]">
-            <button
-              onClick={() => setViewerMode('2d')}
-              className={`px-4 py-1.5 text-xs font-bold uppercase rounded ${viewerMode === '2d' ? 'bg-[#333] text-blue-400 shadow-inner' : 'text-slate-500 hover:text-slate-300'} transition-all`}
-            >
-              <Icon name="straighten" className="text-[14px] align-middle mr-1 inline-block" /> 2D Explorer
-            </button>
-            <button
-              onClick={() => setViewerMode('3d')}
-              className={`px-4 py-1.5 text-xs font-bold uppercase rounded ${viewerMode === '3d' ? 'bg-[#333] text-purple-400 shadow-inner' : 'text-slate-500 hover:text-slate-300'} transition-all`}
-            >
-              <Icon name="view_in_ar" className="text-[14px] align-middle mr-1 inline-block" /> 3D Isometric
-            </button>
-          </div>
-
           <div className="flex items-center bg-[#1a1a1a] rounded-md p-1 border border-[#333] px-2 gap-2">
             <button title={isPlaying ? "Pause Animación" : "Auto-Play Slices"} onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors ${isPlaying ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-green-500/20 text-green-500 hover:bg-green-500/30'}`}>
               <Icon name={isPlaying ? "pause" : "play_arrow"} className="text-sm" />
@@ -216,83 +213,74 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
 
-        {viewerMode === '3d' ? (
-          <IsometricLayerViewer
-            layersData={layersData}
-            currentLayerIndex={currentLayerIndex}
-            backendUrl={BACKEND_URL}
-            jobId={jobId}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col relative bg-black overflow-hidden">
-            {/* Central Canvas (Projector View) */}
-            {/* Zoom Controls Overlay */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-[#2a2a2a]/90 backdrop-blur border border-white/10 p-1 rounded-full shadow-lg">
-              <button
-                onClick={() => setZoom(z => Math.max(0.1, z - 0.1))}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
-                title="Zoom Out"
-              >
-                <Icon name="remove" className="text-lg" />
-              </button>
-              <div className="px-2 w-16 text-center text-xs font-mono font-bold text-white">
-                {Math.round(zoom * 100)}%
-              </div>
-              <button
-                onClick={() => setZoom(z => Math.min(5.0, z + 0.1))}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
-                title="Zoom In"
-              >
-                <Icon name="add" className="text-lg" />
-              </button>
-              <div className="w-px h-4 bg-white/20 mx-1"></div>
-              <button
-                onClick={() => setZoom(1.0)}
-                className="px-3 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-xs text-blue-400 font-bold uppercase transition-colors"
-                title="Actual Size"
-              >
-                Fit
-              </button>
+        <div className="flex-1 flex flex-col relative bg-black overflow-hidden">
+          {/* Central Canvas (Projector View) */}
+          {/* Zoom Controls Overlay */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-[#2a2a2a]/90 backdrop-blur border border-white/10 p-1 rounded-full shadow-lg">
+            <button
+              onClick={() => setZoom(z => Math.max(0.1, z - 0.1))}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
+              title="Zoom Out"
+            >
+              <Icon name="remove" className="text-lg" />
+            </button>
+            <div className="px-2 w-16 text-center text-xs font-mono font-bold text-white">
+              {Math.round(zoom * 100)}%
             </div>
+            <button
+              onClick={() => setZoom(z => Math.min(5.0, z + 0.1))}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
+              title="Zoom In"
+            >
+              <Icon name="add" className="text-lg" />
+            </button>
+            <div className="w-px h-4 bg-white/20 mx-1"></div>
+            <button
+              onClick={() => setZoom(1.0)}
+              className="px-3 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-xs text-blue-400 font-bold uppercase transition-colors"
+              title="Actual Size"
+            >
+              Fit
+            </button>
+          </div>
 
-            <div className="flex-1 flex items-center justify-center relative p-8 cursor-grab active:cursor-grabbing overflow-auto"
-              onWheel={(e) => {
-                if (e.ctrlKey) {
-                  e.preventDefault();
-                  setZoom(z => Math.max(0.1, Math.min(5.0, z - e.deltaY * 0.001)));
-                }
+          <div className="flex-1 flex items-center justify-center relative p-8 cursor-grab active:cursor-grabbing overflow-auto"
+            onWheel={(e) => {
+              if (e.ctrlKey) {
+                e.preventDefault();
+                setZoom(z => Math.max(0.1, Math.min(5.0, z - e.deltaY * 0.001)));
+              }
+            }}
+          >
+            {/* Resolution Frame (simulating the projector resolution) */}
+            <div
+              className="relative border border-slate-700 shadow-2xl bg-black flex items-center justify-center transition-transform duration-100 ease-out origin-center"
+              style={{
+                width: '1280px', // Ideally fetched from config, assume 1280x720 or similar aspect 
+                aspectRatio: '16/9',
+                transform: `scale(${zoom})`
               }}
             >
-              {/* Resolution Frame (simulating the projector resolution) */}
-              <div
-                className="relative border border-slate-700 shadow-2xl bg-black flex items-center justify-center transition-transform duration-100 ease-out origin-center"
-                style={{
-                  width: '1280px', // Ideally fetched from config, assume 1280x720 or similar aspect 
-                  aspectRatio: '16/9',
-                  transform: `scale(${zoom})`
-                }}
-              >
-                {/* REAL IMAGE FROM BACKEND */}
-                {imageUrl && (
-                  <img
-                    src={imageUrl}
-                    alt={`Exposure ${currentLayerIndex}`}
-                    className="w-full h-full object-contain rendering-pixelated"
-                    style={{ imageRendering: 'pixelated' }}
-                    draggable={false}
-                  />
-                )}
+              {/* REAL IMAGE FROM BACKEND */}
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt={`Exposure ${currentLayerIndex}`}
+                  className="w-full h-full object-contain rendering-pixelated"
+                  style={{ imageRendering: 'pixelated' }}
+                  draggable={false}
+                />
+              )}
 
-                {/* Sub-layer Warning Indicator (Scaled with zoom to remain visible detailed or fixed? Fixed is better) */}
-                {currentData && currentData.is_sublayer && (
-                  <div className="absolute top-4 right-4 bg-orange-500/20 border border-orange-500/50 px-2 py-1 rounded flex items-center gap-2 transform" style={{ transform: `scale(${1 / zoom})`, transformOrigin: 'top right' }}>
-                    <Icon name="layers" className="text-orange-400 text-sm" />
-                  </div>
-                )}
-              </div>
+              {/* Sub-layer Warning Indicator (Scaled with zoom to remain visible detailed or fixed? Fixed is better) */}
+              {currentData && currentData.is_sublayer && (
+                <div className="absolute top-4 right-4 bg-orange-500/20 border border-orange-500/50 px-2 py-1 rounded flex items-center gap-2 transform" style={{ transform: `scale(${1 / zoom})`, transformOrigin: 'top right' }}>
+                  <Icon name="layers" className="text-orange-400 text-sm" />
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Right Slider Panel */}
         <div className="w-20 bg-[#2a2a2a] border-l border-[#333] flex flex-col items-center py-4 relative z-10">
