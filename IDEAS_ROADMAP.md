@@ -11,6 +11,7 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 - [ ] **C. Control de Sangrado Lumínico de Alta Precisión (Anti-Bleeding Microfluidics)**
 - [ ] **D. Pausas Termodinámicas en Capa (Motor / Viability Saver)**
 - [x] **E. Animación Geométrica 3D (Descartada tras evaluación)**
+- [ ] **F. Biblioteca de Patrones Ampliada (Linear, Lattice, Radial, Noise)**
 
 ---
 
@@ -52,6 +53,19 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 * **Análisis Experimental Realizado:** Se desarrolló un `IsometricLayerViewer` en Three.js con apilamiento volumétrico, materiales foto-realistas imitando hueso opaco y redes vasculares translucidas con oclusión excluyente avanzada.
 * **La Conclusión Técnica:** Se detectó que para validar el Slicer de manera industrial e hiperprecisa, la vista isométrica 3D insertaba ambigüedades cognitivas. Para la interpretación clínica de microfluídica proyectada (50 micras), el experto en laboratorio se beneficia inmensamente más de la **Vista de Explorador 2D Pura Superior (Proyección en tiempo real a 60 fps sin procesado gráfico añadido)**.
 * **Fallo Final:** Se desecha el uso de la emulación isométrica 3D del código principal a favor de un pre-cargador bidimensional robusto en cascada ("Look-ahead Buffer").
+
+### F. Biblioteca de Patrones Ampliada (Linear, Lattice, Radial, Noise)
+**Estado:** 🟡 En Desarrollo (`WIP`)
+
+* **El Problema:** La investigación biológica requiere de micro-arquitecturas específicas para distintos tipos de células (además del hueso esponjoso y venas que ya tenemos). Por ejemplo, células musculares y nerviosas requieren canales rectos (Contact Guidance).
+* **Nuevos Patrones Propuestos:**
+    1. **`linear` / `grooves`**: Líneas finas y paralelas para alinear fibras biológicas (músculo/nervio).
+    2. **`lattice` / `grid`**: Matriz ortogonal perfecta (panal/cuadrícula) para estandarización de pruebas de compresión y flujo de medios regulado. ( *Primer enfoque* ).
+    3. **`radial`**: Anillos concéntricos, útil para simular arterias artificiales u osteonas.
+    4. **`noise` / `static`**: Ruido estocástico puro sin difuminar para generar rugosidad micrométrica que estimula la adhesión de células madre (Micro-Roughness).
+* **Solución (Software):** Modificar el `pattern_engine.py` incorporando generaciones por matrices booleanas NumPy para cada nueva topología paramétrica, e integrarlos a la Global Pattern Library de la interfaz web.
+* **Impacto en Investigación:** Eleva la impresora 3D a una verdadera estación de *Bio-fabricación Microarquitectónica*, cubriendo necesidades desde tejidos blandos lisos hasta mallas de estandarización mecánicas.
+
 ---
 
 *Documento de Trabajo - Proyecto DLP3 Bioprinter (2026)*

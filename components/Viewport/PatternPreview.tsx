@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
 interface PatternPreviewProps {
-    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge' | 'vascular';
+    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge' | 'vascular' | 'lattice' | 'linear' | 'noise';
     cellSize: number; // mm
     shellGray?: number;
     coreGray?: number;
@@ -50,7 +50,7 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
         const fsSource = `
             precision highp float;
             varying vec2 vUv;
-            uniform int uType; // 0=solid, 1=gradient, 2=voronoi/legacy, 3=sponge, 4=vascular
+            uniform int uType; // 0=solid, 1=gradient, 2=voronoi/legacy, 3=sponge, 4=vascular, 5=lattice, 6=linear, 7=noise
             uniform float uCellSize; // mm
             uniform float uThickness; // mm
             uniform float uCoreGray;
@@ -130,6 +130,38 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
                     // val=0 in veins, val=1 in tissue
                     gray = mix(uShellGray, uCoreGray, val);
                 }
+                else if (uType == 5) { // Lattice
+                    // Grid pattern preview matching python logic
+                    // Cell size scaling
+                    float previewSizeMM = 20.0; 
+                    float scale = previewSizeMM / max(0.1, uCellSize);
+                    
+                    vec2 cell_uv = fract(uv * scale);
+                    // Thickness is uDensity (0 to 1). If 0.2, then 20% of the cell is wall.
+                    // We draw walls at the left and bottom edges of the cell
+                    float wall_x = step(cell_uv.x, uDensity);
+                    float wall_y = step(cell_uv.y, uDensity);
+                    float val = max(wall_x, wall_y);
+                    
+                    // IF val=1 -> Wall -> CoreGray
+                    // IF val=0 -> Void -> ShellGray
+                    gray = mix(uShellGray, uCoreGray, val);
+                }
+                else if (uType == 6) { // Linear
+                    float previewSizeMM = 20.0; 
+                    float scale = previewSizeMM / max(0.1, uCellSize);
+                    
+                    vec2 cell_uv = fract(uv * scale);
+                    float wall_x = step(cell_uv.x, uDensity);
+                    
+                    gray = mix(uShellGray, uCoreGray, wall_x);
+                }
+                else if (uType == 7) { // Pure static Noise
+                    float n = hash(uv * 100.0); // very high freq
+                    n = n * 0.5 + 0.5;
+                    float val = step(1.0 - uDensity, n);
+                    gray = mix(uShellGray, uCoreGray, val);
+                }
 
                 gl_FragColor = vec4(vec3(gray / 255.0), 1.0);
             }
@@ -170,7 +202,7 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
         gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
         // Uniforms
-        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, vascular: 4, grid: 0, checkerboard: 0 };
+        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, vascular: 4, lattice: 5, linear: 6, noise: 7, grid: 0, checkerboard: 0 };
         gl.uniform1i(gl.getUniformLocation(program, 'uType'), typeMap[type] ?? 0);
         gl.uniform1f(gl.getUniformLocation(program, 'uCellSize'), cellSize);
         gl.uniform1f(gl.getUniformLocation(program, 'uThickness'), thickness);

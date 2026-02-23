@@ -109,12 +109,15 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                         >
                             <option value="sponge">Sponge (Trabecular Bone)</option>
                             <option value="vascular">Vascular Tree (Perfusion)</option>
+                            <option value="lattice">Lattice (Grid Matrix)</option>
+                            <option value="linear">Linear (Grooves / Muscle)</option>
+                            <option value="noise">Noise (Micro-Roughness)</option>
                         </select>
                     </div>
 
                     <div className="flex justify-center bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-100 dark:border-slate-700/50">
                         <PatternPreview
-                            type={mod.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
+                            type={mod.core_pattern === 'vascular' ? 'vascular' : (mod.core_pattern === 'lattice' ? 'lattice' : (mod.core_pattern === 'linear' ? 'linear' : (mod.core_pattern === 'noise' ? 'noise' : 'sponge')))}
                             cellSize={mod.voronoi_cell_size || 1.0}
                             coreGray={mod.core_gray ?? 255}
                             shellGray={mod.shell_gray ?? 0}
@@ -151,7 +154,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
-                                    {mod.core_pattern === 'vascular' ? 'Vascular Branch Freq.' : 'Pore Size'}
+                                    {mod.core_pattern === 'vascular' ? 'Vascular Branch Freq.' : (mod.core_pattern === 'lattice' ? 'Grid Span' : (mod.core_pattern === 'linear' ? 'Channel Span' : (mod.core_pattern === 'noise' ? 'Scale (N/A)' : 'Pore Size')))}
                                 </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input
@@ -165,7 +168,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                             </div>
                             <div>
                                 <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
-                                    {mod.core_pattern === 'vascular' ? 'Vein Width' : 'Density'}
+                                    {mod.core_pattern === 'vascular' ? 'Vein Width' : (mod.core_pattern === 'lattice' || mod.core_pattern === 'linear' ? 'Wall Thickness' : 'Density')}
                                 </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input
@@ -236,7 +239,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                             <div className="flex items-center gap-3 p-2">
                                 <div className="w-12 h-12 rounded bg-slate-100 dark:bg-slate-900 overflow-hidden border border-slate-100 dark:border-slate-700 shrink-0">
                                     <PatternPreview
-                                        type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
+                                        type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : 'sponge')))}
                                         cellSize={p.config.voronoi_cell_size || 1.0}
                                         coreGray={p.config.core_gray ?? 255}
                                         shellGray={p.config.shell_gray ?? 0}
@@ -247,7 +250,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{p.name}</h3>
-                                    <p className="text-[10px] text-slate-400">{p.config.core_pattern === 'vascular' ? 'Vascular Tree' : 'Sponge'}</p>
+                                    <p className="text-[10px] text-slate-400">{p.config.core_pattern === 'vascular' ? 'Vascular Tree' : (p.config.core_pattern === 'lattice' ? 'Lattice Grid' : (p.config.core_pattern === 'linear' ? 'Linear Channel' : (p.config.core_pattern === 'noise' ? 'Static Noise' : 'Sponge')))}</p>
                                 </div>
                                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button

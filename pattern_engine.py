@@ -13,10 +13,69 @@ class PatternEngine:
     def generate_pattern_mask(shape, pattern_type, cell_size_mm, pixel_size_mm=0.0555, z_index=0, density=0.5):
         """
         Generates a boolean mask for the 3D core patterns.
-        Supported patterns: 'sponge', 'vascular'.
+        Supported patterns: 'sponge', 'vascular', 'lattice', 'linear', 'noise'.
         """
         height, width = shape
         cell_px = max(1, int(cell_size_mm / pixel_size_mm))
+        
+        # --- LATTICE / GRID PATTERN ---
+        if pattern_type == 'lattice':
+            key = (shape, 'lattice', round(cell_size_mm, 4), round(pixel_size_mm, 6), round(density, 4))
+            if key in PatternEngine._mask_cache:
+                return PatternEngine._mask_cache[key]
+                
+            # Density controls wall thickness. 
+            # density=1.0 -> solid, density=0.0 -> empty
+            # wall_thickness = cell_px * density
+            wall_thickness_px = max(1, int(cell_px * density))
+            
+            # Create a base empty grid mask
+            mask = np.zeros(shape, dtype=bool)
+            
+            # Draw vertical walls
+            for x in range(0, width, cell_px):
+                mask[:, x:x+wall_thickness_px] = True
+                
+            # Draw horizontal walls
+            for y in range(0, height, cell_px):
+                mask[y:y+wall_thickness_px, :] = True
+                
+            PatternEngine._mask_cache[key] = mask
+            return mask
+            
+        # --- LINEAR / GROOVES PATTERN ---
+        if pattern_type == 'linear':
+            key = (shape, 'linear', round(cell_size_mm, 4), round(pixel_size_mm, 6), round(density, 4))
+            if key in PatternEngine._mask_cache:
+                return PatternEngine._mask_cache[key]
+                
+            wall_thickness_px = max(1, int(cell_px * density))
+            mask = np.zeros(shape, dtype=bool)
+            
+            # Draw vertical walls (channels along Y)
+            for x in range(0, width, cell_px):
+                mask[:, x:x+wall_thickness_px] = True
+                
+            PatternEngine._mask_cache[key] = mask
+            return mask
+
+        # --- PURE STATIC NOISE PATTERN ---
+        if pattern_type == 'noise':
+            key = (shape, 'noise_pure', round(density, 4))
+            if key in PatternEngine._mask_cache:
+                return PatternEngine._mask_cache[key]
+            
+            # Generamos ruido estocástico puro (pixel a pixel)
+            # Density marca cuántos píxeles serán True (hueso)
+            # Como es estocástico, en capas Z será una nube de puntos totalmente aleatoria
+            # No usa cell_size.
+            rs = np.random.RandomState(42 + z_index)
+            raw = rs.random(shape)
+            mask = raw < density
+            
+            PatternEngine._mask_cache[key] = mask
+            return mask
+
 
         # --- 3D SPONGY BONE via Noise Interpolation ---
         try:

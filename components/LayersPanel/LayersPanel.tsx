@@ -508,7 +508,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                       >
                         <PatternPreview
-                          type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
+                          type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : 'sponge')))}
                           cellSize={p.config.voronoi_cell_size || 1.0}
                           coreGray={p.config.core_gray ?? 255}
                           shellGray={p.config.shell_gray ?? 0}
@@ -525,7 +525,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
                 <div className="px-3 py-1 bg-purple-50 dark:bg-purple-900/10 flex items-center justify-between">
                   <span className="text-[9px] font-bold text-purple-600 uppercase">
-                    {(selectedModel.modifiers[0].core_pattern === 'vascular') ? 'Vascular Applied' : 'Sponge Applied'}
+                    {(selectedModel.modifiers[0].core_pattern === 'vascular') ? 'Vascular Applied' : (selectedModel.modifiers[0].core_pattern === 'lattice' ? 'Lattice Applied' : (selectedModel.modifiers[0].core_pattern === 'linear' ? 'Linear Applied' : (selectedModel.modifiers[0].core_pattern === 'noise' ? 'Noise Applied' : 'Sponge Applied')))}
                   </span>
                   <button
                     onClick={() => onUpdateModifiers([])}
@@ -793,7 +793,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                               className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                             >
                               <PatternPreview
-                                type={p.config.core_pattern === 'vascular' ? 'vascular' : 'sponge'}
+                                type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : 'sponge')))}
                                 cellSize={p.config.voronoi_cell_size || 1.0}
                                 coreGray={p.config.core_gray ?? 255}
                                 shellGray={p.config.shell_gray ?? 0}
