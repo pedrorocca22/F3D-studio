@@ -73,15 +73,23 @@ class PatternEngine:
         # --- PURE STATIC NOISE PATTERN ---
         if pattern_type == 'noise':
             seed = 42 + z_index if randomize_z else 42
-            key = (shape, 'noise_pure', round(density, 4), seed)
+            key = (shape, 'noise_pure', round(cell_size_mm, 4), round(density, 4), seed)
             if key in PatternEngine._mask_cache:
                 return PatternEngine._mask_cache[key]
             
-            # Generamos ruido estocástico puro (pixel a pixel)
-            # Density marca cuántos píxeles serán True (hueso)
+            # Generamos ruido estocástico puro.
+            # cell_px marca el tamaño del "bloque" de ruido o grano.
+            scale_factor = max(1, int(cell_px))
+            low_h = max(1, int(np.ceil(height / scale_factor)))
+            low_w = max(1, int(np.ceil(width / scale_factor)))
+
             rs = np.random.RandomState(seed)
-            raw = rs.random(shape)
-            mask = raw < density
+            raw = rs.random((low_h, low_w))
+            
+            # Upscale interpolando con el vecino mas cercano (bloques definidos, sin difuminar)
+            raw_scaled = cv2.resize(raw, (width, height), interpolation=cv2.INTER_NEAREST)
+            
+            mask = raw_scaled < density
             
             PatternEngine._mask_cache[key] = mask
             return mask

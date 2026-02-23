@@ -154,7 +154,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
-                                    {mod.core_pattern === 'vascular' ? 'Vascular Branch Freq.' : (mod.core_pattern === 'lattice' ? 'Grid Span' : (mod.core_pattern === 'linear' ? 'Channel Span' : (mod.core_pattern === 'noise' ? 'Scale (N/A)' : 'Pore Size')))}
+                                    {mod.core_pattern === 'vascular' ? 'Vascular Branch Freq.' : (mod.core_pattern === 'lattice' ? 'Grid Span' : (mod.core_pattern === 'linear' ? 'Channel Span' : (mod.core_pattern === 'noise' ? 'Noise Block Size' : 'Pore Size')))}
                                 </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input

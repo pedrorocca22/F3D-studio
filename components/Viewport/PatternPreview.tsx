@@ -157,7 +157,10 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
                     gray = mix(uShellGray, uCoreGray, wall_x);
                 }
                 else if (uType == 7) { // Pure static Noise
-                    float n = fract(sin(dot(uv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
+                    float previewSizeMM = 20.0; 
+                    float scale = previewSizeMM / max(0.1, uCellSize);
+                    vec2 cell_uv = floor(uv * scale);
+                    float n = fract(sin(dot(cell_uv, vec2(12.9898, 78.233))) * 43758.5453);
                     float val = step(1.0 - uDensity, n);
                     gray = mix(uShellGray, uCoreGray, val);
                 }
