@@ -121,9 +121,9 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
   // Loading Screen
   if (isLoading) {
     return (
-      <div className="absolute inset-0 z-50 bg-slate-900 text-white flex flex-col items-center justify-center">
-        <div className="w-16 h-16 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-mono text-slate-400">LOADING LAYERS...</p>
+      <div className="absolute inset-0 z-50 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col items-center justify-center">
+        <div className="w-16 h-16 border-4 border-slate-200 border-t-primary rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-mono font-bold text-slate-500 dark:text-slate-400">LOADING LAYERS...</p>
       </div>
     );
   }
@@ -134,35 +134,35 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
   const imageUrl = currentData ? `${BACKEND_URL}/job/${jobId}/layer/${currentData.filename}` : '';
 
   return (
-    <div className="absolute inset-0 z-50 bg-[#1a1a1a] flex flex-col text-white">
+    <div className="absolute inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex flex-col text-slate-800 dark:text-slate-100">
       {/* Top Toolbar */}
-      <div className="h-14 bg-[#2a2a2a] border-b border-[#333] flex items-center justify-between px-4 flex-shrink-0">
+      <div className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 flex-shrink-0 shadow-sm relative z-20">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#3a3a3a] rounded text-slate-300 hover:text-white transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 hover:text-primary transition-colors text-sm font-semibold"
           >
             <Icon name="arrow_back" className="text-lg" />
             Back to Editor
           </button>
-          <div className="h-6 w-px bg-[#444]"></div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wide">Exposure Events</span>
-            <span className="text-sm font-mono font-bold text-white">
-              {currentLayerIndex + 1} <span className="text-slate-500">/</span> {totalExposureEvents}
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Exposure Events</span>
+            <span className="text-sm font-mono font-bold text-slate-800 dark:text-slate-100">
+              {currentLayerIndex + 1} <span className="text-slate-400 dark:text-slate-600">/</span> {totalExposureEvents}
             </span>
           </div>
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wide">Physical Layers</span>
-            <span className="text-sm font-mono font-bold text-blue-400">
-              {currentData ? currentData.physical_layer_idx + 1 : '-'} <span className="text-slate-500">/</span> {totalPhysicalLayers}
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Physical Layers</span>
+            <span className="text-sm font-mono font-bold text-primary">
+              {currentData ? currentData.physical_layer_idx + 1 : '-'} <span className="text-slate-400 dark:text-slate-600">/</span> {totalPhysicalLayers}
             </span>
           </div>
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wide">Job ID</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Job ID</span>
             <span className="text-sm font-mono font-bold uppercase text-slate-500">{jobId.substring(0, 6)}</span>
           </div>
 
@@ -170,14 +170,14 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
 
         {/* Playback Controls */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center bg-[#1a1a1a] rounded-md p-1 border border-[#333] px-2 gap-2">
-            <button title={isPlaying ? "Pause Animación" : "Auto-Play Slices"} onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors ${isPlaying ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' : 'bg-green-500/20 text-green-500 hover:bg-green-500/30'}`}>
+          <div className="flex items-center bg-slate-50 dark:bg-slate-800 rounded-md p-1 border border-slate-200 dark:border-slate-700 px-2 gap-2 shadow-sm">
+            <button title={isPlaying ? "Pause Animación" : "Auto-Play Slices"} onClick={() => setIsPlaying(!isPlaying)} className={`p-1.5 rounded transition-colors ${isPlaying ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-400' : 'bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-400'}`}>
               <Icon name={isPlaying ? "pause" : "play_arrow"} className="text-sm" />
             </button>
             <select
               value={playSpeed}
               onChange={e => setPlaySpeed(Number(e.target.value))}
-              className="bg-[#2a2a2a] text-[10px] font-mono text-slate-300 rounded border border-[#444] p-1.5 focus:outline-none"
+              className="bg-transparent text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 rounded border-none p-1.5 focus:outline-none cursor-pointer"
             >
               <option value={500}>0.5x</option>
               <option value={100}>1.0x</option>
@@ -185,59 +185,59 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
               <option value={10}>MAX</option>
             </select>
           </div>
-        </div>
 
-        <button
-          onClick={async () => {
-            if (!confirm("Start Print on connected DLP printer?")) return;
-            try {
-              const res = await fetch(`${BACKEND_URL}/print/start/${jobId}`, { method: 'POST' });
-              const data = await res.json();
-              if (res.ok) {
-                setIsPrinting(true);
-              } else {
-                alert("Error: " + data.error);
+          <button
+            onClick={async () => {
+              if (!confirm("Start Print on connected DLP printer?")) return;
+              try {
+                const res = await fetch(`${BACKEND_URL}/print/start/${jobId}`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                  setIsPrinting(true);
+                } else {
+                  alert("Error: " + data.error);
+                }
+              } catch (e) {
+                alert("Failed to start print: " + e);
               }
-            } catch (e) {
-              alert("Failed to start print: " + e);
-            }
-          }}
-          className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold text-sm shadow-lg shadow-green-900/20 transition-all"
-        >
-          <Icon name="play_arrow" />
-          START PRINT
-        </button>
+            }}
+            className="flex items-center gap-2 px-6 py-2 bg-primary hover:opacity-90 text-white rounded-md font-bold text-sm shadow-sm transition-all uppercase tracking-wide"
+          >
+            <Icon name="play_arrow" />
+            START PRINT
+          </button>
+        </div>
       </div>
 
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
 
-        <div className="flex-1 flex flex-col relative bg-black overflow-hidden">
+        <div className="flex-1 flex flex-col relative bg-slate-100 dark:bg-[#0a0a0a] overflow-hidden">
           {/* Central Canvas (Projector View) */}
           {/* Zoom Controls Overlay */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-[#2a2a2a]/90 backdrop-blur border border-white/10 p-1 rounded-full shadow-lg">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-1.5 rounded-full shadow-sm text-slate-600 dark:text-slate-300">
             <button
               onClick={() => setZoom(z => Math.max(0.1, z - 0.1))}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               title="Zoom Out"
             >
               <Icon name="remove" className="text-lg" />
             </button>
-            <div className="px-2 w-16 text-center text-xs font-mono font-bold text-white">
+            <div className="px-2 w-16 text-center text-xs font-mono font-bold text-slate-800 dark:text-white">
               {Math.round(zoom * 100)}%
             </div>
             <button
               onClick={() => setZoom(z => Math.min(5.0, z + 0.1))}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               title="Zoom In"
             >
               <Icon name="add" className="text-lg" />
             </button>
-            <div className="w-px h-4 bg-white/20 mx-1"></div>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1"></div>
             <button
               onClick={() => setZoom(1.0)}
-              className="px-3 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-xs text-blue-400 font-bold uppercase transition-colors"
+              className="px-3 h-8 flex items-center justify-center rounded-full hover:bg-primary/10 hover:text-primary text-xs font-bold uppercase transition-colors"
               title="Actual Size"
             >
               Fit
@@ -283,21 +283,21 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
         </div>
 
         {/* Right Slider Panel */}
-        <div className="w-20 bg-[#2a2a2a] border-l border-[#333] flex flex-col items-center py-4 relative z-10">
+        <div className="w-20 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 relative z-10 shadow-sm">
 
-          <div className="mb-4 text-center w-full px-1">
-            <span className="text-[9px] text-slate-400 block mb-1 uppercase tracking-wider">Index</span>
-            <div className="w-full h-8 bg-[#1a1a1a] rounded border border-[#333] flex items-center justify-center text-xs font-mono font-bold text-blue-400">
+          <div className="mb-4 text-center w-full px-2">
+            <span className="text-[9px] text-slate-400 font-semibold block mb-1.5 uppercase tracking-wider">Index</span>
+            <div className="w-full h-8 bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center text-xs font-mono font-bold text-primary border border-slate-200 dark:border-slate-700">
               {currentLayerIndex + 1}
             </div>
           </div>
 
           <div className="flex-1 w-full flex justify-center py-2 relative group px-2">
             {/* Custom Vertical Slider */}
-            <div className="h-full w-2 bg-[#1a1a1a] rounded-full relative">
+            <div className="h-full w-2 bg-slate-100 dark:bg-slate-800 rounded-full relative border border-slate-200 dark:border-slate-700">
               {/* Fill */}
               <div
-                className="absolute bottom-0 w-full bg-blue-600 rounded-full"
+                className="absolute bottom-0 w-full bg-primary rounded-full transition-all duration-75"
                 style={{ height: `${((currentLayerIndex + 1) / totalExposureEvents) * 100}%` }}
               />
 
@@ -313,23 +313,23 @@ export const SlicePreview: React.FC<SlicePreviewProps> = ({ onBack, layerHeight 
 
               {/* Thumb Visual */}
               <div
-                className="absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-md pointer-events-none z-10 border-2 border-blue-600"
+                className="absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-md pointer-events-none z-10 border-2 border-primary"
                 style={{ bottom: `calc(${((currentLayerIndex + 1) / totalExposureEvents) * 100}% - 8px)` }}
               />
             </div>
           </div>
 
           <div className="mt-4 text-center w-full px-1">
-            <span className="text-[9px] text-slate-400 block mb-1 uppercase tracking-wider">Height</span>
-            <span className="text-xs font-mono text-slate-300 block">
+            <span className="text-[9px] text-slate-400 font-semibold block mb-1 uppercase tracking-wider">Height</span>
+            <span className="text-xs font-mono text-slate-700 dark:text-slate-300 block font-bold">
               {currentData ? currentData.z_height_mm.toFixed(3) : '0.000'}
             </span>
-            <span className="text-[9px] text-slate-500">mm</span>
+            <span className="text-[9px] text-slate-500 font-semibold">mm</span>
           </div>
 
-          <div className="mt-3 text-center w-full px-1 border-t border-white/5 pt-2">
-            <span className="text-[9px] text-slate-400 block mb-1 uppercase tracking-wider">Time</span>
-            <span className="text-xs font-mono text-green-400 block">
+          <div className="mt-3 text-center w-full px-1 border-t border-slate-100 dark:border-slate-800 pt-3">
+            <span className="text-[9px] text-slate-400 font-semibold block mb-1 uppercase tracking-wider">Time</span>
+            <span className="text-xs font-mono text-green-600 dark:text-green-400 block font-bold">
               {currentData ? currentData.exposure_time.toFixed(1) : '0.0'}s
             </span>
           </div>

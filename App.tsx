@@ -653,57 +653,47 @@ export default function App() {
 
         {/* ── Slicing Loader Overlay ── */}
         {isSlicing && (
-          <div className="absolute inset-0 z-50 bg-slate-900/85 backdrop-blur-sm flex items-center justify-center text-white">
-            <div className="flex flex-col items-center gap-5 p-8 rounded-2xl bg-[#111827] border border-slate-700 shadow-2xl w-[400px]">
+          <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center">
+            <div className="flex flex-col items-center gap-5 p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl w-[400px]">
 
-              {/* Animated rings + percentage */}
-              <div className="relative w-20 h-20 flex-shrink-0">
-                <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
-                <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
-                {slicePercent > 0.05 && (
-                  <div
-                    className="absolute inset-2 rounded-full border-2 border-purple-400/40 border-b-transparent animate-spin"
-                    style={{ animationDirection: 'reverse', animationDuration: '1.8s' }}
-                  />
-                )}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-blue-400">
-                    {slicePercent > 0.02 ? `${Math.round(slicePercent * 100)}%` : '...'}
-                  </span>
-                </div>
+              {/* Large percentage */}
+              <div className="flex items-center justify-center my-2">
+                <span className="text-7xl font-bold text-primary">
+                  {slicePercent > 0.02 ? `${Math.round(slicePercent * 100)}%` : '...'}
+                </span>
               </div>
 
               {/* Title + elapsed */}
               <div className="text-center">
-                <h3 className="text-lg font-bold tracking-tight mb-0.5">Slicing Model</h3>
-                <p className="text-xs text-slate-400">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight mb-0.5">Slicing Model</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Elapsed: {Math.round((Date.now() - sliceStartTime) / 1000)}s
                 </p>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
+                  className="h-full bg-primary rounded-full transition-all duration-500"
                   style={{ width: `${Math.max(2, slicePercent * 100)}%` }}
                 />
               </div>
 
               {/* Live message or error */}
-              <div className="w-full bg-slate-800/60 rounded-lg px-4 py-3 min-h-[52px] flex items-start">
+              <div className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg px-4 py-3 min-h-[52px] flex items-start border border-slate-100 dark:border-slate-700/50">
                 {sliceError ? (
                   <div className="w-full">
-                    <p className="text-xs text-red-400 font-bold mb-1">Error</p>
-                    <p className="text-xs text-red-300 whitespace-pre-wrap">{sliceError}</p>
+                    <p className="text-xs text-red-500 font-bold mb-1">Error</p>
+                    <p className="text-xs text-red-500/80 dark:text-red-400 whitespace-pre-wrap">{sliceError}</p>
                     <button
                       onClick={() => { setIsSlicing(false); setSliceError(null); }}
-                      className="mt-2 text-xs font-bold text-red-400 hover:text-white underline"
+                      className="mt-2 text-xs font-bold text-red-600 hover:text-red-700 dark:hover:text-red-300 underline"
                     >
                       Dismiss
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-blue-300 font-mono leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 font-mono leading-relaxed">
                     {sliceProgress || 'Working...'}
                   </p>
                 )}
@@ -719,12 +709,12 @@ export default function App() {
                 ].map((step, i) => (
                   <div key={i} className="flex flex-col items-center gap-1">
                     <div className={`w-full h-1.5 rounded-full transition-all duration-500 ${step.done ? 'bg-green-500'
-                      : step.active ? 'bg-blue-500 animate-pulse'
-                        : 'bg-slate-700'
+                      : step.active ? 'bg-primary animate-pulse'
+                        : 'bg-slate-200 dark:bg-slate-700'
                       }`} />
-                    <span className={`text-[9px] font-semibold uppercase tracking-wider ${step.done ? 'text-green-400'
-                      : step.active ? 'text-blue-400'
-                        : 'text-slate-600'
+                    <span className={`text-[9px] font-semibold uppercase tracking-wider ${step.done ? 'text-green-600 dark:text-green-500'
+                      : step.active ? 'text-primary'
+                        : 'text-slate-400'
                       }`}>{step.label}</span>
                   </div>
                 ))}
