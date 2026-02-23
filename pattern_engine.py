@@ -10,7 +10,7 @@ class PatternEngine:
     _mask_cache = {}
 
     @staticmethod
-    def generate_pattern_mask(shape, pattern_type, cell_size_mm, pixel_size_mm=0.0555, z_index=0, density=0.5):
+    def generate_pattern_mask(shape, pattern_type, cell_size_mm, pixel_size_mm=0.0555, z_index=0, density=0.5, randomize_z=False):
         """
         Generates a boolean mask for the 3D core patterns.
         Supported patterns: 'sponge', 'vascular', 'lattice', 'linear', 'noise'.
@@ -45,31 +45,41 @@ class PatternEngine:
             
         # --- LINEAR / GROOVES PATTERN ---
         if pattern_type == 'linear':
-            key = (shape, 'linear', round(cell_size_mm, 4), round(pixel_size_mm, 6), round(density, 4))
+            key = (shape, 'linear', round(cell_size_mm, 4), round(pixel_size_mm, 6), round(density, 4), z_index if randomize_z else 0)
             if key in PatternEngine._mask_cache:
                 return PatternEngine._mask_cache[key]
                 
             wall_thickness_px = max(1, int(cell_px * density))
             mask = np.zeros(shape, dtype=bool)
             
-            # Draw vertical walls (channels along Y)
-            for x in range(0, width, cell_px):
-                mask[:, x:x+wall_thickness_px] = True
+            if randomize_z:
+                rs = np.random.RandomState(42 + z_index)
+                offset = rs.randint(0, cell_px)
+            else:
+                offset = 0
+            
+            # Draw vertical walls (channels along Y) accounting for offset
+            for x in range(-cell_px, width + cell_px, cell_px):
+                start = x + offset
+                end = start + wall_thickness_px
+                start = max(0, min(width, start))
+                end = max(0, min(width, end))
+                if start < end:
+                    mask[:, start:end] = True
                 
             PatternEngine._mask_cache[key] = mask
             return mask
 
         # --- PURE STATIC NOISE PATTERN ---
         if pattern_type == 'noise':
-            key = (shape, 'noise_pure', round(density, 4))
+            seed = 42 + z_index if randomize_z else 42
+            key = (shape, 'noise_pure', round(density, 4), seed)
             if key in PatternEngine._mask_cache:
                 return PatternEngine._mask_cache[key]
             
             # Generamos ruido estocástico puro (pixel a pixel)
             # Density marca cuántos píxeles serán True (hueso)
-            # Como es estocástico, en capas Z será una nube de puntos totalmente aleatoria
-            # No usa cell_size.
-            rs = np.random.RandomState(42 + z_index)
+            rs = np.random.RandomState(seed)
             raw = rs.random(shape)
             mask = raw < density
             
@@ -194,8 +204,9 @@ class PatternEngine:
             cell_size = float(mod.get('voronoi_cell_size', mod.get('cell_size', 1.0)))
             density = float(mod.get('sponge_density', 0.5))
             core_pattern = mod.get('core_pattern', 'sponge')
+            randomize_z = bool(mod.get('randomize_z', False))
 
-            print(f"[DEBUG] Layer {layer_index}: {core_pattern} — CellSize={cell_size}mm, Density={density}, ShellGray={shell_gray}, CoreGray={core_gray}", flush=True)
+            print(f"[DEBUG] Layer {layer_index}: {core_pattern} — CellSize={cell_size}mm, Density={density}, RandomizeZ={randomize_z}, ShellGray={shell_gray}, CoreGray={core_gray}", flush=True)
 
             # 1. Erode to get core region
             kernel_size = max(1, int(shell_thickness_mm / pixel_size_mm))
@@ -206,7 +217,7 @@ class PatternEngine:
             # 2. Generate mask (vascular or sponge)
             pattern_mask = PatternEngine.generate_pattern_mask(
                 layer_image.shape, core_pattern, cell_size, pixel_size_mm,
-                z_index=layer_index, density=density
+                z_index=layer_index, density=density, randomize_z=randomize_z
             )
 
             # 3. Compose: shell (perimeter) + core (sponge)

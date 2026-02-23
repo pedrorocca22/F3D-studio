@@ -201,6 +201,27 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 />
                             </div>
                         </div>
+
+                        {/* Z-Randomization Toggle (for Linear and Noise) */}
+                        {['linear', 'noise'].includes(mod.core_pattern ?? 'sponge') && (
+                            <div className="pt-2">
+                                <label className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 cursor-pointer hover:border-primary/50 transition-colors">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase">Randomize per Layer (Z)</span>
+                                        <span className="text-[8px] text-slate-400">{mod.randomize_z ? 'Volumetric scatter (Random)' : 'Extruded vertically along Z'}</span>
+                                    </div>
+                                    <div className={`w-8 h-4 rounded-full relative transition-colors ${mod.randomize_z ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                                        <div className={`absolute top-[2px] w-3 h-3 rounded-full bg-white transition-all ${mod.randomize_z ? 'left-[18px]' : 'left-[2px]'}`}></div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="hidden"
+                                        checked={mod.randomize_z ?? false}
+                                        onChange={(e) => updateDraft({ randomize_z: e.target.checked })}
+                                    />
+                                </label>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

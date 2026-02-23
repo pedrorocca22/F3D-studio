@@ -77,6 +77,7 @@ export interface Modifier {
   shell_gray?: number;          // 0–255: grayscale of the shell/matrix (void)
   core_gray?: number;           // 0–255: grayscale of the bone trabeculae
   voronoi_cell_size?: number;   // reused as pore size (mm) for sponge
+  randomize_z?: boolean;        // Whether the pattern changes randomly per layer
 }
 
 export interface Pattern {
