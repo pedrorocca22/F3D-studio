@@ -30,7 +30,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                 type: 'shell_core',
                 core_pattern: 'sponge',
                 shell_thickness: 1.0,
-                voronoi_cell_size: 1.0,
+                voronoi_cell_size: 0.2,
                 sponge_density: 0.5,
                 shell_gray: 0,
                 core_gray: 255,
@@ -158,7 +158,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                 </label>
                                 <div className="flex items-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus-within:border-purple-400 transition-colors">
                                     <input
-                                        type="number" step="0.1" min="0.1"
+                                        type="number" step="0.05" min="0.05"
                                         value={mod.voronoi_cell_size || 1.0}
                                         onChange={(e) => updateDraft({ voronoi_cell_size: parseFloat(e.target.value) })}
                                         className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-200 outline-none w-full min-w-0"
