@@ -244,10 +244,35 @@ export default function App() {
     setModels(newModels);
   };
 
+  const [lastSliceHash, setLastSliceHash] = useState<string | null>(null);
+
   // --- REAL SLICING LOGIC ---
   const handleSlice = async () => {
     if (models.length === 0) {
       alert("Please add a model before slicing.");
+      return;
+    }
+
+    // Helper to detect if anything changed since last slice
+    const generateSliceStateHash = () => {
+      return JSON.stringify({
+        global: globalSettings,
+        models: models.map(m => ({
+          name: m.file?.name,
+          size: m.file?.size, // Identifies file
+          transform: m.transform,
+          settings: m.settings,
+          advanced: m.advancedSettings,
+          modifiers: m.modifiers
+        }))
+      });
+    };
+
+    const currentHash = generateSliceStateHash();
+
+    // Si la configuración no ha cambiado y ya tenemos un trabajo, nos saltamos la carga del backend
+    if (currentHash === lastSliceHash && currentJobId) {
+      setIsSlicePreviewMode(true);
       return;
     }
 
@@ -397,6 +422,7 @@ export default function App() {
       });
 
       setIsSlicing(false);
+      setLastSliceHash(currentHash);
       setIsSlicePreviewMode(true);
 
     } catch (error) {
