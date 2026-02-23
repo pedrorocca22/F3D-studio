@@ -55,6 +55,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     adhesion: false,
     heating: false,
     separation: false,
+    thermodynamic: false,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +89,22 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     offsetHeight: 4.2,
     speedUp: 22
   });
+
+  const [thermodynamic, setThermodynamic] = useState({
+    enabled: globalSettings.thermodynamic?.enabled ?? false,
+    maxFlashTime: globalSettings.thermodynamic?.maxFlashTime ?? 0.5,
+    coolingPause: globalSettings.thermodynamic?.coolingPause ?? 2.0
+  });
+
+  // Sync with global settings when they change externally
+  useEffect(() => {
+    if (globalSettings.thermodynamic) {
+      setThermodynamic(prev => ({
+        ...prev,
+        ...globalSettings.thermodynamic
+      }));
+    }
+  }, [globalSettings.thermodynamic]);
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -981,6 +998,76 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 <span className="text-xs text-slate-500">Offset (mm):</span>
                 <NumericInput className={inputClass} value={separation.offsetHeight} onChange={v => setSeparation({ ...separation, offsetHeight: v })} step={0.1} />
               </div>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Thermal Viability Saver"
+              isOpen={openSections.thermodynamic}
+              onToggle={() => toggleSection('thermodynamic')}
+              toggleSwitch
+              switchOn={thermodynamic.enabled}
+              onSwitchChange={() => {
+                setThermodynamic(prev => ({ ...prev, enabled: !prev.enabled }));
+              }}
+              info
+            >
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded mb-3 flex items-start gap-2">
+                <Icon name="ac_unit" className="text-primary text-sm mt-0.5" />
+                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">
+                  Protects cells by breaking long UV exposures into short flashes with thermodynamic cooling pauses.
+                </p>
+              </div>
+
+              {thermodynamic.enabled && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 flex flex-col">
+                      <span>Max Flash Time (s):</span>
+                      <span className="text-[8px] text-slate-400">Time before pause</span>
+                    </span>
+                    <NumericInput
+                      className={inputClass}
+                      value={thermodynamic.maxFlashTime}
+                      onChange={v => setThermodynamic({ ...thermodynamic, maxFlashTime: v })}
+                      step={0.1}
+                      min={0.1}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 flex flex-col">
+                      <span>Cooling Pause (s):</span>
+                      <span className="text-[8px] text-slate-400">Min 2.0s recommended</span>
+                    </span>
+                    <NumericInput
+                      className={inputClass}
+                      value={thermodynamic.coolingPause}
+                      onChange={v => setThermodynamic({ ...thermodynamic, coolingPause: v })}
+                      step={0.5}
+                      min={1.0}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onUpdateGlobalSettings({
+                    ...globalSettings,
+                    thermodynamic: { ...thermodynamic }
+                  });
+                }}
+                disabled={
+                  JSON.stringify(globalSettings.thermodynamic) === JSON.stringify(thermodynamic)
+                }
+                className={`w-full py-2 mt-4 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${JSON.stringify(globalSettings.thermodynamic) !== JSON.stringify(thermodynamic)
+                  ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-default'
+                  }`}
+              >
+                <Icon name="save" className="text-sm" />
+                Save Changes
+              </button>
             </AccordionSection>
           </>
         )}

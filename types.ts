@@ -48,9 +48,16 @@ export interface AdhesionSettings {
   targetDose?: number;
 }
 
+export interface ThermodynamicSettings {
+  enabled: boolean;
+  maxFlashTime: number; // Max exposure before forcing a pause (e.g. 0.5s)
+  coolingPause: number; // Duration of pause while cooling (e.g. 2.0s)
+}
+
 export interface GlobalSettings {
   layerHeight: number;
   adhesion?: AdhesionSettings;
+  thermodynamic?: ThermodynamicSettings;
 }
 
 export interface SettingsState {

@@ -337,6 +337,9 @@ def slice_scene():
         "initial_layer_height":   request.form.get("initial_layer_height"),
         "initial_exposure_time":  request.form.get("initial_exposure_time"),
         "faded_layers":           request.form.get("faded_layers"),
+        "thermodynamic_enabled":  request.form.get("thermodynamic_enabled") == "true",
+        "thermodynamic_max_flash":request.form.get("thermodynamic_max_flash"),
+        "thermodynamic_cooling":  request.form.get("thermodynamic_cooling"),
     }
 
     # Register job as pending
@@ -362,6 +365,11 @@ def _run_slice_job(job_id, scene, saved_files, config_path, job_dir, constructs_
         "type": "multi",
         "mode": "scene",
         "config_ini": str(config_path),
+        "thermodynamic": {
+            "enabled": form_params.get("thermodynamic_enabled", False),
+            "max_flash": float(form_params.get("thermodynamic_max_flash") or 0.5),
+            "cooling_pause": float(form_params.get("thermodynamic_cooling") or 2.0),
+        },
         "constructs": [],
     }
 

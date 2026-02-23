@@ -347,13 +347,42 @@ class PrintManager:
                     return
                 
                 # 4. Expose
-                # Do we need to recalculate time from Dose?
-                # exposure_time = self.calibration.get_time_for_dose(layer_dose, current_irradiance)
-                # For now use layer time
                 exposure_time = layer.get("exposure_time", 2.0)
                 
-                logger.info(f"Exposing Layer {i} for {exposure_time}s")
-                self.printer.expose(exposure_time)
+                # --- THERMODYNAMIC PAUSES (Viability Saver) ---
+                thermodynamic = self.job_data.get("thermodynamic", {})
+                therm_enabled = thermodynamic.get("enabled", False)
+                max_flash = thermodynamic.get("max_flash", 0.5)
+                cooling_pause = thermodynamic.get("cooling_pause", 2.0)
+                
+                if therm_enabled and max_flash > 0 and exposure_time > max_flash:
+                    remaining_time = exposure_time
+                    flash_count = 1
+                    
+                    logger.info(f"Therm-Exposure Layer {i} | Total: {exposure_time}s | Max Flash: {max_flash}s")
+                    while remaining_time > 0 and not self.stop_flag:
+                        # Pausa de software si el usuario detuvo la impresión a medias
+                        while self.pause_flag and not self.stop_flag:
+                            time.sleep(1)
+                        
+                        flash_time = min(remaining_time, max_flash)
+                        logger.info(f"  -> Flash {flash_count}: ON for {flash_time:.2f}s")
+                        
+                        # Al exponer, la imagen ya está cargada en el buffer. Sólo disparamos el pulso.
+                        self.printer.expose(flash_time)
+                        
+                        remaining_time -= flash_time
+                        
+                        # Si aún queda luz por dar, pausamos pasivamente (enfriamiento térmico)
+                        if remaining_time > 0.001 and not self.stop_flag:
+                            logger.info(f"  -> Cooling Pause: {cooling_pause}s ...")
+                            time.sleep(cooling_pause)
+                            
+                        flash_count += 1
+                else:
+                    # Exposición tradicional continua (Classic Mode)
+                    logger.info(f"Exposing Layer {i} for {exposure_time}s")
+                    self.printer.expose(exposure_time)
                 
             self.printer.stop_projector()
             

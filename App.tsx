@@ -298,6 +298,12 @@ export default function App() {
       formData.append('faded_layers', adhesionLayers.toString());
     }
 
+    if (globalSettings.thermodynamic?.enabled) {
+      formData.append('thermodynamic_enabled', 'true');
+      formData.append('thermodynamic_max_flash', globalSettings.thermodynamic.maxFlashTime.toString());
+      formData.append('thermodynamic_cooling', globalSettings.thermodynamic.coolingPause.toString());
+    }
+
     models.forEach((model, index) => {
       if (!model.file) return;
 

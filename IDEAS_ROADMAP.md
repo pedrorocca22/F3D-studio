@@ -9,8 +9,8 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 - [x] **A. Generador de Redes Vasculares (Vascular Tree / Voronoi Perfusion)**
 - [x] **B. Mapeo Metabólico y Gradientes Funcionales (Math-Gradient Stiffness)**
 - [ ] **C. Control de Sangrado Lumínico de Alta Precisión (Anti-Bleeding Microfluidics)**
-- [ ] **D. Dosimetría Pulsada Dinámica (Cell Viability Saver)**
-- [ ] **E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)**
+- [ ] **D. Pausas Termodinámicas en Capa (Motor / Viability Saver)**
+- [x] **E. Animación Geométrica 3D (Descartada tras evaluación)**
 
 ---
 
@@ -37,23 +37,21 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 * **La Solución (Software):** Implementar un analizador de bordes con `OpenCV`. Si el motor detecta una cavidad vacía diseñada por el usuario, aplicará inteligentemente "Píxeles Grises Atenuados" en las paredes limitantes del borde interno. Esto reduce energéticamente los bordes (*Edge Erasion Dimming*) para compensar la dispersión lumínica.
 * **Impacto en Investigación:** Viabiliza la impresión fiable de reactores de Lab-On-A-Chip o redes de hasta 50 micras sin fallos geométricos.
 
-### D. Dosimetría Pulsada Dinámica (Cell Viability Saver)
+### D. Pausas Termodinámicas en Capa (Motor / Viability Saver)
 **Estado:** 🔴 Por hacer (`To Do`)
 
-* **El Problema:** Exposiciones a proyectores UV prolongadas (ej. 5 o 6 segundos a toda potencia) matan a las colonias celulares alojadas en la resina, debido a la toxicidad del foto-iniciador al fraccionarse, o por picos súbitos en la temperatura del gel (reacción exotérmica).
-* **La Solución (Software):** Modificar el bucle de impresión en `print_manager.py` para permitir la "Exposición Pulsada". Alcanzar la mJ/cm² deseado fraccionándolo. Por ejemplo, en vez de iluminar `3s continuo`, la máquina flashea secuencias termodinámicas de `[0.5s ON] -> [0.5s OFF]` hasta acumular la dosis completa permitiendo a los tejidos enfriarse.
-* **Impacto en Investigación:** Resuelve el mayor terror en el bio-printing: las tasas de supervivencia. Protegeremos radicalmente la viabilidad de los microorganismos de cara a cultivos de larga duración.
+* **El Problema:** Exposiciones a proyectores UV prolongadas (ej. 5 o 6 segundos consecutivos de luz intensa) no solo agotan rápidamente la vida útil del chip DMD del proyector, sino que matan a las colonias celulares por picos súbitos de temperatura.
+* **La Solución Original Descartada:** Pulsar la lámpara del proyector rápido a altas frecuencias. Descartado por daño potencial al hardware y controladores DLP lentos.
+* **La Nueva Solución (Software):** Implementar la opción geométrica de añadir retardos (`Pausas mecánicas de capa`) en la configuración del Slicer. Esto implicará separar la dosis continua de luz en pasos. El motor Z de la bio-impresora esperará inmóvil durante intervalos de mínimo 2 segundos con el proyector apagado, permitiendo el enfriamiento por termodinámica pasiva de la mesa biológica, antes de encender continuar rellenando la dosis de MJ/cm2 faltante en esa misma capa geométrica.
+* **Impacto en Investigación:** Proteger la viabilidad bacteriana y celular frente al estrés térmico sin quemar el proyector, generando un perfil de curado seguro.
 
 ### E. Animación Geométrica 3D (Crecimiento de Capas Isométricas)
-**Estado:** � En Análisis (`To Do / Rethink`)
+**Estado:** ❌ Descartada (`Discarded`)
 
-* **El Problema:** Al hacer el "slice" de piezas con geometrías internas complejas (microfluídica, andamios, patrones generados algorítmicamente), la revisión capa por capa en 2D puro estático no brinda contexto tridimensional suficiente. Además, **los patrones fotocurables no son blanco y negro puro**, sino que contienen degradados y gradientes (mapeo metabólico). Resulta engañoso y difícil tratar de crear mallas sólidas 3D de elementos difusos como una vena vascularizada.
-* **La Solución (Software / En Análisis):** Repensar el renderizado volumétrico desde un enfoque **holográfico o difuminado**. En vez de intentar construir geometría tridimensional sólida que represente falsas paredes, interpretar los mapas de escala de grises de cada capa como "densidades lumínicas" o niveles de opacidad dentro de un volumen.
-* **Arquitectura Probable:**
-    - Avaluar shaders volumétricos o apilación dinámica de capas 2D con transparencia múltiple (`Alpha Blending / Additive Blending`).
-    - Renderizar los píxeles degradados como una "neblina" o "gel" luminoso (holográfico) para representar las dosis continuas de curado y la morfología de la vascularización.
-* **Impacto en Investigación:** Proporciona un visor fidedigno donde el científico pueda entender de inmediato cómo la energía de luz interactuará tridimensionalmente con su material, permitiendo evaluar estructuras orgánicas y translúcidas de forma natural sin confundirse por bordes artificialmente afilados.
-
+* **El Problema original:** Proporcionar un contexto tridimensional para evaluar estructuras internas complejas y mapeos metabólicos difusos en el momento del Slicing.
+* **Análisis Experimental Realizado:** Se desarrolló un `IsometricLayerViewer` en Three.js con apilamiento volumétrico, materiales foto-realistas imitando hueso opaco y redes vasculares translucidas con oclusión excluyente avanzada.
+* **La Conclusión Técnica:** Se detectó que para validar el Slicer de manera industrial e hiperprecisa, la vista isométrica 3D insertaba ambigüedades cognitivas. Para la interpretación clínica de microfluídica proyectada (50 micras), el experto en laboratorio se beneficia inmensamente más de la **Vista de Explorador 2D Pura Superior (Proyección en tiempo real a 60 fps sin procesado gráfico añadido)**.
+* **Fallo Final:** Se desecha el uso de la emulación isométrica 3D del código principal a favor de un pre-cargador bidimensional robusto en cascada ("Look-ahead Buffer").
 ---
 
 *Documento de Trabajo - Proyecto DLP3 Bioprinter (2026)*
