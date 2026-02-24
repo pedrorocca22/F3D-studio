@@ -5,6 +5,8 @@ import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
 import { SlicePreview } from './components/SlicePreview';
+import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
+import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
 import { Icon } from './components/Icon';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride } from './types';
 import { generateUUID } from './utils';
@@ -23,6 +25,8 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
+  const [isExperimentsMode, setIsExperimentsMode] = useState(false);
+  const [viewingExperimentId, setViewingExperimentId] = useState<string | null>(null);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
 
   // Slicing State
@@ -32,6 +36,12 @@ export default function App() {
   const [sliceError, setSliceError] = useState<string | null>(null);
   const [sliceStartTime, setSliceStartTime] = useState(0);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
+  // Pre-flight State
+  const [showPreFlight, setShowPreFlight] = useState(false);
+  const [experimentName, setExperimentName] = useState('');
+  const [experimentIntent, setExperimentIntent] = useState('');
+  const [experimentMaterial, setExperimentMaterial] = useState('');
 
   // Global Print Settings (Physical machine constraints)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
@@ -247,11 +257,18 @@ export default function App() {
   const [lastSliceHash, setLastSliceHash] = useState<string | null>(null);
 
   // --- REAL SLICING LOGIC ---
-  const handleSlice = async () => {
+  const handleSlice = () => {
     if (models.length === 0) {
       alert("Please add a model before slicing.");
       return;
     }
+
+    setExperimentName(`Exp: ${models[0].name.replace('.stl', '')}`);
+    setShowPreFlight(true);
+  };
+
+  const executeSlice = async () => {
+    setShowPreFlight(false);
 
     // Helper to detect if anything changed since last slice
     const generateSliceStateHash = () => {
@@ -382,15 +399,12 @@ export default function App() {
     });
 
     console.log("[App] Slicing Scene Data:", JSON.stringify(sceneData, null, 2));
-    if (sceneData.length > 0) {
-      console.log("[App] First Model Ranges:", sceneData[0].override_ranges);
-      sceneData[0].override_ranges.forEach((r, i) => {
-        console.log(`[App] Range ${i} Modifiers:`, r.modifiers);
-      });
-    }
 
     formData.append('scene_json', JSON.stringify(sceneData));
     formData.append('layer_height', (globalSettings.layerHeight / 1000).toString());
+    formData.append('experiment_name', experimentName);
+    formData.append('intent', experimentIntent);
+    formData.append('material', experimentMaterial);
 
     try {
       setSliceProgress('Uploading to server...');
@@ -429,7 +443,10 @@ export default function App() {
 
       setIsSlicing(false);
       setLastSliceHash(currentHash);
-      setIsSlicePreviewMode(true);
+
+      // Navigate to Experiments mode instead of auto-opening preview
+      setIsExperimentsMode(true);
+      setViewingExperimentId(null);
 
     } catch (error) {
       const msg = (error as Error).message;
@@ -587,10 +604,51 @@ export default function App() {
   if (isSlicePreviewMode && currentJobId) {
     return (
       <SlicePreview
-        onBack={() => setIsSlicePreviewMode(false)}
+        onBack={() => {
+          setIsSlicePreviewMode(false);
+          setIsExperimentsMode(true); // Return to experiments panel when closing preview
+        }}
         layerHeight={globalSettings.layerHeight}
         jobId={currentJobId}
       />
+    );
+  }
+
+  if (isExperimentsMode) {
+    return (
+      <div className="h-screen w-screen flex flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200">
+        <Header
+          darkMode={darkMode}
+          toggleDarkMode={() => setDarkMode(!darkMode)}
+          onSaveProject={handleSaveProject}
+          onLoadProject={handleLoadProject}
+          onOpenCalibration={() => setIsCalibrationOpen(true)}
+          onOpenExperiments={() => setIsExperimentsMode(!isExperimentsMode)}
+        />
+        {viewingExperimentId ? (
+          <ExperimentDetails
+            experimentId={viewingExperimentId}
+            onBack={() => setViewingExperimentId(null)}
+            onOpenPreview={(id) => {
+              setCurrentJobId(id);
+              setIsSlicePreviewMode(true);
+              setIsExperimentsMode(false);
+            }}
+            onDelete={() => setViewingExperimentId(null)}
+          />
+        ) : (
+          <ExperimentsPanel
+            onClose={() => setIsExperimentsMode(false)}
+            onReplicate={(id) => { console.log("Replicate", id) }}
+            onViewDetails={(id) => setViewingExperimentId(id)}
+            onOpenPreview={(id) => {
+              setCurrentJobId(id);
+              setIsSlicePreviewMode(true);
+              setIsExperimentsMode(false);
+            }}
+          />
+        )}
+      </div>
     );
   }
 
@@ -608,6 +666,7 @@ export default function App() {
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
+        onOpenExperiments={() => setIsExperimentsMode(true)}
       />
 
       {isCalibrationOpen && (
@@ -650,6 +709,61 @@ export default function App() {
           onSavePattern={handleSavePattern}
           onDeletePattern={handleDeletePattern}
         />
+
+        {/* ── Pre-Flight Modal ── */}
+        {showPreFlight && (
+          <div className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-[500px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex-shrink-0">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Icon name="biotech" className="text-primary" /> Experiment Pre-Flight
+                </h3>
+                <button onClick={() => setShowPreFlight(false)} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
+                  <Icon name="close" className="text-xl" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-slate-700 dark:text-slate-300">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Experiment Name</label>
+                  <input
+                    type="text"
+                    value={experimentName}
+                    onChange={e => setExperimentName(e.target.value)}
+                    placeholder="e.g. Scaffolds v2 - High Exposure"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Intent / Notes</label>
+                  <textarea
+                    value={experimentIntent}
+                    onChange={e => setExperimentIntent(e.target.value)}
+                    placeholder="What are you trying to test or achieve in this print?"
+                    className="w-full h-24 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Material</label>
+                  <input
+                    type="text"
+                    value={experimentMaterial}
+                    onChange={e => setExperimentMaterial(e.target.value)}
+                    placeholder="e.g. PEGDA 20% + LAP"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                <button onClick={() => setShowPreFlight(false)} className="px-5 py-2 rounded-md font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm">Cancel</button>
+                <button onClick={executeSlice} className="px-5 py-2 bg-primary hover:bg-opacity-90 text-white rounded-md font-bold text-sm shadow-md transition-all flex items-center gap-2">
+                  <Icon name="play_arrow" className="text-lg" /> Start Slicing
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Slicing Loader Overlay ── */}
         {isSlicing && (

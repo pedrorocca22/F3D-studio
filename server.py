@@ -18,6 +18,8 @@ from PIL import Image, ImageOps
 from flask_cors import CORS
 from print_manager import PrintManager
 from pattern_engine import PatternEngine
+import sqlite3
+from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -36,6 +38,34 @@ CORS(app)  # Habilita CORS para todas las rutas
 print_manager = PrintManager(DEFAULT_CONFIG_INI)
 
 # ----------------------------
+# Database Initialization (History)
+# ----------------------------
+def get_db():
+    conn = sqlite3.connect(str(JOBS_DIR / "history.db"), timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db() as db:
+        db.execute('''
+        CREATE TABLE IF NOT EXISTS experiments (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            intent TEXT,
+            status TEXT,
+            material TEXT,
+            config_snapshot TEXT,
+            patterns_snapshot TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            notes TEXT,
+            rating INTEGER
+        )
+        ''')
+        db.commit()
+
+init_db()
+
+# ----------------------------
 # Job progress tracking
 # ----------------------------
 _slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
@@ -43,6 +73,18 @@ _slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
 def _set_progress(job_id: str, progress: float, message: str, status: str = "running"):
     """Thread-safe progress update (CPython GIL makes dict assignment atomic)."""
     _slice_jobs[job_id] = {"status": status, "progress": round(progress, 3), "message": message}
+    
+    # We only want to update the experiment DB status when the slicing represents a definitive state.
+    # We will use "printing" or "done" as terminal states for the EXPERIMENT later triggered by endpoints, 
+    # but if slicing fails ("error") or finishes ("sliced") we log that here.
+    try:
+        if status in ["error", "done"]:
+            db_status = "sliced" if status == "done" else "slicing_error"
+            with get_db() as db:
+                db.execute("UPDATE experiments SET status = ? WHERE id = ?", (db_status, job_id))
+                db.commit()
+    except Exception as e:
+        print(f"Error updating db for job {job_id}: {e}")
 
 
 # ----------------------------
@@ -223,7 +265,55 @@ def index():
 
 
 # ----------------------------
+# Experiments API (History)
+# ----------------------------
+@app.get("/api/experiments")
+def get_experiments():
+    with get_db() as db:
+        rows = db.execute("SELECT id, name, intent, status, material, created_at, rating FROM experiments ORDER BY created_at DESC").fetchall()
+        return jsonify([dict(r) for r in rows])
+
+@app.get("/api/experiments/<experiment_id>")
+def get_experiment(experiment_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM experiments WHERE id = ?", (experiment_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Experiment not found"}), 404
+        data = dict(row)
+        if data.get("config_snapshot"):
+            data["config_snapshot"] = json.loads(data["config_snapshot"])
+        if data.get("patterns_snapshot"):
+            data["patterns_snapshot"] = json.loads(data["patterns_snapshot"])
+        return jsonify(data)
+
+@app.post("/api/experiments/<experiment_id>/evaluate")
+def evaluate_experiment(experiment_id):
+    req = request.json or {}
+    rating = req.get("rating")
+    notes = req.get("notes")
+    with get_db() as db:
+        db.execute("UPDATE experiments SET rating = ?, notes = ? WHERE id = ?", (rating, notes, experiment_id))
+        db.commit()
+    return jsonify({"status": "success"})
+
+@app.delete("/api/experiments/<experiment_id>")
+def delete_experiment(experiment_id):
+    with get_db() as db:
+        db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+        db.commit()
+    # Try to delete the physical files as well
+    job_dir = JOBS_DIR / experiment_id
+    try:
+        if job_dir.exists() and job_dir.is_dir():
+            shutil.rmtree(job_dir)
+    except Exception as e:
+        print(f"Could not delete physical job folder {job_dir}: {e}")
+    return jsonify({"status": "deleted"})
+
+
+# ----------------------------
 # PrusaSlicer CLI
+
 # ----------------------------
 def run_prusaslicer_export_sla(stl_paths: list[Path], config_path: Path, sl1_out: Path, overrides: dict | None = None):
     cmd = [
@@ -301,6 +391,10 @@ def slice_scene():
     except Exception as e:
         return jsonify({"error": f"Invalid scene_json: {e}"}), 400
 
+    experiment_name = request.form.get("experiment_name", "")
+    intent = request.form.get("intent", "")
+    material = request.form.get("material", "")
+
     if len(scene) != len(files):
         return jsonify({"error": f"Count mismatch: scene={len(scene)} files={len(files)}"}), 400
 
@@ -341,6 +435,46 @@ def slice_scene():
         "thermodynamic_max_flash":request.form.get("thermodynamic_max_flash"),
         "thermodynamic_cooling":  request.form.get("thermodynamic_cooling"),
     }
+
+    # Register experiment
+    patterns_snapshot = []
+    for obj in scene:
+        base_exposure = round(float(obj.get("dose_mJ_cm2", 0)) / float(obj.get("irradiance_mW_cm2", 1)), 2) if float(obj.get("irradiance_mW_cm2", 1)) > 0 else 0
+        base_params = {
+            "exposure": base_exposure,
+            "irr": obj.get("irradiance_mW_cm2", 0),
+            "modifiers": obj.get("modifiers", [])
+        }
+        
+        overrides = obj.get("override_ranges", [])
+        if not overrides:
+            patterns_snapshot.append({**base_params, "start": 0, "end": "Max", "is_base": True})
+        else:
+            sorted_ovr = sorted(overrides, key=lambda r: int(r.get("start", 0)))
+            current_layer = 0
+            
+            for ovr in sorted_ovr:
+                st = int(ovr.get("start", 0))
+                en = int(ovr.get("end", 0))
+                if st > current_layer:
+                    patterns_snapshot.append({**base_params, "start": current_layer, "end": st - 1, "is_base": True})
+                
+                # Ensure the main override also correctly casts to int for sorting purposes
+                patterns_snapshot.append(ovr)
+                current_layer = en + 1
+                
+            # Add final trailing base segment
+            patterns_snapshot.append({**base_params, "start": current_layer, "end": "Max", "is_base": True})
+
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO experiments (id, name, intent, material, status, config_snapshot, patterns_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (job_id, experiment_name, intent, material, "pending", json.dumps(form_params), json.dumps(patterns_snapshot))
+            )
+            db.commit()
+    except Exception as e:
+        print(f"Error registering experiment {job_id}: {e}")
 
     # Register job as pending
     _set_progress(job_id, 0.0, "Queued", status="pending")
@@ -939,6 +1073,12 @@ def layer_file(job_id, name):
 def start_print(job_id):
     success, msg = print_manager.start_print(job_id, JOBS_DIR)
     if success:
+        try:
+            with get_db() as db:
+                db.execute("UPDATE experiments SET status = 'printing' WHERE id = ?", (job_id,))
+                db.commit()
+        except Exception as e:
+            print("DB Update Error", e)
         return jsonify({"status": "started", "message": msg})
     else:
         return jsonify({"error": msg}), 400
@@ -958,6 +1098,14 @@ def resume_print():
 @app.post("/print/stop")
 def stop_print():
     print_manager.stop_print()
+    job_id = print_manager.current_job_id
+    if job_id:
+        try:
+            with get_db() as db:
+                db.execute("UPDATE experiments SET status = 'cancelled' WHERE id = ?", (job_id,))
+                db.commit()
+        except:
+            pass
     return jsonify({"status": "stopped"})
 
 @app.get("/print/status")

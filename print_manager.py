@@ -388,13 +388,27 @@ class PrintManager:
             
             if not self.stop_flag:
                 self.state = PrintState.COMPLETED
+                self._update_experiment_status("done")
             else:
                 self.state = PrintState.IDLE
 
         except Exception as e:
             logger.error(f"Print Loop Exception: {e}")
             self.state = PrintState.ERROR
+            self._update_experiment_status("error")
             self.printer.stop_projector()
+
+    def _update_experiment_status(self, new_status: str):
+        if not self.current_job_id: return
+        import sqlite3
+        try:
+            db_path = _BASE_DIR / "jobs" / "history.db"
+            conn = sqlite3.connect(str(db_path), timeout=5)
+            conn.execute("UPDATE experiments SET status = ? WHERE id = ?", (new_status, self.current_job_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to update experiment status: {e}")
 
     def get_status(self):
         return {
@@ -404,3 +418,4 @@ class PrintManager:
             "job_id": self.current_job_id,
             "progress": (self.current_layer_index / self.total_layers * 100) if self.total_layers > 0 else 0
         }
+
