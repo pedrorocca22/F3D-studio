@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 interface Experiment {
     id: string;
     name: string;
+    author?: string;
     intent: string;
     status: string;
     material: string;
@@ -82,74 +83,84 @@ export const ExperimentsPanel: React.FC<ExperimentsPanelProps> = ({ onClose, onR
                         <p className="text-slate-500 mt-2">Your printed jobs will appear here for traceability.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {experiments.map(exp => (
-                            <div key={exp.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col group">
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="flex-1 pr-2">
-                                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg line-clamp-1">
-                                            {exp.name || `Experiment ${exp.id.substring(0, 6)}`}
-                                        </h3>
-                                        <span className={`inline-block mt-1 text-[10px] uppercase font-bold px-2 py-1 rounded-full ${['done', 'sliced', 'printing'].includes(exp.status) ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                            exp.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                            }`}>
-                                            {exp.status}
-                                        </span>
+                    <div className="flex flex-col gap-3 max-w-5xl mx-auto w-full pb-10">
+                        {experiments.map(exp => {
+                            let statusColor = 'border-slate-200';
+                            let iconName = 'science';
+                            let iconColor = 'text-slate-400';
+                            let statusText = exp.status;
+
+                            if (exp.status === 'done') {
+                                statusColor = 'border-l-4 border-l-green-500 bg-green-50/20 dark:bg-green-900/10';
+                                iconColor = 'text-green-600 dark:text-green-400';
+                                iconName = 'check_circle';
+                            } else if (['sliced', 'printing', 'pending'].includes(exp.status)) {
+                                statusColor = 'border-l-4 border-l-blue-500 bg-blue-50/20 dark:bg-blue-900/10';
+                                iconColor = 'text-blue-600 dark:text-blue-400';
+                                iconName = exp.status === 'printing' ? 'print' : 'layers';
+                            } else if (['error', 'slicing_error', 'cancelled'].includes(exp.status)) {
+                                statusColor = 'border-l-4 border-l-red-500 bg-red-50/20 dark:bg-red-900/10';
+                                iconColor = 'text-red-600 dark:text-red-400';
+                                iconName = 'error';
+                            } else {
+                                statusColor = 'border-l-4 border-l-slate-300 dark:border-l-slate-600 bg-white dark:bg-slate-800';
+                            }
+
+                            return (
+                                <div key={exp.id} className={`border-y border-r border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group cursor-pointer ${statusColor}`} onClick={() => onViewDetails(exp.id)}>
+                                    <div className={`p-2 rounded-full ${iconColor} bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 flex-shrink-0`}>
+                                        <Icon name={iconName} className="text-xl" />
                                     </div>
-                                    <button
-                                        onClick={(e) => handleDelete(exp.id, e)}
-                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/40 text-red-400 hover:text-red-600 rounded-md transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
-                                        title="Delete Experiment"
-                                    >
-                                        <Icon name="delete" className="text-sm" />
-                                    </button>
-                                </div>
 
-                                <div className="text-xs text-slate-500 dark:text-slate-400 mb-4 font-mono">
-                                    {new Date(exp.created_at).toLocaleString()}
-                                </div>
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] truncate">
+                                                {exp.name || `Experiment ${exp.id.substring(0, 8)}`}
+                                            </h3>
+                                            <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm ${['done'].includes(exp.status) ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' :
+                                                    ['sliced', 'printing', 'pending'].includes(exp.status) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' :
+                                                        ['error', 'slicing_error', 'cancelled'].includes(exp.status) ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
+                                                            'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                }`}>
+                                                {statusText}
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-2 truncate">
+                                            <span>{new Date(exp.created_at).toLocaleString()}</span>
+                                            {exp.author && (
+                                                <>
+                                                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                                                    <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300"><Icon name="person" className="text-[11px] text-primary" /> {exp.author}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
 
-                                <div className="mb-4 flex-1">
-                                    <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-3">
-                                        <span className="font-semibold mr-1">Intent:</span>
-                                        {exp.intent || 'No intent recorded.'}
-                                    </p>
-                                    {exp.material && (
-                                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
-                                            <span className="font-semibold mr-1">Material:</span>
-                                            {exp.material}
-                                        </p>
-                                    )}
-                                </div>
+                                    <div className="hidden md:flex flex-col flex-1 pl-4 border-l border-slate-200 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 justify-center min-w-0">
+                                        <div className="truncate mb-0.5"><span className="font-semibold text-slate-600 dark:text-slate-300">Intent:</span> {exp.intent || 'N/A'}</div>
+                                        <div className="truncate"><span className="font-semibold text-slate-600 dark:text-slate-300">Material:</span> {exp.material || 'Unknown'}</div>
+                                    </div>
 
-                                <div className="flex items-center gap-1 mb-4">
-                                    {[1, 2, 3, 4, 5].map(star => (
-                                        <Icon
-                                            key={star}
-                                            name="star"
-                                            className={`text-lg ${star <= (exp.rating || 0) ? 'text-amber-400' : 'text-slate-200 dark:text-slate-700'}`}
-                                        />
-                                    ))}
-                                    {!exp.rating && <span className="text-xs text-slate-400 ml-2 italic">Unrated</span>}
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onOpenPreview(exp.id); }}
+                                            className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+                                            title="Preview Job"
+                                        >
+                                            <Icon name="visibility" className="text-[15px]" />
+                                            <span className="hidden sm:inline">Preview</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDelete(exp.id, e)}
+                                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/40 text-red-500 rounded-md transition-colors"
+                                            title="Delete Experiment"
+                                        >
+                                            <Icon name="delete" className="text-[16px]" />
+                                        </button>
+                                    </div>
                                 </div>
-
-                                <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
-                                    <button
-                                        onClick={() => onViewDetails(exp.id)}
-                                        className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
-                                    >
-                                        <Icon name="info" className="text-sm" /> Details
-                                    </button>
-                                    <button
-                                        onClick={() => onOpenPreview(exp.id)}
-                                        className="flex-1 py-1.5 bg-primary hover:opacity-90 text-white rounded text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                    >
-                                        <Icon name="visibility" className="text-sm" /> Preview
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

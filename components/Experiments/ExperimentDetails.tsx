@@ -92,7 +92,10 @@ export const ExperimentDetails: React.FC<ExperimentDetailsProps> = ({ experiment
                         <Icon name="science" className="text-primary" />
                         {data.name || `Experiment ${data.id.substring(0, 6)}`}
                     </h2>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">ID: {data.id} - {new Date(data.created_at).toLocaleString()}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        {data.author && <span className="font-bold text-primary mr-2 flex items-center gap-1 inline-flex"><Icon name="person" className="text-[10px]" /> {data.author}</span>}
+                        {new Date(data.created_at).toLocaleString()} - ID: {data.id}
+                    </span>
                 </div>
                 <button
                     onClick={handleDelete}

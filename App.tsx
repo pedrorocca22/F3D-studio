@@ -40,6 +40,7 @@ export default function App() {
   // Pre-flight State
   const [showPreFlight, setShowPreFlight] = useState(false);
   const [experimentName, setExperimentName] = useState('');
+  const [experimentAuthor, setExperimentAuthor] = useState('');
   const [experimentIntent, setExperimentIntent] = useState('');
   const [experimentMaterial, setExperimentMaterial] = useState('');
 
@@ -403,6 +404,7 @@ export default function App() {
     formData.append('scene_json', JSON.stringify(sceneData));
     formData.append('layer_height', (globalSettings.layerHeight / 1000).toString());
     formData.append('experiment_name', experimentName);
+    formData.append('author', experimentAuthor);
     formData.append('intent', experimentIntent);
     formData.append('material', experimentMaterial);
 
@@ -731,6 +733,16 @@ export default function App() {
                     value={experimentName}
                     onChange={e => setExperimentName(e.target.value)}
                     placeholder="e.g. Scaffolds v2 - High Exposure"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Author</label>
+                  <input
+                    type="text"
+                    value={experimentAuthor}
+                    onChange={e => setExperimentAuthor(e.target.value)}
+                    placeholder="e.g. Dr. Jane Doe"
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
                   />
                 </div>

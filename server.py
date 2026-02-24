@@ -51,6 +51,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS experiments (
             id TEXT PRIMARY KEY,
             name TEXT,
+            author TEXT,
             intent TEXT,
             status TEXT,
             material TEXT,
@@ -61,6 +62,13 @@ def init_db():
             rating INTEGER
         )
         ''')
+        
+        # Safely add the column if it doesn't exist for existing databases
+        try:
+            db.execute("ALTER TABLE experiments ADD COLUMN author TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column likely already exists
+            
         db.commit()
 
 init_db()
@@ -270,7 +278,7 @@ def index():
 @app.get("/api/experiments")
 def get_experiments():
     with get_db() as db:
-        rows = db.execute("SELECT id, name, intent, status, material, created_at, rating FROM experiments ORDER BY created_at DESC").fetchall()
+        rows = db.execute("SELECT id, name, author, intent, status, material, created_at, rating FROM experiments ORDER BY created_at DESC").fetchall()
         return jsonify([dict(r) for r in rows])
 
 @app.get("/api/experiments/<experiment_id>")
@@ -392,6 +400,7 @@ def slice_scene():
         return jsonify({"error": f"Invalid scene_json: {e}"}), 400
 
     experiment_name = request.form.get("experiment_name", "")
+    author = request.form.get("author", "")
     intent = request.form.get("intent", "")
     material = request.form.get("material", "")
 
@@ -469,8 +478,8 @@ def slice_scene():
     try:
         with get_db() as db:
             db.execute(
-                "INSERT INTO experiments (id, name, intent, material, status, config_snapshot, patterns_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (job_id, experiment_name, intent, material, "pending", json.dumps(form_params), json.dumps(patterns_snapshot))
+                "INSERT INTO experiments (id, name, author, intent, material, status, config_snapshot, patterns_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (job_id, experiment_name, author, intent, material, "pending", json.dumps(form_params), json.dumps(patterns_snapshot))
             )
             db.commit()
     except Exception as e:
