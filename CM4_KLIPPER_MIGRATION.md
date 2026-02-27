@@ -60,7 +60,17 @@ Esta separación ("Frontend" -> "Nuestro backend Python para capas/slicing" -> "
 Cuando tengas ambas placas listas, procederemos en este orden:
 
 ### 1. Preparar la CM4 (Sistema Operativo Base)
-Recomendación: En lugar de Raspberry Pi OS puro, instálale **MainsailOS** usando la herramienta oficial Raspberry Pi Imager. MainsailOS ya incluye: Klipper, Moonraker, Mainsail (Interfaz web útil para la calibración del Z).
+**Opción A (Rápida - MainsailOS púlblico):** Instalar SainsailOS usando el menú "3D Printing" de Raspberry Pi Imager.
+**Opción B (La que elegiste - SO Estable/Legacy + KIAUH):** Dado que has optado por usar una versión más antigua/estable de Raspberry Pi OS dictada por Mellow para evitar problemas de compatibilidad:
+1. Flashea ese RPi OS estable en la CM4 (ya sea eMMC o tarjeta SD).
+2. Entra por SSH a la CM4.
+3. Instala **KIAUH** (Klipper Installation And Update Helper). Es un script oficial de la comunidad que te instala automáticamente todo lo necesario sobre *cualquier* versión de Linux:
+   ```bash
+   sudo apt-get install git -y
+   cd ~ && git clone https://github.com/dw-0/kiauh.git
+   ./kiauh/kiauh.sh
+   ```
+4. Dentro del menú de KIAUH, presiona "1" (Install) e instala en este orden: **Klipper**, luego **Moonraker**, y finalmente **Mainsail**. ¡Problema de SO resuelto!
 
 ### 2. Conexión Hardware y Firmware (Klipper)
 * Conectar la CM4 a la board Mellow.
