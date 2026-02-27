@@ -72,13 +72,102 @@ Cuando tengas ambas placas listas, procederemos en este orden:
    ```
 4. Dentro del menú de KIAUH, presiona "1" (Install) e instala en este orden: **Klipper**, luego **Moonraker**, y finalmente **Mainsail**. ¡Problema de SO resuelto!
 
-### 2. Conexión Hardware y Firmware (Klipper)
-* Conectar la CM4 a la board Mellow.
-* Compilar el firmware de klipper en el SSH del CM4 (`make menuconfig` / `make`) asegurando arquitectura correcta para el MCU de Mellow.
-* Flashear el firmware a la Mellow.
+### 2. Configuración de Hardware (DIP Switches)
+La placa Fly-Puppet usa pines internos (UART) para comunicarse con el MCU RP2040. Es **vital** configurar los interruptores de la placa correctamente para habilitar el USB interno y poder flashear:
+*   **Switch 1:** `ON` (Extiende el USB de la CM4 al hub interno)
+*   **Switch 2:** `ON`
+*   **Switch 3, 4, 5, 6:** `OFF`
 
-### 3. Crear el `printer.cfg`
-Definir los pines que controlan el Stepper del Z, los endstops y el Pin de Relay (o Mosfet) para la fuente de luz UV.
+Para comprobar que hay conexión, accede por SSH a la CM4 y ejecuta:
+```bash
+lsusb
+```
+Debe aparecer un dispositivo listado como **Raspberry Pi RP2 Boot** (indicando que está en modo Bootloader) con un ID similar a `2e8a:0003`. Si no aparece, mantén presionado el botón `BOOT` de la placa, pulsa `RST` y suelta `BOOT`.
 
-### 4. Adaptar `rpi_node/server.py` o Modificar `server.py`
-Reescribiremos la lógica del servidor que controla directamente hardware, cambiando esas llamadas por peticiones HTTP a la API local de Moonraker.
+### 3. Compilar y Flashear el Firmware (Klipper)
+En la consola SSH de la CM4:
+```bash
+cd ~/klipper
+make menuconfig
+```
+Configura las siguientes opciones para la placa Mellow:
+*   **Enable extra low-level configuration options:** Checked ✔️
+*   **Micro Controller Architecture:** Raspberry Pi RP2040
+*   **Bootloader offset:** No bootloader
+*   **Communication interface:** Serial (on UART0 GPIO1/GPIO0)
+
+Guarda y compila:
+```bash
+make -j4
+```
+Flashea utilizando el ID del Bootloader (USB temporal):
+```bash
+make flash FLASH_DEVICE=2e8a:0003
+```
+Una vez flasheado, la placa reiniciará, apagará el USB y comenzará a comunicarse exclusivamente mediante el puerto **Serial UART** (`/dev/serial0` o `/dev/ttyAMA0`).
+
+### 4. Crear el `printer.cfg` en Mainsail
+Abre Mainsail, edita el archivo `printer.cfg` e introduce la siguiente configuración que vincula los pines correctos de la Fly-Puppet, establece la cinemática mínima para evitar errores, y configura el motor del eje Z en la ranura principal:
+
+```ini
+[include mainsail.cfg]
+
+[mcu]
+serial: /dev/serial0
+baud: 250000
+restart_method: command
+
+# =========== CINEMÁTICA ===========
+[printer]
+kinematics: cartesian
+max_velocity: 100
+max_accel: 500
+
+# =========== EJES FALSOS (Para engañar a Klipper) ===========
+[stepper_x]
+step_pin: gpio20
+dir_pin: gpio19
+enable_pin: !gpio18
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^gpio22
+position_endstop: 0
+position_max: 200
+
+[stepper_y]
+step_pin: gpio16
+dir_pin: gpio15
+enable_pin: !gpio14
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^gpio23
+position_endstop: 0
+position_max: 200
+
+# =========== MOTOR Z (EL REAL) ===========
+[stepper_z]
+step_pin: gpio12
+dir_pin: gpio11
+enable_pin: !gpio10
+microsteps: 16
+rotation_distance: 8    # Avanza 8mm por cada revolución. Ajustar según varilla roscada.
+endstop_pin: !gpio24    # Pin del Endstop Z. (Quitar el ! si la lógica está invertida)
+position_endstop: 0.0
+position_max: 200
+homing_speed: 10.0
+
+# =========== DRIVER Z (TMC2209) ===========
+[tmc2209 stepper_z]
+uart_pin: gpio13
+run_current: 0.800
+stealthchop_threshold: 999999
+
+# === RUTAS REQUERIDAS DE MAINSAIL ===
+[virtual_sdcard]
+path: /home/pi/printer_data/gcodes
+on_error_gcode: CANCEL_PRINT
+```
+*(Nota: Hemos omitido `[mcu host]` para evitar errores si no se instala el proceso de MCU de Linux, dado que nuestra placa principal RP2040 tiene pines suficientes).*
+
+### 5. Adaptar el Código Python de la Biopresora (`server.py`)
+En el futuro, reescribiremos la lógica del servidor que controla directamente hardware, cambiando esas llamadas por peticiones HTTP a la API local de Moonraker (`7125`) para instruir a la impresora que envíe comandos GCode estándar como subir, bajar, encender luces o aplicar capas.
