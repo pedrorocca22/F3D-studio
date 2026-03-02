@@ -189,6 +189,16 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
                     gray = mix(uShellGray, uCoreGray, val);
                 }
 
+                // Append Shell Thickness / Cortical Border
+                if (uType >= 3 && uThickness > 0.0) {
+                    float previewSizeMM = 20.0;
+                    float d_edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+                    float edge_dist_mm = d_edge * previewSizeMM;
+                    if (edge_dist_mm <= uThickness) {
+                        gray = uCoreGray; // Cortical shell is solid bone
+                    }
+                }
+
                 gl_FragColor = vec4(vec3(gray / 255.0), 1.0);
             }
         `;

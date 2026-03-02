@@ -296,7 +296,7 @@ class PatternEngine:
                 )
 
             # 3. Compose: shell (perimeter) + core (pattern)
-            final_image[shell_mask_img > 0] = shell_gray
+            final_image[shell_mask_img > 0] = core_gray
             core_pixels = core_mask_img > 0
             final_image[pattern_mask & core_pixels] = core_gray       # bone / solid
             final_image[(~pattern_mask) & core_pixels] = shell_gray   # void / matrix

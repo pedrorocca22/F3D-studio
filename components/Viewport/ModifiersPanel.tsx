@@ -123,6 +123,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                             coreGray={mod.core_gray ?? 255}
                             shellGray={mod.shell_gray ?? 0}
                             density={mod.sponge_density || 0.5}
+                            thickness={mod.shell_thickness ?? 1.0}
                             width={180}
                             height={180}
                         />
@@ -266,6 +267,7 @@ export const ModifiersPanel: React.FC<ModifiersPanelProps> = ({
                                         coreGray={p.config.core_gray ?? 255}
                                         shellGray={p.config.shell_gray ?? 0}
                                         density={p.config.sponge_density || 0.5}
+                                        thickness={p.config.shell_thickness ?? 1.0}
                                         width={48}
                                         height={48}
                                     />

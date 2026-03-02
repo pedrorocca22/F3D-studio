@@ -527,6 +527,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           coreGray={p.config.core_gray ?? 255}
                           shellGray={p.config.shell_gray ?? 0}
                           density={p.config.sponge_density || 0.5}
+                          thickness={p.config.shell_thickness ?? 1.0}
                           width={40}
                           height={40}
                         />
@@ -812,6 +813,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 coreGray={p.config.core_gray ?? 255}
                                 shellGray={p.config.shell_gray ?? 0}
                                 density={p.config.sponge_density || 0.5}
+                                thickness={p.config.shell_thickness ?? 1.0}
                                 width={40}
                                 height={40}
                               />
