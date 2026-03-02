@@ -8,9 +8,10 @@ interface HeaderProps {
   onLoadProject: () => void;
   onOpenCalibration?: () => void;
   onOpenExperiments?: () => void;
+  onOpenWifi?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSaveProject, onLoadProject, onOpenCalibration, onOpenExperiments }) => {
+export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSaveProject, onLoadProject, onOpenCalibration, onOpenExperiments, onOpenWifi }) => {
   return (
     <>
       {/* Top accent line */}
@@ -46,11 +47,11 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSave
           </button>
 
           <button
-            onClick={() => {/* TODO: Implement Connection Logic */ }}
+            onClick={onOpenWifi}
             className="flex items-center gap-1.5 bg-primary hover:opacity-90 text-white px-5 py-1.5 rounded-md font-bold shadow-sm transition-opacity text-xs tracking-wide"
           >
-            <Icon name="link" className="text-sm" />
-            Connect
+            <Icon name="wifi" className="text-sm" />
+            Connect to WiFi
           </button>
 
           <button

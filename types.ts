@@ -54,10 +54,18 @@ export interface ThermodynamicSettings {
   coolingPause: number; // Duration of pause while cooling (e.g. 2.0s)
 }
 
+export interface MotorControlSettings {
+  enabled: boolean;
+  peelSpeed: number; // mm/min
+  retractSpeed: number; // mm/min
+  separationDistance: number; // mm
+}
+
 export interface GlobalSettings {
   layerHeight: number;
   adhesion?: AdhesionSettings;
   thermodynamic?: ThermodynamicSettings;
+  motor?: MotorControlSettings;
 }
 
 export interface SettingsState {
@@ -70,7 +78,7 @@ export interface Modifier {
   type: 'shell_core' | 'volume';
   shell_thickness?: number;     // mm — cortical/perimeter shell thickness (sent to backend)
   shell_thickness_mm?: number;  // legacy alias
-  core_pattern?: 'solid' | 'sponge' | 'vascular' | 'lattice' | 'linear' | 'noise';
+  core_pattern?: 'solid' | 'sponge' | 'vascular' | 'lattice' | 'linear' | 'noise' | 'trabecular';
   core_density?: number;
   sponge_density?: number;      // 0–1: bone fraction inside the core
   pattern_cell_mm?: number;

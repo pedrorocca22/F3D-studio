@@ -12,6 +12,7 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
 - [ ] **D. Pausas Termodinámicas en Capa (Motor / Viability Saver)**
 - [x] **E. Animación Geométrica 3D (Descartada tras evaluación)**
 - [ ] **F. Biblioteca de Patrones Ampliada (Linear, Lattice, Radial, Noise)**
+- [ ] **G. Configuración Inalámbrica Plug & Play (Modo AP / Portal Cautivo)**
 
 ---
 
@@ -65,6 +66,17 @@ Este documento sirve como registro y seguimiento de ideas avanzadas e innovadora
     4. **`noise` / `static`**: Ruido estocástico puro sin difuminar para generar rugosidad micrométrica que estimula la adhesión de células madre (Micro-Roughness).
 * **Solución (Software):** Modificar el `pattern_engine.py` incorporando generaciones por matrices booleanas NumPy para cada nueva topología paramétrica, e integrarlos a la Global Pattern Library de la interfaz web.
 * **Impacto en Investigación:** Eleva la impresora 3D a una verdadera estación de *Bio-fabricación Microarquitectónica*, cubriendo necesidades desde tejidos blandos lisos hasta mallas de estandarización mecánicas.
+
+### G. Configuración Inalámbrica Plug & Play (Modo AP / Portal Cautivo)
+**Estado:** 🟡 En Desarrollo (`WIP`) - *Añadido: 2 de Marzo, 2026*
+
+* **El Problema:** La impresora (computadora CM4) requiere conexión a la red local del laboratorio o clínica para ser operada vía Web o App de Escritorio, pero no cuenta con pantalla táctil propia para ingresar fácilmente la contraseña del WiFi del usuario.
+* **La Solución (Software):** 
+    1. Operar la Raspberry Pi CM4 como un **Punto de Acceso (Hotspot WiFi)** temporal cuando no haya redes conocidas.
+    2. El usuario usa la App de Escritorio o el celular para conectarse a esa red (ej `DLP3_Setup`).
+    3. Una API en el `server.py` utiliza utilidades como `nmcli` de Linux para escanear las redes del entorno.
+    4. El usuario envía las credenciales finales por esa interfaz y la impresora aplica el cambio conectándose al enrutador de forma definitiva, apagando el Hotspot.
+* **Impacto en Investigación:** Convierte un prototipo de laboratorio complejo en un producto final profesional, "User-Friendly", sin necesidad de tener un teclado, mouse o IPs internas expuestas.
 
 ---
 

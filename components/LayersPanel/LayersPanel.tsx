@@ -56,6 +56,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     heating: false,
     separation: false,
     thermodynamic: false,
+    motor: false,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,10 +86,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     temp: 27.2
   });
 
-  const [separation, setSeparation] = useState({
-    offsetHeight: 4.2,
-    speedUp: 22
-  });
 
   const [thermodynamic, setThermodynamic] = useState({
     enabled: globalSettings.thermodynamic?.enabled ?? false,
@@ -105,6 +102,23 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       }));
     }
   }, [globalSettings.thermodynamic]);
+
+  const [motor, setMotor] = useState({
+    enabled: globalSettings.motor?.enabled ?? false,
+    peelSpeed: globalSettings.motor?.peelSpeed ?? 30,
+    retractSpeed: globalSettings.motor?.retractSpeed ?? 150,
+    separationDistance: globalSettings.motor?.separationDistance ?? 4.2
+  });
+
+  // Sync with global settings when they change externally
+  useEffect(() => {
+    if (globalSettings.motor) {
+      setMotor(prev => ({
+        ...prev,
+        ...globalSettings.motor
+      }));
+    }
+  }, [globalSettings.motor]);
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -508,7 +522,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                       >
                         <PatternPreview
-                          type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : 'sponge')))}
+                          type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : (p.config.core_pattern === 'trabecular' ? 'trabecular' : 'sponge'))))}
                           cellSize={p.config.voronoi_cell_size || 1.0}
                           coreGray={p.config.core_gray ?? 255}
                           shellGray={p.config.shell_gray ?? 0}
@@ -793,7 +807,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                               className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
                             >
                               <PatternPreview
-                                type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : 'sponge')))}
+                                type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : (p.config.core_pattern === 'trabecular' ? 'trabecular' : 'sponge'))))}
                                 cellSize={p.config.voronoi_cell_size || 1.0}
                                 coreGray={p.config.core_gray ?? 255}
                                 shellGray={p.config.shell_gray ?? 0}
@@ -993,12 +1007,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </div>
             </AccordionSection>
 
-            <AccordionSection title="Separation movement" isOpen={openSections.separation} onToggle={() => toggleSection('separation')}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">Offset (mm):</span>
-                <NumericInput className={inputClass} value={separation.offsetHeight} onChange={v => setSeparation({ ...separation, offsetHeight: v })} step={0.1} />
-              </div>
-            </AccordionSection>
 
             <AccordionSection
               title="Thermal Viability Saver"
@@ -1061,6 +1069,89 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   JSON.stringify(globalSettings.thermodynamic) === JSON.stringify(thermodynamic)
                 }
                 className={`w-full py-2 mt-4 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${JSON.stringify(globalSettings.thermodynamic) !== JSON.stringify(thermodynamic)
+                  ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-default'
+                  }`}
+              >
+                <Icon name="save" className="text-sm" />
+                Save Changes
+              </button>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Motor Speeds Control"
+              isOpen={openSections.motor}
+              onToggle={() => toggleSection('motor')}
+              toggleSwitch
+              switchOn={motor.enabled}
+              onSwitchChange={() => {
+                setMotor(prev => ({ ...prev, enabled: !prev.enabled }));
+              }}
+              info
+            >
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded mb-3 flex items-start gap-2">
+                <Icon name="speed" className="text-primary text-sm mt-0.5" />
+                <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">
+                  Override default motor speeds for peeling the layer and lowering the VAT back. Peeling is slow, descending is faster.
+                </p>
+              </div>
+
+              {motor.enabled && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 flex flex-col">
+                      <span>Lift/Peel Speed (mm/min):</span>
+                      <span className="text-[8px] text-slate-400">Slow separation</span>
+                    </span>
+                    <NumericInput
+                      className={inputClass}
+                      value={motor.peelSpeed}
+                      onChange={v => setMotor({ ...motor, peelSpeed: v })}
+                      step={5}
+                      min={1}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 flex flex-col">
+                      <span>Approach Speed (mm/min):</span>
+                      <span className="text-[8px] text-slate-400">Fast approach</span>
+                    </span>
+                    <NumericInput
+                      className={inputClass}
+                      value={motor.retractSpeed}
+                      onChange={v => setMotor({ ...motor, retractSpeed: v })}
+                      step={10}
+                      min={10}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 flex flex-col">
+                      <span>Separation Distance (mm):</span>
+                      <span className="text-[8px] text-slate-400">Offset for peeling</span>
+                    </span>
+                    <NumericInput
+                      className={inputClass}
+                      value={motor.separationDistance}
+                      onChange={v => setMotor({ ...motor, separationDistance: v })}
+                      step={0.1}
+                      min={0.1}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onUpdateGlobalSettings({
+                    ...globalSettings,
+                    motor: { ...motor }
+                  });
+                }}
+                disabled={
+                  JSON.stringify(globalSettings.motor) === JSON.stringify(motor)
+                }
+                className={`w-full py-2 mt-4 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${JSON.stringify(globalSettings.motor) !== JSON.stringify(motor)
                   ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-default'
                   }`}

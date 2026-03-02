@@ -10,6 +10,38 @@ class PatternEngine:
     _mask_cache = {}
 
     @staticmethod
+    def generate_continuous_noise(shape, cell_size_mm, pixel_size_mm=0.0555, z_index=0, randomize_z=False):
+        """Generates continuous 0-255 noise for advanced blending (like Trabecular bone)."""
+        height, width = shape
+        cell_px = max(1, int(cell_size_mm / pixel_size_mm))
+        
+        period = 20
+        key_idx = z_index // period
+        progress = (z_index % period) / float(period)
+
+        seed_a = 42 + key_idx
+        seed_b = 42 + key_idx + 1
+
+        def get_noise(s_seed):
+            n_key = (shape, 'noise_raw_cont', round(cell_size_mm, 4), round(pixel_size_mm, 6), s_seed)
+            if n_key in PatternEngine._mask_cache:
+                return PatternEngine._mask_cache[n_key]
+            scale_factor = max(2, int(cell_px))
+            low_h = max(2, height // scale_factor)
+            low_w = max(2, width // scale_factor)
+            rs = np.random.RandomState(s_seed)
+            raw = rs.randint(0, 255, (low_h, low_w), dtype=np.uint8)
+            smooth = cv2.resize(raw, (width, height), interpolation=cv2.INTER_LINEAR)
+            smooth = cv2.GaussianBlur(smooth, (3, 3), 0)
+            PatternEngine._mask_cache[n_key] = smooth
+            return smooth
+
+        noise_a = get_noise(seed_a)
+        noise_b = get_noise(seed_b)
+        blended = cv2.addWeighted(noise_a, 1.0 - progress, noise_b, progress, 0)
+        return blended
+
+    @staticmethod
     def generate_pattern_mask(shape, pattern_type, cell_size_mm, pixel_size_mm=0.0555, z_index=0, density=0.5, randomize_z=False):
         """
         Generates a boolean mask for the 3D core patterns.
@@ -222,17 +254,52 @@ class PatternEngine:
             core_mask_img = cv2.erode(binary_base, kernel, iterations=1)
             shell_mask_img = cv2.subtract(binary_base, core_mask_img)
 
-            # 2. Generate mask (vascular or sponge)
-            pattern_mask = PatternEngine.generate_pattern_mask(
-                layer_image.shape, core_pattern, cell_size, pixel_size_mm,
-                z_index=layer_index, density=density, randomize_z=randomize_z
-            )
+            # 2. Generate mask (vascular or sponge or trabecular)
+            if core_pattern == 'trabecular':
+                # Trabecular Bone Biomimetic Gradient:
+                # 1. Distance Transform from the shell
+                dist_transform = cv2.distanceTransform(core_mask_img, cv2.DIST_L2, 5)
+                max_dist = np.max(dist_transform)
+                if max_dist > 0:
+                    dist_norm = dist_transform / max_dist
+                else:
+                    dist_norm = np.zeros(core_mask_img.shape, dtype=np.float32)
 
-            # 3. Compose: shell (perimeter) + core (sponge)
+                # 2. Generate Fine (Cortex) and Coarse (Core) continuous noises
+                noise_fine = PatternEngine.generate_continuous_noise(
+                    layer_image.shape, cell_size * 0.5, pixel_size_mm, layer_index, randomize_z
+                ).astype(np.float32)
+                
+                noise_coarse = PatternEngine.generate_continuous_noise(
+                    layer_image.shape, cell_size * 2.0, pixel_size_mm, layer_index, randomize_z
+                ).astype(np.float32)
+
+                # 3. Spatial Blending for Frequency interpolation
+                blended_noise = (noise_fine * (1.0 - dist_norm)) + (noise_coarse * dist_norm)
+                
+                # 4. Spatial Blending for Density (Threshold) interpolation
+                # Cortex (dist=0) -> Target density e.g. 0.85 (85% solid, small pores)
+                # Core (dist=1)   -> Target density e.g. density param (e.g. 0.3)
+                density_fine = min(1.0, density * 1.5) # Cortex gets denser
+                density_coarse = density * 0.5         # Core gets looser
+
+                dynamic_density = (density_fine * (1.0 - dist_norm)) + (density_coarse * dist_norm)
+                dynamic_threshold = 255.0 * (1.0 - dynamic_density)
+
+                # Boolean evaluated masked pattern
+                pattern_mask = blended_noise > dynamic_threshold
+
+            else:
+                pattern_mask = PatternEngine.generate_pattern_mask(
+                    layer_image.shape, core_pattern, cell_size, pixel_size_mm,
+                    z_index=layer_index, density=density, randomize_z=randomize_z
+                )
+
+            # 3. Compose: shell (perimeter) + core (pattern)
             final_image[shell_mask_img > 0] = shell_gray
             core_pixels = core_mask_img > 0
-            final_image[pattern_mask & core_pixels] = core_gray       # bone
-            final_image[(~pattern_mask) & core_pixels] = shell_gray   # void/matrix
+            final_image[pattern_mask & core_pixels] = core_gray       # bone / solid
+            final_image[(~pattern_mask) & core_pixels] = shell_gray   # void / matrix
 
             unique_vals = np.unique(final_image)
             print(f"[DEBUG] Layer {layer_index}: Output unique values: {unique_vals}", flush=True)

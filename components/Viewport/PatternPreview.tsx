@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
 interface PatternPreviewProps {
-    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge' | 'vascular' | 'lattice' | 'linear' | 'noise';
+    type: 'solid' | 'grid' | 'checkerboard' | 'gradient' | 'voronoi' | 'sponge' | 'vascular' | 'lattice' | 'linear' | 'noise' | 'trabecular';
     cellSize: number; // mm
     shellGray?: number;
     coreGray?: number;
@@ -164,6 +164,30 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
                     float val = step(1.0 - uDensity, n);
                     gray = mix(uShellGray, uCoreGray, val);
                 }
+                else if (uType == 8) { // Trabecular Biomimetic Gradient
+                    // Calculate distance to the nearest edge (0 at edge, 0.5 at center)
+                    float d_edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+                    // dist_norm: 0 at edge (cortex), 1 at center (core)
+                    float dist_norm = clamp(d_edge * 2.0, 0.0, 1.0);
+                    
+                    float previewSizeMM = 20.0;
+                    float scaleFine = previewSizeMM / max(0.1, uCellSize * 0.5);
+                    float scaleCoarse = previewSizeMM / max(0.1, uCellSize * 2.0);
+                    
+                    float nFine = noise(uv * scaleFine) * 0.5 + 0.5;
+                    float nCoarse = noise(uv * scaleCoarse) * 0.5 + 0.5;
+                    
+                    float n = mix(nFine, nCoarse, dist_norm);
+                    
+                    // Cortex (dist=0) is dense, Core (dist=1) is loose
+                    float densityFine = min(1.0, uDensity * 1.5);
+                    float densityCoarse = uDensity * 0.5;
+                    float dynamicDensity = mix(densityFine, densityCoarse, dist_norm);
+                    
+                    float threshold = 1.0 - dynamicDensity;
+                    float val = smoothstep(threshold - 0.05, threshold + 0.05, n);
+                    gray = mix(uShellGray, uCoreGray, val);
+                }
 
                 gl_FragColor = vec4(vec3(gray / 255.0), 1.0);
             }
@@ -204,7 +228,7 @@ export const PatternPreview: React.FC<PatternPreviewProps> = ({
         gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
         // Uniforms
-        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, vascular: 4, lattice: 5, linear: 6, noise: 7, grid: 0, checkerboard: 0 };
+        const typeMap: Record<string, number> = { solid: 0, gradient: 1, voronoi: 2, sponge: 3, vascular: 4, lattice: 5, linear: 6, noise: 7, trabecular: 8, grid: 0, checkerboard: 0 };
         gl.uniform1i(gl.getUniformLocation(program, 'uType'), typeMap[type] ?? 0);
         gl.uniform1f(gl.getUniformLocation(program, 'uCellSize'), cellSize);
         gl.uniform1f(gl.getUniformLocation(program, 'uThickness'), thickness);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { CalibrationTool } from './components/CalibrationTool';
+import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
@@ -28,6 +29,7 @@ export default function App() {
   const [isExperimentsMode, setIsExperimentsMode] = useState(false);
   const [viewingExperimentId, setViewingExperimentId] = useState<string | null>(null);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
+  const [isWifiOpen, setIsWifiOpen] = useState(false);
 
   // Slicing State
   const [isSlicing, setIsSlicing] = useState(false);
@@ -320,6 +322,13 @@ export default function App() {
       formData.append('thermodynamic_enabled', 'true');
       formData.append('thermodynamic_max_flash', globalSettings.thermodynamic.maxFlashTime.toString());
       formData.append('thermodynamic_cooling', globalSettings.thermodynamic.coolingPause.toString());
+    }
+
+    if (globalSettings.motor?.enabled) {
+      formData.append('motor_enabled', 'true');
+      formData.append('motor_peel_speed', globalSettings.motor.peelSpeed.toString());
+      formData.append('motor_retract_speed', globalSettings.motor.retractSpeed.toString());
+      formData.append('motor_separation_distance', globalSettings.motor.separationDistance.toString());
     }
 
     models.forEach((model, index) => {
@@ -668,9 +677,12 @@ export default function App() {
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
-        onOpenExperiments={() => setIsExperimentsMode(true)}
+        onOpenExperiments={() => {
+          setIsExperimentsMode(true);
+          setViewingExperimentId(null);
+        }}
+        onOpenWifi={() => setIsWifiOpen(true)}
       />
-
       {isCalibrationOpen && (
         <CalibrationTool onClose={() => setIsCalibrationOpen(false)} />
       )}
@@ -711,6 +723,11 @@ export default function App() {
           onSavePattern={handleSavePattern}
           onDeletePattern={handleDeletePattern}
         />
+
+        {/* ── Wifi Config Modal ── */}
+        {isWifiOpen && (
+          <WifiConfig onClose={() => setIsWifiOpen(false)} />
+        )}
 
         {/* ── Pre-Flight Modal ── */}
         {showPreFlight && (

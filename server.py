@@ -443,6 +443,10 @@ def slice_scene():
         "thermodynamic_enabled":  request.form.get("thermodynamic_enabled") == "true",
         "thermodynamic_max_flash":request.form.get("thermodynamic_max_flash"),
         "thermodynamic_cooling":  request.form.get("thermodynamic_cooling"),
+        "motor_enabled":          request.form.get("motor_enabled") == "true",
+        "motor_peel_speed":       request.form.get("motor_peel_speed"),
+        "motor_retract_speed":    request.form.get("motor_retract_speed"),
+        "motor_separation_distance": request.form.get("motor_separation_distance"),
     }
 
     # Register experiment
@@ -512,6 +516,12 @@ def _run_slice_job(job_id, scene, saved_files, config_path, job_dir, constructs_
             "enabled": form_params.get("thermodynamic_enabled", False),
             "max_flash": float(form_params.get("thermodynamic_max_flash") or 0.5),
             "cooling_pause": float(form_params.get("thermodynamic_cooling") or 2.0),
+        },
+        "motor": {
+            "enabled": form_params.get("motor_enabled", False),
+            "peel_speed": float(form_params.get("motor_peel_speed") or 30),
+            "retract_speed": float(form_params.get("motor_retract_speed") or 150),
+            "separation_distance": float(form_params.get("motor_separation_distance") or 4.2),
         },
         "constructs": [],
     }
@@ -1149,6 +1159,65 @@ def projector_info():
     print("="*50 + "\n")
     
     return jsonify(info)
+
+
+# ----------------------------
+# WiFi AP Configuration Routes
+# ----------------------------
+@app.get("/api/wifi/scan")
+def wifi_scan():
+    """Scans for available WiFi networks using nmcli."""
+    try:
+        cmd = ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        
+        if result.returncode != 0:
+            return jsonify({"error": "Failed to scan networks", "details": result.stderr}), 500
+            
+        networks = []
+        for line in result.stdout.split('\n'):
+            if not line.strip():
+                continue
+            parts = line.split(':')
+            if len(parts) >= 3:
+                ssid = parts[0].replace('\\:', ':') # unescape colons
+                if not ssid:
+                     continue
+                signal = parts[1]
+                security = parts[2]
+                networks.append({"ssid": ssid, "signal": signal, "security": security})
+        
+        unique_networks = {}
+        for net in networks:
+            ssid = net["ssid"]
+            unique_networks[ssid] = net
+            
+        sorted_networks = sorted(unique_networks.values(), key=lambda x: int(x["signal"]) if x["signal"].isdigit() else 0, reverse=True)
+            
+        return jsonify(sorted_networks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.post("/api/wifi/connect")
+def wifi_connect():
+    """Connects to a WiFi network and exits AP mode."""
+    req = request.json or {}
+    ssid = req.get("ssid")
+    password = req.get("password", "")
+    
+    if not ssid:
+        return jsonify({"error": "No SSID provided"}), 400
+        
+    try:
+        cmd = ["nmcli", "dev", "wifi", "connect", ssid, "password", password]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        
+        if result.returncode == 0:
+            return jsonify({"status": "connected", "message": f"Successfully connected to {ssid}"})
+        else:
+            return jsonify({"error": "Connection failed", "details": result.stderr}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
