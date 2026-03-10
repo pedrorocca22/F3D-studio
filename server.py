@@ -339,9 +339,9 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
                 if r.get("y"): cmd.extend(["--rotate-y", str(r["y"])])
                 if r.get("z"): cmd.extend(["--rotate-z", str(r["z"])])
                 
-                # Apply scale (factor x,y,z)
+                # Apply scale (using factor as percentage, e.g. 1.0 -> 100%)
                 sx, sy, sz = s.get("x", 1), s.get("y", 1), s.get("z", 1)
-                cmd.extend(["--scale", f"{sx},{sy},{sz}"])
+                cmd.extend(["--scale", f"{sx*100}%"])
                 
                 # Append the specific file for this meta
                 f_name = secure_filename(meta.get("name", ""))

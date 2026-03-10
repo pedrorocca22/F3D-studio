@@ -217,18 +217,25 @@ function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4 }: { parsed: Parse
     const tubeData = useMemo(() => buildTubeGeometries(parsed, upToLayer, nozzleDiameter), [parsed, upToLayer, nozzleDiameter]);
     const { camera } = useThree();
 
-    const centerOffset = useMemo(() => ({
-        x: 50 - (parsed.bbox.minX + parsed.bbox.maxX) / 2,
-        y: 50 - (parsed.bbox.minY + parsed.bbox.maxY) / 2,
-    }), [parsed.bbox]);
+    const centerOffset = useMemo(() => {
+        const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
+        const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2;
+        if (!isFinite(cx) || !isFinite(cy)) return { x: 0, y: 0 };
+        return {
+            x: 50 - cx,
+            y: 50 - cy,
+        };
+    }, [parsed.bbox]);
 
     useEffect(() => {
         // Center camera on BBox
         const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2 + centerOffset.x;
         const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2 + centerOffset.y;
         const sz = Math.max(parsed.bbox.maxX - parsed.bbox.minX, parsed.bbox.maxY - parsed.bbox.minY, parsed.bbox.maxZ);
-        (camera as THREE.PerspectiveCamera).position.set(cx + sz * 0.8, sz * 1.2, cy + sz * 0.8);
-        camera.lookAt(cx, 0, cy);
+        if (isFinite(cx) && isFinite(cy) && isFinite(sz) && sz > 0) {
+            (camera as THREE.PerspectiveCamera).position.set(cx + sz * 0.8, sz * 1.2, cy + sz * 0.8);
+            camera.lookAt(cx, 0, cy);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [parsed, centerOffset]);
 
@@ -295,61 +302,33 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
     }, [gcodeUrl]);
 
     return (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950">
-            {/* Header bar */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
-                <div className="flex items-center gap-3">
-                    <Icon name="route" className="text-primary text-xl" />
-                    <span className="text-sm font-bold text-slate-100 uppercase tracking-wide">G-code Preview</span>
-                    <span className="text-[10px] text-slate-500 font-mono">job:{jobId}</span>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    {/* Nozzle diameter control */}
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                        <Icon name="settings" className="text-xs" />
-                        <span>Nozzle</span>
-                        <input
-                            type="number"
-                            min="0.1"
-                            max="2.0"
-                            step="0.05"
-                            value={nozzleDiameter}
-                            onChange={e => setNozzleDiameter(parseFloat(e.target.value) || 0.4)}
-                            className="w-16 px-1 py-0.5 bg-slate-800 border border-slate-600 rounded text-slate-200 text-center"
-                        />
-                        <span className="text-slate-500">mm</span>
-                    </div>
-
-                    {/* Toolhead legend */}
-                    <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                        <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{ background: '#14b8a6' }} />FDM</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{ background: '#f59e0b' }} />Syringe</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{ background: '#8b5cf6' }} />UV</span>
-                    </div>
-
-                    <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
-                        <Icon name="close" className="text-lg" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Canvas area */}
+        <div className="relative flex flex-col w-full h-full bg-slate-950 overflow-hidden">
+            {/* Main View Area */}
             <div className="flex-1 relative">
+                {/* Floating Close Button */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition-all shadow-xl"
+                    title="Back to Model View"
+                >
+                    <Icon name="close" className="text-xl" />
+                </button>
+
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-950 z-10">
                         <div className="text-center text-slate-400">
                             <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-sm">Loading G-code…</p>
+                            <p className="text-sm uppercase tracking-widest font-bold opacity-50">Slicing complete. Loading G-code...</p>
                         </div>
                     </div>
                 )}
                 {error && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-950 z-10">
-                        <div className="text-center text-red-400">
-                            <Icon name="error_outline" className="text-4xl mb-2" />
-                            <p className="text-sm">{error}</p>
-                            <button onClick={onClose} className="mt-4 px-4 py-2 bg-slate-700 rounded text-white text-xs">Close</button>
+                        <div className="text-center text-red-400 p-8 max-w-md">
+                            <Icon name="error_outline" className="text-5xl mb-4 opacity-50" />
+                            <p className="text-sm font-bold uppercase mb-2">Error Loading Preview</p>
+                            <p className="text-xs opacity-80 mb-6">{error}</p>
+                            <button onClick={onClose} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-xs font-bold uppercase transition-all">Close</button>
                         </div>
                     </div>
                 )}
@@ -366,30 +345,67 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                 )}
             </div>
 
-            {/* Layer slider */}
+            {/* Bottom Integrated Controls */}
             {parsed && (
-                <div className="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center gap-4">
-                    <Icon name="layers" className="text-slate-400 text-base" />
-                    <span className="text-[10px] text-slate-500 uppercase font-bold w-16">Layer</span>
-                    <input
-                        type="range"
-                        min={0}
-                        max={parsed.layerCount}
-                        step={1}
-                        value={upToLayer}
-                        onChange={e => setUpToLayer(+e.target.value)}
-                        className="flex-1 h-1 accent-primary bg-slate-700 rounded-full cursor-pointer appearance-none"
-                    />
-                    <span className="text-xs font-mono text-primary font-bold w-20 text-right">
-                        {upToLayer} / {parsed.layerCount}
-                    </span>
+                <div className="bg-slate-900/90 backdrop-blur-md border-t border-slate-800 px-6 py-3 flex items-center gap-6 z-20">
+                    {/* Layer Slider */}
+                    <div className="flex flex-1 items-center gap-4">
+                        <Icon name="layers" className="text-slate-500 text-base" />
+                        <span className="text-[10px] text-slate-500 uppercase font-bold w-12">Layer</span>
+                        <input
+                            type="range"
+                            min={0}
+                            max={parsed.layerCount}
+                            step={1}
+                            value={upToLayer}
+                            onChange={e => setUpToLayer(+e.target.value)}
+                            className="flex-1 h-1 accent-primary bg-slate-800 rounded-full cursor-pointer appearance-none"
+                        />
+                        <span className="text-xs font-mono text-primary font-bold w-16 text-right">
+                            {upToLayer}/{parsed.layerCount}
+                        </span>
+                    </div>
+
+                    {/* Nozzle Control (Moved to bottom) */}
+                    <div className="h-6 w-[1px] bg-slate-800" />
+
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            <span className="uppercase font-bold opacity-70">Nozzle</span>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    min="0.1"
+                                    max="2.0"
+                                    step="0.05"
+                                    value={nozzleDiameter}
+                                    onChange={e => setNozzleDiameter(parseFloat(e.target.value) || 0.4)}
+                                    className="w-14 px-1 py-1 bg-slate-800 border border-slate-700 rounded text-slate-200 text-center text-xs focus:ring-1 focus:ring-primary/50 outline-none transition-all"
+                                />
+                            </div>
+                            <span className="text-slate-600 font-bold uppercase">mm</span>
+                        </div>
+                    </div>
+
+                    <div className="h-6 w-[1px] bg-slate-800" />
+
+                    {/* Legend (Moved to bottom) */}
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500 font-bold uppercase tracking-tight">
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#14b8a6' }} />FDM</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />Syr</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#8b5cf6' }} />UV</span>
+                    </div>
+
+                    <div className="h-6 w-[1px] bg-slate-800" />
+
+                    {/* Download */}
                     <a
                         href={gcodeUrl}
                         download="print.gcode"
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-bold rounded border border-slate-700 transition-all uppercase"
                     >
                         <Icon name="download" className="text-sm" />
-                        Download G-code
+                        G-code
                     </a>
                 </div>
             )}

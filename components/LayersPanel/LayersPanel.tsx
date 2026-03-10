@@ -30,6 +30,11 @@ interface LayersPanelProps {
   totalLayers: number;
   onUpdateToolheads: (toolheads: ToolheadConfig[]) => void;
   onUpdateLayerActions: (actions: LayerAction[]) => void;
+  isSlicing?: boolean;
+  slicePercent?: number;
+  sliceMessage?: string;
+  hasGCode?: boolean;
+  onPrint?: () => void;
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -52,6 +57,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   totalLayers,
   onUpdateToolheads,
   onUpdateLayerActions,
+  isSlicing,
+  slicePercent = 0,
+  sliceMessage = '',
+  hasGCode,
+  onPrint
 }) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
@@ -486,13 +496,45 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-surface-light dark:bg-surface-dark">
         <button
           onClick={() => {
-            console.log("Slice button clicked");
-            onSlice();
+            if (hasGCode && onPrint) {
+              onPrint();
+            } else if (!isSlicing) {
+              onSlice();
+            }
           }}
-          className="w-full py-3 px-4 text-sm font-bold bg-primary text-white rounded hover:bg-blue-600 transition-colors shadow-lg shadow-primary/30 uppercase tracking-wide flex items-center justify-center gap-2"
+          className={`w-full py-3 px-4 text-sm font-bold rounded transition-all shadow-lg uppercase tracking-wide flex items-center justify-center gap-2 overflow-hidden relative ${hasGCode
+            ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30'
+            : isSlicing
+              ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-wait'
+              : 'bg-primary hover:bg-blue-600 text-white shadow-primary/30'
+            }`}
         >
-          <Icon name="layers" className="text-lg" />
-          SLICE MODEL
+          {/* Progress fill animation */}
+          {isSlicing && (
+            <div
+              className="absolute left-0 top-0 h-full bg-primary/20 transition-all duration-300"
+              style={{ width: `${Math.round(slicePercent * 100)}%` }}
+            />
+          )}
+
+          <Icon
+            name={hasGCode ? 'play_arrow' : isSlicing ? 'hourglass_empty' : 'layers'}
+            className={`text-lg relative z-10 ${isSlicing ? 'animate-spin' : ''}`}
+          />
+          <span className="relative z-10 flex flex-col items-center">
+            <span className="leading-none">
+              {hasGCode
+                ? 'PRINT MODEL'
+                : isSlicing
+                  ? `SLICING... ${Math.round(slicePercent * 100)}%`
+                  : 'SLICE MODEL'}
+            </span>
+            {isSlicing && sliceMessage && (
+              <span className="text-[10px] font-normal opacity-70 mt-0.5 animate-pulse uppercase tracking-tighter">
+                {sliceMessage}
+              </span>
+            )}
+          </span>
         </button>
       </div>
     </aside>

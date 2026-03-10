@@ -92,6 +92,17 @@ export default function App() {
   } | null>(null);
 
 
+  // Auto-reset G-code preview if settings or models change
+  useEffect(() => {
+    if (gcodePreviewJob) {
+      console.log("[App] Settings or models changed, reverting to model view.");
+      setGcodePreviewJob(null);
+      setSlicePercent(0);
+      setSliceError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalSettings, models, layerActions]);
+
   useEffect(() => {
     const html = document.documentElement;
     if (darkMode) {
@@ -267,13 +278,10 @@ export default function App() {
       alert("Please add a model before slicing.");
       return;
     }
-
-    setExperimentName(`Exp: ${models[0].name.replace('.stl', '')}`);
-    setShowPreFlight(true);
+    executeSlice();
   };
 
   const executeSlice = async () => {
-    setShowPreFlight(false);
 
     if (models.length === 0 || !models[0].file) {
       alert('No models loaded.');
@@ -386,7 +394,7 @@ export default function App() {
       setSliceError(msg.includes('Failed to fetch')
         ? 'Cannot reach server.\nMake sure server.py is running on port 8000.'
         : msg);
-      setIsSlicing(true); // Ensure overlay stays open for errors
+      setIsSlicing(false); // Ensure overlay stays open for errors
     }
   };
 
@@ -532,64 +540,7 @@ export default function App() {
     input.click();
   };
 
-  // --- RENDER ---
 
-  if (isSlicePreviewMode && currentJobId) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 h-screen w-screen bg-slate-900 text-slate-300">
-        <Icon name="code" className="text-6xl text-primary mb-4" />
-        <h2 className="text-2xl font-bold mb-4 text-white">G-Code Preview (FDM)</h2>
-        <p className="mb-6">The 3D visual toolpath viewer is coming soon.</p>
-        <button
-          onClick={() => {
-            setIsSlicePreviewMode(false);
-            setIsExperimentsMode(true);
-          }}
-          className="px-6 py-2 bg-primary rounded-md text-white font-bold text-sm shadow hover:bg-teal-500"
-        >
-          Back
-        </button>
-      </div>
-    );
-  }
-
-  if (isExperimentsMode) {
-    return (
-      <div className="h-screen w-screen flex flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200">
-        <Header
-          darkMode={darkMode}
-          toggleDarkMode={() => setDarkMode(!darkMode)}
-          onSaveProject={handleSaveProject}
-          onLoadProject={handleLoadProject}
-          onOpenCalibration={() => setIsCalibrationOpen(true)}
-          onOpenExperiments={() => setIsExperimentsMode(!isExperimentsMode)}
-        />
-        {viewingExperimentId ? (
-          <ExperimentDetails
-            experimentId={viewingExperimentId}
-            onBack={() => setViewingExperimentId(null)}
-            onOpenPreview={(id) => {
-              setCurrentJobId(id);
-              setIsSlicePreviewMode(true);
-              setIsExperimentsMode(false);
-            }}
-            onDelete={() => setViewingExperimentId(null)}
-          />
-        ) : (
-          <ExperimentsPanel
-            onClose={() => setIsExperimentsMode(false)}
-            onReplicate={(id) => { console.log("Replicate", id) }}
-            onViewDetails={(id) => setViewingExperimentId(id)}
-            onOpenPreview={(id) => {
-              setCurrentJobId(id);
-              setIsSlicePreviewMode(true);
-              setIsExperimentsMode(false);
-            }}
-          />
-        )}
-      </div>
-    );
-  }
 
   return (
     <div
@@ -636,181 +587,95 @@ export default function App() {
           totalLayers={models.find(m => m.id === selectedModelId)?.advancedSettings?.segments?.length ?? 0}
           onUpdateToolheads={setToolheads}
           onUpdateLayerActions={setLayerActions}
-        />
-        <Viewport
-          models={models}
-          selectedModelId={selectedModelId}
-          onSelectModel={setSelectedModelId}
-          onTransformChange={handleTransformChange}
-          onUpdateModelSize={handleUpdateModelSize}
-          onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
-          onCloneModel={handleCloneModel}
-          onArrayModels={handleArrayModels}
-          onFileUpload={handleFileUpload}
-          isAdvancedSliceMode={isAdvancedSliceMode}
-          globalSettings={globalSettings}
+          // Integrated slicing workflow props
+          isSlicing={isSlicing}
+          slicePercent={slicePercent}
+          sliceMessage={sliceProgress}
+          hasGCode={!!gcodePreviewJob}
+          onPrint={() => console.log("Printing job:", gcodePreviewJob?.jobId)}
         />
 
-        {/* ── Wifi Config Modal ── */}
-        {isWifiOpen && (
-          <WifiConfig onClose={() => setIsWifiOpen(false)} />
-        )}
+        <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
+          {gcodePreviewJob ? (
+            <GCodePreview
+              jobId={gcodePreviewJob.jobId}
+              layerCount={gcodePreviewJob.layerCount}
+              initialNozzleDiameter={gcodePreviewJob.nozzleDiameter}
+              gcodeUrl={`http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`}
+              onClose={() => setGcodePreviewJob(null)}
+            />
+          ) : (
+            <Viewport
+              models={models}
+              selectedModelId={selectedModelId}
+              onSelectModel={setSelectedModelId}
+              onTransformChange={handleTransformChange}
+              onUpdateModelSize={handleUpdateModelSize}
+              onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
+              onCloneModel={handleCloneModel}
+              onArrayModels={handleArrayModels}
+              onFileUpload={handleFileUpload}
+              isAdvancedSliceMode={isAdvancedSliceMode}
+              globalSettings={globalSettings}
+            />
+          )}
 
-        {/* ── Pre-Flight Modal ── */}
-        {showPreFlight && (
-          <div className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-[500px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex-shrink-0">
-              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <Icon name="biotech" className="text-primary" /> Experiment Pre-Flight
-                </h3>
-                <button onClick={() => setShowPreFlight(false)} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
-                  <Icon name="close" className="text-xl" />
-                </button>
-              </div>
+          {/* ── Wifi Config Modal ── */}
+          {isWifiOpen && (
+            <WifiConfig onClose={() => setIsWifiOpen(false)} />
+          )}
 
-              <div className="p-6 space-y-4 text-slate-700 dark:text-slate-300">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Experiment Name</label>
-                  <input
-                    type="text"
-                    value={experimentName}
-                    onChange={e => setExperimentName(e.target.value)}
-                    placeholder="e.g. Scaffolds v2 - High Exposure"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+          {/* ── Experiments Mode (Absolute Overlay) ── */}
+          {isExperimentsMode && (
+            <div className="absolute inset-0 z-[60] bg-white dark:bg-slate-950 flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-300">
+              <Header
+                darkMode={darkMode}
+                toggleDarkMode={() => setDarkMode(!darkMode)}
+                onSaveProject={handleSaveProject}
+                onLoadProject={handleLoadProject}
+                onOpenCalibration={() => setIsCalibrationOpen(true)}
+                onOpenExperiments={() => setIsExperimentsMode(false)}
+              />
+              <div className="flex-1 overflow-hidden">
+                {viewingExperimentId ? (
+                  <ExperimentDetails
+                    experimentId={viewingExperimentId}
+                    onBack={() => setViewingExperimentId(null)}
+                    onOpenPreview={(id) => {
+                      setCurrentJobId(id);
+                      setIsExperimentsMode(false);
+                      // In integrated mode, we just set the preview job
+                      setGcodePreviewJob({ jobId: id, layerCount: 100, nozzleDiameter: globalSettings.nozzleDiameter });
+                    }}
+                    onDelete={() => setViewingExperimentId(null)}
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Author</label>
-                  <input
-                    type="text"
-                    value={experimentAuthor}
-                    onChange={e => setExperimentAuthor(e.target.value)}
-                    placeholder="e.g. Dr. Jane Doe"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Intent / Notes</label>
-                  <textarea
-                    value={experimentIntent}
-                    onChange={e => setExperimentIntent(e.target.value)}
-                    placeholder="What are you trying to test or achieve in this print?"
-                    className="w-full h-24 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Material</label>
-                  <input
-                    type="text"
-                    value={experimentMaterial}
-                    onChange={e => setExperimentMaterial(e.target.value)}
-                    placeholder="e.g. PEGDA 20% + LAP"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
-                <button onClick={() => setShowPreFlight(false)} className="px-5 py-2 rounded-md font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm">Cancel</button>
-                <button onClick={executeSlice} className="px-5 py-2 bg-primary hover:bg-opacity-90 text-white rounded-md font-bold text-sm shadow-md transition-all flex items-center gap-2">
-                  <Icon name="play_arrow" className="text-lg" /> Start Slicing
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Slicing Loader Overlay ── */}
-        {isSlicing && (
-          <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center">
-            <div className="flex flex-col items-center gap-5 p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl w-[400px]">
-
-              {/* Large percentage */}
-              <div className="flex items-center justify-center my-2">
-                <span className="text-7xl font-bold text-primary">
-                  {slicePercent > 0.02 ? `${Math.round(slicePercent * 100)}%` : '...'}
-                </span>
-              </div>
-
-              {/* Title + elapsed */}
-              <div className="text-center">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight mb-0.5">Slicing Model</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Elapsed: {Math.round((Date.now() - sliceStartTime) / 1000)}s
-                </p>
-              </div>
-
-              {/* Progress bar */}
-              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-500"
-                  style={{ width: `${Math.max(2, slicePercent * 100)}%` }}
-                />
-              </div>
-
-              {/* Live message or error */}
-              <div className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg px-4 py-3 min-h-[52px] flex items-start border border-slate-100 dark:border-slate-700/50">
-                {sliceError ? (
-                  <div className="w-full">
-                    <p className="text-xs text-red-500 font-bold mb-1">Error</p>
-                    <p className="text-xs text-red-500/80 dark:text-red-400 whitespace-pre-wrap">{sliceError}</p>
-                    <button
-                      onClick={() => { setIsSlicing(false); setSliceError(null); }}
-                      className="mt-2 text-xs font-bold text-red-600 hover:text-red-700 dark:hover:text-red-300 underline"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
                 ) : (
-                  <p className="text-xs text-slate-600 dark:text-slate-400 font-mono leading-relaxed">
-                    {sliceProgress || 'Working...'}
-                  </p>
+                  <ExperimentsPanel
+                    onClose={() => setIsExperimentsMode(false)}
+                    onReplicate={(id) => { console.log("Replicate", id) }}
+                    onViewDetails={(id) => setViewingExperimentId(id)}
+                    onOpenPreview={(id) => {
+                      setCurrentJobId(id);
+                      setIsExperimentsMode(false);
+                      setGcodePreviewJob({ jobId: id, layerCount: 100, nozzleDiameter: globalSettings.nozzleDiameter });
+                    }}
+                  />
                 )}
               </div>
-
-              {/* Step pills: Transform → Slicer → Pattern → Manifest */}
-              <div className="w-full grid grid-cols-4 gap-1.5">
-                {[
-                  { label: 'Transform', done: slicePercent >= 0.20, active: slicePercent > 0 && slicePercent < 0.20 },
-                  { label: 'Slicer', done: slicePercent >= 0.50, active: slicePercent >= 0.20 && slicePercent < 0.50 },
-                  { label: 'Pattern', done: slicePercent >= 0.88, active: slicePercent >= 0.50 && slicePercent < 0.88 },
-                  { label: 'Manifest', done: slicePercent >= 1.00, active: slicePercent >= 0.88 && slicePercent < 1.00 },
-                ].map((step, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1">
-                    <div className={`w-full h-1.5 rounded-full transition-all duration-500 ${step.done ? 'bg-green-500'
-                      : step.active ? 'bg-primary animate-pulse'
-                        : 'bg-slate-200 dark:bg-slate-700'
-                      }`} />
-                    <span className={`text-[9px] font-semibold uppercase tracking-wider ${step.done ? 'text-green-600 dark:text-green-500'
-                      : step.active ? 'text-primary'
-                        : 'text-slate-400'
-                      }`}>{step.label}</span>
-                  </div>
-                ))}
-              </div>
-
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {isDragging && (
-        <div className="absolute inset-4 z-50 rounded-xl border-4 border-dashed border-primary bg-blue-50/90 dark:bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center text-primary animate-in fade-in duration-200 pointer-events-none">
-          <Icon name="upload_file" className="text-8xl mb-4" />
-          <span className="text-3xl font-bold">Drop STL file here</span>
-          <span className="text-lg text-slate-500 dark:text-slate-400 mt-2">to add it to the scene</span>
-        </div>
-      )}
-      {gcodePreviewJob && (
-        <GCodePreview
-          jobId={gcodePreviewJob.jobId}
-          layerCount={gcodePreviewJob.layerCount}
-          initialNozzleDiameter={gcodePreviewJob.nozzleDiameter}
-          gcodeUrl={`http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`}
-          onClose={() => setGcodePreviewJob(null)}
-        />
-      )}
+
+
+          {isDragging && (
+            <div className="absolute inset-4 z-50 rounded-xl border-4 border-dashed border-primary bg-blue-50/90 dark:bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center text-primary animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+              <Icon name="upload_file" className="text-8xl mb-4" />
+              <span className="text-3xl font-bold">Drop STL file here</span>
+              <span className="text-lg text-slate-500 dark:text-slate-400 mt-2">to add it to the scene</span>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
