@@ -49,9 +49,9 @@ interface ViewportProps {
 const clippingPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
 
 const BUILD_VOLUME = {
-  width: 71.11,   // X: display width (mm)
-  depth: 40.0,    // Y: display height (mm)  [Three.js Z axis]
-  height: 76      // Z: max print height (mm) [Three.js Y axis]
+  width: 100,    // X: bed width (mm)
+  depth: 100,    // Y: bed depth (mm)  [Three.js Z axis]
+  height: 100    // Z: max print height (mm) [Three.js Y axis]
 };
 
 // Distinct colors for segments

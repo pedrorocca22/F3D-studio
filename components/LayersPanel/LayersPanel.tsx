@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment } from '../../types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction } from '../../types';
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
+import { ToolheadPanel } from '../ToolheadPanel/ToolheadPanel';
 
 
 
@@ -20,11 +21,15 @@ interface LayersPanelProps {
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
   onApplySettingsToAll: (data: SliceSettings) => void;
   isAdvancedSliceMode: boolean;
-
   onFileUpload: (file: File, isCube?: boolean) => void;
-  // Previously removed props that are actually used in the component body
   setIsAdvancedSliceMode: (val: boolean) => void;
   onSlice: () => void;
+  // Toolhead props
+  toolheads: ToolheadConfig[];
+  layerActions: LayerAction[];
+  totalLayers: number;
+  onUpdateToolheads: (toolheads: ToolheadConfig[]) => void;
+  onUpdateLayerActions: (actions: LayerAction[]) => void;
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -42,78 +47,24 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   setIsAdvancedSliceMode,
   onSlice,
   onFileUpload,
+  toolheads,
+  layerActions,
+  totalLayers,
+  onUpdateToolheads,
+  onUpdateLayerActions,
 }) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
     sliceSettings: false,
-    advanceSlice: false,
-    adhesion: false,
     heating: false,
-    separation: false,
-    thermodynamic: false,
-    motor: false,
+    toolheads: true,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [adhesion, setAdhesion] = useState({
-    enabled: globalSettings.adhesion?.enabled ?? false,
-    layerHeight: globalSettings.adhesion?.layerHeight ?? 20,
-    layers: globalSettings.adhesion?.layers ?? 3,
-    exposureTime: globalSettings.adhesion?.exposureTime ?? 3.2,
-    lightIntensity: globalSettings.adhesion?.lightIntensity ?? 40,
-    transitionLayers: globalSettings.adhesion?.transitionLayers ?? 2,
-    exposureMode: globalSettings.adhesion?.exposureMode ?? ('time' as const),
-    targetDose: globalSettings.adhesion?.targetDose ?? ((globalSettings.adhesion?.exposureTime ?? 3.2) * (globalSettings.adhesion?.lightIntensity ?? 40))
-  });
-
-  // Sync with global settings when they change externally
-  useEffect(() => {
-    if (globalSettings.adhesion) {
-      setAdhesion(prev => ({
-        ...prev,
-        ...globalSettings.adhesion
-      }));
-    }
-  }, [globalSettings.adhesion]);
-
   const [heating, setHeating] = useState({
-    temp: 27.2
+    temp: 60
   });
-
-
-  const [thermodynamic, setThermodynamic] = useState({
-    enabled: globalSettings.thermodynamic?.enabled ?? false,
-    maxFlashTime: globalSettings.thermodynamic?.maxFlashTime ?? 0.5,
-    coolingPause: globalSettings.thermodynamic?.coolingPause ?? 2.0
-  });
-
-  // Sync with global settings when they change externally
-  useEffect(() => {
-    if (globalSettings.thermodynamic) {
-      setThermodynamic(prev => ({
-        ...prev,
-        ...globalSettings.thermodynamic
-      }));
-    }
-  }, [globalSettings.thermodynamic]);
-
-  const [motor, setMotor] = useState({
-    enabled: globalSettings.motor?.enabled ?? false,
-    peelSpeed: globalSettings.motor?.peelSpeed ?? 30,
-    retractSpeed: globalSettings.motor?.retractSpeed ?? 150,
-    separationDistance: globalSettings.motor?.separationDistance ?? 4.2
-  });
-
-  // Sync with global settings when they change externally
-  useEffect(() => {
-    if (globalSettings.motor) {
-      setMotor(prev => ({
-        ...prev,
-        ...globalSettings.motor
-      }));
-    }
-  }, [globalSettings.motor]);
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -496,24 +447,34 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         </div>
 
         {/* Build Plate Adhesion (New Position & Logic) */}
-        
+
 
         {/* Advance Slice (Active Section) */}
-        
 
-        {/* Other Sections (Hidden when advanced active) */}
+
+        {/* Other Sections */}
         {!isAdvancedSliceMode && (
           <>
             <AccordionSection title="Heating Bed" isOpen={openSections.heating} onToggle={() => toggleSection('heating')} info>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">Temp (°C):</span>
-                <NumericInput className={inputClass} value={heating.temp} onChange={v => setHeating({ temp: v })} step={0.1} />
+                <span className="text-xs text-slate-500">Bed Temp (°C):</span>
+                <NumericInput className={inputClass} value={heating.temp} onChange={v => setHeating({ temp: v })} step={0.5} />
               </div>
+              <p className="text-[10px] text-slate-400 mt-2 leading-tight">
+                Controls the heated bed temperature via Klipper <code>SET_HEATER_TEMPERATURE</code> macro.
+              </p>
             </AccordionSection>
 
-
-            
-                      </>
+            <AccordionSection title="Toolheads &amp; Layer Schedule" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')} info>
+              <ToolheadPanel
+                toolheads={toolheads}
+                layerActions={layerActions}
+                totalLayers={totalLayers}
+                onUpdateToolheads={onUpdateToolheads}
+                onUpdateLayerActions={onUpdateLayerActions}
+              />
+            </AccordionSection>
+          </>
         )}
       </div>
 

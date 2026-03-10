@@ -9,7 +9,7 @@ import { Viewport } from './components/Viewport/Viewport';
 import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
 import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
 import { Icon } from './components/Icon';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride } from './types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from './types';
 import { generateUUID } from './utils';
 
 // Helper to convert File to ArrayBuffer
@@ -56,7 +56,26 @@ export default function App() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [isPatternPickerOpen, setIsPatternPickerOpen] = useState(false);
+  // ── Toolheads state ──────────────────────────────────────────────
+  const DEFAULT_TOOLHEADS: ToolheadConfig[] = [
+    {
+      id: 'fdm', label: 'FDM Hot-end', klipper_tool: 'T0', installed: true,
+      nozzleDiameter: 0.4, filamentDiameter: 1.75, maxTemperature: 280,
+      defaultTemperature: 210, retractionLength: 1.0, retractionSpeed: 45
+    } as FDMToolheadConfig,
+    {
+      id: 'syringe', label: 'Hydrogel Syringe', klipper_tool: 'T1', installed: false,
+      syringeVolumeMl: 5, nozzleDiameterMm: 0.4, flowRateUlPerMm: 0.8,
+      pressurizationSteps: 10, retractionSteps: 5, actuatorType: 'mechanical'
+    } as SyringeToolheadConfig,
+    {
+      id: 'uv', label: 'UV Crosslinker', klipper_tool: 'T2', installed: false,
+      wavelengthNm: 365, maxPowerMw: 100, defaultDose: 50, defaultExposureTime: 5, mode: 'fixed'
+    } as UVToolheadConfig,
+  ];
+  const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
+  const [layerActions, setLayerActions] = useState<LayerAction[]>([]);
+
 
   useEffect(() => {
     const html = document.documentElement;
@@ -677,6 +696,11 @@ export default function App() {
           setIsAdvancedSliceMode={setIsAdvancedSliceMode}
           onSlice={handleSlice}
           onFileUpload={handleFileUpload}
+          toolheads={toolheads}
+          layerActions={layerActions}
+          totalLayers={models.find(m => m.id === selectedModelId)?.advancedSettings?.segments?.length ?? 0}
+          onUpdateToolheads={setToolheads}
+          onUpdateLayerActions={setLayerActions}
         />
         <Viewport
           models={models}
