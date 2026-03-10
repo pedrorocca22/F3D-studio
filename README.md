@@ -1,163 +1,140 @@
-# 🧬 Bioprinting Studio DLP3 
+# 🧬 BioFFF Studio
 
-![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-teal.svg)
 ![React](https://img.shields.io/badge/UI-React_&_Three.js-61dafb.svg?logo=react)
-![Python](https://img.shields.io/badge/Backend-Flask_&_OpenCV-3776AB.svg?logo=python)
-![Hardware](https://img.shields.io/badge/Hardware-Raspberry_Pi_4-C51A4A.svg?logo=raspberry-pi)
+![Python](https://img.shields.io/badge/Backend-Flask_&_Moonraker-3776AB.svg?logo=python)
+![Klipper](https://img.shields.io/badge/Firmware-Klipper-orange.svg)
 
-Bienvenido al sistema **DLP3 Bioprinter**. Esta aplicación es una solución de vanguardia "Todo en Uno" (*All-in-One*) desarrollada expresamente para comandar hardware de bio-impresión 3D basado en tecnología DLP/UV. 
+**BioFFF Studio** is a multi-toolhead FDM bio-printer control station — migrated and extended from the DLP3 Bioprinter project. It supports:
 
-Ofrece un flujo de trabajo increíblemente avanzado, permitiéndote **diseñar el escenario biológico, previsualizar capas, aplicar densidades variables y controlar potencias lumínicas a nivel de píxel**, directamente desde tu navegador web.
+- 🖨️ **T0 · FDM Hot-end** — standard filament printing (PLA, TPU, bio-compatible filaments)
+- 💉 **T1 · Hydrogel Syringe** — mechanical plunger cold extrusion for bioinks and hydrogels
+- ☀️ **T2 · UV Crosslinker** — 365/405 nm LED exposure for photo-crosslinking biogels per-layer
 
----
-
-## ✨ Características Principales
-
-### 🔬 Slicer 3D Integrado (En el Navegador)
-* **Visualización Dinámica:** Motor 3D basado en `Three.js` para cargar, rotar, escalar y posicionar archivos `.STL` directamente sobre la cama virtual de resina.
-* **Control de Modificadores (Pattern Engine):** ¿Necesitas imprimir un hidrogel más suave en el centro y más duro en los bordes? Aplica texturas de curado como **Voronoi**, **Shell/Core**, o **Gradientes** directamente a la pieza.
-* **Slicing In-Situ:** Se integra con *PrusaSlicer CLI* por debajo para procesar la geometría compleja y exportar paquetes SLA listos para impresión sin depender de otro software local.
-
-### ☀ Calibración de Irradiancia (*Grayscale Mapping*)
-* **Mapeo Dinámico de Luz:** La radiación UV no se controla por un PWM global estático, sino utilizando **mapas de escala de grises**.
-* **Precisión Absoluta:** Con el controlador interpolador de 256 pasos (`calibration_gray.json`), la aplicación escala de 0.03 a 24.2 mW/cm², variando gradualmente potencias dentro de una misma capa de resina píxel a píxel.
-* **Protección Celular:** El usuario declara una "Dosis Objetivo" y el algoritmo pre-calcula matemáticamente los regímenes de exposición y atenuación óptimos para las células.
+Backend: **Flask + PrusaSlicer CLI (FDM mode) + Moonraker/Klipper**
 
 ---
 
-## 📐 Arquitectura del Sistema
+## ✨ What Changed vs DLP3
+
+| Feature | DLP3 (SLA) | BioFFF (FDM) |
+|---|---|---|
+| Slicer engine | PrusaSlicer SLA → .sl1 | PrusaSlicer FFF → .gcode |
+| Printer comm | Custom RPi Flask + projector driver | Direct Moonraker REST + WebSocket |
+| Layer rendering | UV image projection | G-code execution on Klipper |
+| UV crosslinking | Not available | UV head macro (UV_EXPOSE) per-layer |
+| Syringe | Not available | Cold extruder T1 + calibration profile |
+| Calibration | Grayscale irradiance map | Syringe flow rate + UV dose curve |
+
+---
+
+## 📐 Architecture
 
 ```mermaid
 graph TB
-    subgraph PC["💻 PC — Estación de Control"]
-        direction TB
-        FE["🖥️ Frontend<br/>React + Three.js<br/>:5173"]
-        BE["⚙️ Backend Flask<br/>server.py<br/>:8000"]
-        PS["🔪 PrusaSlicer CLI<br/>Export SLA / .sl1"]
-        PM["🖨️ PrintManager<br/>print_manager.py"]
-        CAL["📊 CalibrationManager<br/>tools/calibration_gray.json"]
-        PAT["🎨 PatternEngine<br/>pattern_engine.py"]
-
-        FE -- "POST /slice_scene<br/>STL + scene_json" --> BE
-        BE -- "transform STL<br/>numpy-stl" --> PS
-        PS -- "job.sl1 (ZIP)" --> BE
-        BE -- "GET /job/:id/layer/:png" --> FE
-        BE --> PM
-        PM --> CAL
-        BE --> PAT
+    subgraph PC["💻 PC — BioFFF Studio"]
+        FE["🖥️ Frontend\nReact + Three.js\n:5173"]
+        BE["⚙️ Flask Backend\nserver.py :8000"]
+        PS["🔪 PrusaSlicer CLI\nFDM → .gcode"]
+        FPM["🎛️ FDMPrintManager\nLayer event dispatch"]
+        MRC["📡 MoonrakerClient\nREST + WebSocket"]
+        CAL["📊 ToolheadCalibration\nFlow + UV curves"]
     end
 
-    subgraph RPI["🍓 Raspberry Pi — Nodo de Impresora"]
-        direction TB
-        RPIS["🌐 Flask Server<br/>rpi_node/server.py<br/>:5000"]
-        PROJ["📽️ Projector Driver<br/>DLP UV Projector"]
-        MOT["⚙️ Motor Driver<br/>Z-axis Stepper"]
+    subgraph RPI["🍓 Klipper / Moonraker (CM4)"]
+        MR["🌐 Moonraker :7125"]
+        KL["⚙️ Klipper"]
+        T0["T0 FDM Hot-end"]
+        T1["T1 Syringe"]
+        T2["T2 UV LED"]
     end
 
-    PC -- "HTTP REST<br/>(LAN / WiFi)" --> RPI
-    PM -- "display_image_bytes<br/>printer_client.py" --> RPIS
-    RPIS --> PROJ
-    RPIS --> MOT
+    FE -->|POST /fdm/slice| BE
+    BE --> PS
+    PS -->|print.gcode| BE
+    BE -->|POST /moonraker/print/start| FPM
+    FPM --> MRC
+    MRC -->|REST+WS| MR
+    MR --> KL
+    KL --> T0
+    KL --> T1
+    KL --> T2
 ```
 
 ---
 
-## 🖨️ Flujo Central de Impresión
+## 📁 New Files
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant FE as Frontend
-    participant PM as PrintManager
-    participant CAL as CalibrationManager
-    participant RPI as RPi Node
-
-    User->>FE: Start Print
-    FE->>PM: POST /start_print/:job_id
-    PM->>RPI: initialize() — setup proyector
-    
-    loop Cada capa
-        PM->>PM: Leer capa y metadatos del job.json
-        PM->>RPI: Mover Motor (Z-axis offset via CLI/Moonraker)
-        
-        alt Modo Grayscale (Dinámico Escalar)
-            PM->>CAL: get_gray_for_irradiance(layer_irradiance)
-            CAL-->>PM: Matriz Grises (0–255 map)
-            PM->>PM: Modular PNG base: Píxeles × Factor(Gray/255)
-        else Imágenes sin procesar
-            PM->>PM: Envía PNG RAW a potencia 100% (255)
-        end
-        
-        PM->>RPI: POST render buffer: display_image_bytes(png)
-        PM->>RPI: POST command: expose(time_in_seconds)
-    end
-
-    PM->>RPI: detiene_proyector() y limpia bufer
-    PM-->>FE: Job State = COMPLETED
-```
+| File | Purpose |
+|---|---|
+| `moonraker_client.py` | Direct Moonraker REST+WebSocket client |
+| `fdm_print_manager.py` | FDM orchestration: layer events, toolhead switching |
+| `toolhead_calibration.py` | Syringe flow rate + UV dose calibration profiles |
+| `config_fdm.ini` | PrusaSlicer FFF profile (Klipper G-code flavor) |
+| `klipper_configs/printer_biofff.cfg` | Full Klipper printer.cfg template with T0/T1/T2 macros |
+| `components/ToolheadPanel/` | Layer schedule UI + toolhead config panel |
+| `types.ts` | All new FDM/Syringe/UV TypeScript interfaces |
 
 ---
 
-## 🛠 Entorno e Interfaz (UI)
-
-La ventana de **DLP3 Bioprinter** ofrece una estación de trabajo ergonómica dividida en sectores:
-
-> **[ 1. Viewport 3D ]** - Manipulación en tiempo real de tus STL y generadores de formas biológicas.  
-> **[ 2. Sidebar Properties ]** - Configuración de perfiles de resina, tiempos base y capas de control avanzadas.  
-> **[ 3. Layer Explorer ]** - Control mediante slider para visualizar al milímetro **Capa por Capa** la geometría a inyectarse en el proyector.  
-> **[ 4. Calibration Center ]** - Entorno para ejecutar ráfagas de pruebas test contra un radiómetro UV hasta optimizar la interpolación de luz del Hardware.
-
----
-
-## 🚀 Inicio Rápido (Setup)
-
-El sistema requiere de dos módulos en ejecución permanente en la computadora matriz de mando. Asegurate de tener asignada estáticamente la IP de la Raspberry `config.ini`.
+## 🚀 Quick Start
 
 ```powershell
-# Iniciar automáticamente por un Lote (Windows)
-.\start.bat
-
-# -- O manualmente abriendo dos consolas --
-# Terminal 1 — Backend:
+# 1. Install Python dependencies
 .\.venv\Scripts\activate
+pip install flask flask-cors numpy-stl pillow requests websocket-client
+
+# 2. Start Backend
 python server.py
 
-# Terminal 2 — Frontend:
+# 3. Start Frontend
 npm run dev
 ```
 
-| Módulo Interno | Dirección Local Externa |
-|:---|:---|
-| Frontend (Aplicación React UI) | [http://localhost:5173](http://localhost:5173) |
-| Backend Slicer API | [http://localhost:8000](http://localhost:8000) |
-| Servidor Impresora (en la RPi) | `http://192.168.137.148:5000` |
-
----
-
-## ⚙️ Sistema de Coordenadas
-
-El pipeline compensa automáticamente las caídas de sistema rotacional de diseño nativo en 3D (`Three.JS`, `Y-Up`) contra el formato cartesiano maquinado GCODE (`PrusaSlicer`, `Z-Up`). El software aplica de manera invisible los remapeos de transformación: `X=X`, `Y=-Z`, `Z=Y`. 
-
-```mermaid
-graph LR
-    subgraph Slicer["PrusaSlicer / Base Física (Z-up)"]
-        P1["X → Ancho cama (71.11mm)<br/>Y → Profundidad cama (40mm)<br/>Z → Altura impresión (76mm)"]
-    end
-    subgraph Three["Engine de Navegador (Y-up)"]
-        T1["X → Derecha<br/>Y → Arriba<br/>Z → Cámara/Profundidad"]
-    end
-
-    Three -- "Script transform_stl_to_scene<br/>+ numpy algebra" --> Slicer
+Edit `config_fdm.ini` `[Hardware]` section to set your Moonraker IP:
+```ini
+[Hardware]
+rpi_ip = 192.168.1.50
+moonraker_port = 7125
+printer_technology = FFF
 ```
 
 ---
 
-## 📡 Endpoints del Backend Abiertos (REST)
+## 🔌 New API Endpoints
 
-| Método | Ruta | Descripción Lógica |
+| Method | Route | Description |
 |:---:|:---|:---|
-| `GET` | `/` | Comprobante lógico de salud del motor local |
-| `POST` | `/slice_scene` | Inicia el pipeline de Fileteado (envía array JSON + STL) |
-| `GET` | `/job/<id>/manifest` | Escanea un proyecto renderizado pidiendo variables temporales |
-| `GET` | `/job/<id>/layer/<n>` | Carga PNG de render al DOM Frontend en caliente |
-| `POST` | `/start_print/<id>` | Detona un proceso en cola por red a la Raspberry y arranca el proyector |
+| `POST` | `/fdm/slice` | Slice STL → G-code (FFF mode) |
+| `GET` | `/fdm/job/<id>/manifest` | FDM job metadata + layer count |
+| `GET` | `/fdm/job/<id>/gcode` | Download generated G-code |
+| `GET` | `/moonraker/status` | Moonraker + print progress |
+| `POST` | `/moonraker/print/start` | Upload G-code + start print |
+| `POST` | `/moonraker/print/pause` | Pause |
+| `POST` | `/moonraker/print/resume` | Resume |
+| `POST` | `/moonraker/print/cancel` | Cancel |
+| `GET` | `/moonraker/print/state` | FDM manager state (layer, progress, toolhead) |
+| `POST` | `/moonraker/gcode` | Execute arbitrary G-code |
+| `POST` | `/moonraker/toolhead` | Switch toolhead by T-index |
+| `POST` | `/moonraker/uv` | Trigger UV exposure |
+| `POST` | `/moonraker/home` | Home axes |
+
+---
+
+## 🔬 Klipper Macros (in printer_biofff.cfg)
+
+| Macro | Description |
+|---|---|
+| `T0` | Activate FDM extruder |
+| `T1` | Activate syringe cold extruder |
+| `T2` | Position UV crosslinking head |
+| `UV_EXPOSE DURATION=5.0` | Fire UV LED for N seconds |
+| `UV_OFF` | Turn off UV immediately |
+| `SYRINGE_PRESSURIZE STEPS=50` | Pre-pressurize syringe |
+| `SYRINGE_RETRACT STEPS=30` | Anti-drip retraction |
+| `PRINT_START EXTRUDER_TEMP=210 BED_TEMP=60` | Full startup routine |
+| `PRINT_END` | End routine + heaters off |
+
+---
+
+*BioFFF Studio v1.0.0 — 2026 · Migrated from DLP3 Bioprinter*

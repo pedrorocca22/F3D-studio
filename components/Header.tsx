@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 
 interface HeaderProps {
@@ -9,25 +9,82 @@ interface HeaderProps {
   onOpenCalibration?: () => void;
   onOpenExperiments?: () => void;
   onOpenWifi?: () => void;
+  onOpenPrinterStatus?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSaveProject, onLoadProject, onOpenCalibration, onOpenExperiments, onOpenWifi }) => {
+export const Header: React.FC<HeaderProps> = ({
+  darkMode, toggleDarkMode, onSaveProject, onLoadProject,
+  onOpenCalibration, onOpenExperiments, onOpenWifi, onOpenPrinterStatus
+}) => {
+  const [printerState, setPrinterState] = useState<'unknown' | 'ready' | 'printing' | 'error'>('unknown');
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const r = await fetch('http://127.0.0.1:8000/moonraker/status', { signal: AbortSignal.timeout(3000) });
+        if (r.ok) {
+          const d = await r.json();
+          const state = d?.print?.state ?? 'idle';
+          if (state === 'printing') setPrinterState('printing');
+          else setPrinterState('ready');
+        } else {
+          setPrinterState('error');
+        }
+      } catch {
+        setPrinterState('error');
+      }
+    };
+    check();
+    const id = setInterval(check, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  const stateColor: Record<string, string> = {
+    unknown: 'bg-slate-400',
+    ready: 'bg-primary',
+    printing: 'bg-amber-400 animate-pulse',
+    error: 'bg-red-500',
+  };
+  const stateLabel: Record<string, string> = {
+    unknown: 'Connecting…',
+    ready: 'Printer Ready',
+    printing: 'Printing',
+    error: 'Offline',
+  };
+
   return (
     <>
-      {/* Top accent line */}
-      <div className="h-1 bg-primary w-full flex-shrink-0"></div>
+      {/* Top accent gradient line */}
+      <div className="h-1 w-full flex-shrink-0 bg-gradient-to-r from-primary via-teal-400 to-teal-300" />
 
-      {/* Main Header - Clean Minimalist Background */}
+      {/* Main Header */}
       <header className="h-14 flex-shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex items-center justify-between px-6 z-20 relative shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 select-none">
-            <span className="font-black tracking-tighter text-2xl text-slate-800 dark:text-white">
-              biolight<span className="text-primary text-3xl leading-none">.</span>
-            </span>
+        {/* Logo */}
+        <div className="flex items-center gap-3 select-none">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+            <Icon name="biotech" className="text-white text-base" />
           </div>
+          <span className="font-black tracking-tighter text-xl text-slate-800 dark:text-white">
+            bio<span className="text-primary">FFF</span>
+            <span className="font-light text-slate-400 dark:text-slate-500 text-sm ml-1">studio</span>
+          </span>
+          <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-widest text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5">
+            FDM · Syringe · UV
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Printer Status chip */}
+          <button
+            onClick={onOpenPrinterStatus}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors"
+          >
+            <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
+            {stateLabel[printerState]}
+          </button>
+
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+
           <div className="flex items-center gap-2">
             <button onClick={onLoadProject} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
               <Icon name="folder_open" className="text-sm" /> Load
@@ -40,26 +97,26 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, toggleDarkMode, onSave
             </button>
           </div>
 
-          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
-          <button onClick={onOpenExperiments} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors mr-2">
+          <button onClick={onOpenExperiments} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
             <Icon name="history" className="text-sm text-primary" /> Experiments
           </button>
 
           <button
             onClick={onOpenWifi}
-            className="flex items-center gap-1.5 bg-primary hover:opacity-90 text-white px-5 py-1.5 rounded-md font-bold shadow-sm transition-opacity text-xs tracking-wide"
+            className="flex items-center gap-1.5 bg-primary hover:opacity-85 text-white px-4 py-1.5 rounded-md font-bold shadow-sm transition-opacity text-xs tracking-wide"
           >
             <Icon name="wifi" className="text-sm" />
-            Connect to WiFi
+            Network
           </button>
 
           <button
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors ml-1"
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             onClick={toggleDarkMode}
-            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
-            <Icon name={darkMode ? "light_mode" : "dark_mode"} className="text-lg" />
+            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-lg" />
           </button>
         </div>
       </header>
