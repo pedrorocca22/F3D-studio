@@ -56,39 +56,7 @@ export default function App() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Pattern Library State
-  const [patterns, setPatterns] = useState<import('./types').Pattern[]>([]);
-
-  // Load patterns from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('dlp3_patterns');
-    if (saved) {
-      try {
-        setPatterns(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved patterns", e);
-      }
-    }
-  }, []);
-
-  // Save patterns to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem('dlp3_patterns', JSON.stringify(patterns));
-  }, [patterns]);
-
-  const handleSavePattern = (pattern: import('./types').Pattern) => {
-    setPatterns(prev => {
-      const exists = prev.find(p => p.id === pattern.id);
-      if (exists) {
-        return prev.map(p => p.id === pattern.id ? pattern : p);
-      }
-      return [...prev, pattern];
-    });
-  };
-
-  const handleDeletePattern = (id: string) => {
-    setPatterns(prev => prev.filter(p => p.id !== id));
-  };
+  const [isPatternPickerOpen, setIsPatternPickerOpen] = useState(false);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -704,12 +672,10 @@ export default function App() {
           onTransformChange={(data) => selectedModelId && handleTransformChange(selectedModelId, data)}
           onUpdateSettings={(data) => selectedModelId && handleUpdateSettings(selectedModelId, data)}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
-          onUpdateModifiers={(mods) => selectedModelId && handleUpdateModifiers(selectedModelId, mods)}
           onApplySettingsToAll={handleApplySettingsToAll}
           isAdvancedSliceMode={isAdvancedSliceMode}
           setIsAdvancedSliceMode={setIsAdvancedSliceMode}
           onSlice={handleSlice}
-          patterns={patterns}
           onFileUpload={handleFileUpload}
         />
         <Viewport
@@ -719,15 +685,11 @@ export default function App() {
           onTransformChange={handleTransformChange}
           onUpdateModelSize={handleUpdateModelSize}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
-          onUpdateModifiers={(mods) => selectedModelId && handleUpdateModifiers(selectedModelId, mods)}
           onCloneModel={handleCloneModel}
           onArrayModels={handleArrayModels}
           onFileUpload={handleFileUpload}
           isAdvancedSliceMode={isAdvancedSliceMode}
           globalSettings={globalSettings}
-          patterns={patterns}
-          onSavePattern={handleSavePattern}
-          onDeletePattern={handleDeletePattern}
         />
 
         {/* ── Wifi Config Modal ── */}

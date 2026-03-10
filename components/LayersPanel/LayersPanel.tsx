@@ -5,7 +5,6 @@ import { NumericInput } from './NumericInput';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment } from '../../types';
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
-import { PatternPreview } from '../Viewport/PatternPreview';
 
 
 
@@ -19,7 +18,6 @@ interface LayersPanelProps {
   onTransformChange: (data: TransformData) => void;
   onUpdateSettings: (data: SliceSettings) => void;
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
-  onUpdateModifiers: (modifiers: any[]) => void;
   onApplySettingsToAll: (data: SliceSettings) => void;
   isAdvancedSliceMode: boolean;
 
@@ -27,7 +25,6 @@ interface LayersPanelProps {
   // Previously removed props that are actually used in the component body
   setIsAdvancedSliceMode: (val: boolean) => void;
   onSlice: () => void;
-  patterns: import('../../types').Pattern[];
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -40,13 +37,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   onTransformChange,
   onUpdateSettings,
   onUpdateAdvancedSettings,
-  onUpdateModifiers,
   onApplySettingsToAll,
   isAdvancedSliceMode,
   setIsAdvancedSliceMode,
   onSlice,
   onFileUpload,
-  patterns
 }) => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
@@ -131,8 +126,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     }
   }, [openSections.advanceSlice, selectedModelId, setIsAdvancedSliceMode]);
 
-  const [segmentPatternPickers, setSegmentPatternPickers] = useState<Record<string, boolean>>({});
-  const [globalPatternPickerOpen, setGlobalPatternPickerOpen] = useState(false);
 
   const toggleSection = (key: string) => {
     if (key === 'advanceSlice' && !selectedModelId) return;
@@ -491,67 +484,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
             <div className="h-2"></div>
 
-            {/* GLOBAL PATTERN PICKER */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden mb-3">
-              <div className="flex justify-between items-center px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700/50">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                  <Icon name="extension" className="text-sm" />
-                  Global Pattern
-                </span>
-                <button
-                  onClick={() => setGlobalPatternPickerOpen(!globalPatternPickerOpen)}
-                  className={`p-0.5 rounded transition-colors ${selectedModel?.modifiers && selectedModel.modifiers.length > 0 ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary'}`}
-                  title={globalPatternPickerOpen ? 'Close Library' : 'Open Library'}
-                >
-                  <Icon name="palette" className="text-sm" />
-                </button>
-              </div>
-
-              {globalPatternPickerOpen && (
-                <div className="p-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
-                  <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {patterns.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          const patternConfig = JSON.parse(JSON.stringify(p.config));
-                          onUpdateModifiers([patternConfig]);
-                          setGlobalPatternPickerOpen(false);
-                        }}
-                        className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
-                      >
-                        <PatternPreview
-                          type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : (p.config.core_pattern === 'trabecular' ? 'trabecular' : 'sponge'))))}
-                          cellSize={p.config.voronoi_cell_size || 1.0}
-                          coreGray={p.config.core_gray ?? 255}
-                          shellGray={p.config.shell_gray ?? 0}
-                          density={p.config.sponge_density || 0.5}
-                          thickness={p.config.shell_thickness ?? 1.0}
-                          width={40}
-                          height={40}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedModel?.modifiers && selectedModel.modifiers.length > 0 && (
-                <div className="px-3 py-1 bg-purple-50 dark:bg-purple-900/10 flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-purple-600 uppercase">
-                    {(selectedModel.modifiers[0].core_pattern === 'vascular') ? 'Vascular Applied' : (selectedModel.modifiers[0].core_pattern === 'lattice' ? 'Lattice Applied' : (selectedModel.modifiers[0].core_pattern === 'linear' ? 'Linear Applied' : (selectedModel.modifiers[0].core_pattern === 'noise' ? 'Noise Applied' : 'Sponge Applied')))}
-                  </span>
-                  <button
-                    onClick={() => onUpdateModifiers([])}
-                    className="font-bold text-[9px] text-purple-400 hover:text-red-500"
-                  >
-                    Remove
-                  </button>
-                </div>
-              )}
-            </div>
-
             <button
               onClick={handleApplyToAll}
               className="w-full py-2 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 shadow-sm"
@@ -776,13 +708,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             Gradient
                           </button>
                         </div>
-                        <button
-                          onClick={() => setSegmentPatternPickers(prev => ({ ...prev, [segment.id]: !prev[segment.id] }))}
-                          className={`p-0.5 rounded transition-colors ${segment.modifiers && segment.modifiers.length > 0 ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'text-slate-400 hover:text-primary'}`}
-                          title="Apply Pattern"
-                        >
-                          <Icon name="palette" className="text-sm" />
-                        </button>
+
                         <button
                           onClick={() => removeSegment(index)}
                           className="text-slate-400 hover:text-red-500 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -793,48 +719,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       </div>
                     </div>
 
-                    {segmentPatternPickers[segment.id] && (
-                      <div className="p-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
-                        <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1.5">Pick Pattern from Library</label>
-                        <div className="grid grid-cols-4 gap-2">
-                          {patterns.map(p => (
-                            <button
-                              key={p.id}
-                              onClick={() => {
-                                const patternConfig = JSON.parse(JSON.stringify(p.config));
-                                updateSegment(index, 'modifiers' as any, [patternConfig]);
-                                setSegmentPatternPickers(prev => ({ ...prev, [segment.id]: false }));
-                              }}
-                              className="aspect-square bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-primary p-0.5"
-                            >
-                              <PatternPreview
-                                type={p.config.core_pattern === 'vascular' ? 'vascular' : (p.config.core_pattern === 'lattice' ? 'lattice' : (p.config.core_pattern === 'linear' ? 'linear' : (p.config.core_pattern === 'noise' ? 'noise' : (p.config.core_pattern === 'trabecular' ? 'trabecular' : 'sponge'))))}
-                                cellSize={p.config.voronoi_cell_size || 1.0}
-                                coreGray={p.config.core_gray ?? 255}
-                                shellGray={p.config.shell_gray ?? 0}
-                                density={p.config.sponge_density || 0.5}
-                                thickness={p.config.shell_thickness ?? 1.0}
-                                width={40}
-                                height={40}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Segment Pattern Display if exists */}
-                    {segment.modifiers && segment.modifiers.length > 0 && (
-                      <div className="px-3 py-1 bg-purple-50 dark:bg-purple-900/10 border-b border-purple-100 dark:border-purple-900/20 flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-purple-600 uppercase">Pattern Applied</span>
-                        <button
-                          onClick={() => updateSegment(index, 'modifiers' as any, [] as any)}
-                          className="font-bold text-[9px] text-purple-400 hover:text-red-500"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
+
+
 
                     <div className="p-3 space-y-2">
                       <div className="flex items-center justify-between">

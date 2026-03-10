@@ -43,9 +43,7 @@ interface ViewportProps {
   onFileUpload?: (file: File) => void;
   isAdvancedSliceMode?: boolean;
   globalSettings: GlobalSettings;
-  patterns: import('../../types').Pattern[];
   onSavePattern: (pattern: import('../../types').Pattern) => void;
-  onDeletePattern: (id: string) => void;
 }
 
 // --- CLIPPING PLANE LOGIC ---
@@ -857,16 +855,11 @@ export const Viewport: React.FC<ViewportProps> = ({
   onArrayModels,
   onFileUpload,
   isAdvancedSliceMode,
-  globalSettings,
-  patterns,
-  onSavePattern,
-  onDeletePattern,
-  onUpdateModifiers
+  globalSettings
 }) => {
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [objectTool, setObjectTool] = useState<ObjectTool>('translate');
   const [viewMode, setViewMode] = useState<ViewMode>('solid');
-  const [activeTab, setActiveTab] = useState<'properties' | 'modifiers'>('properties');
   const [zoomTrigger, setZoomTrigger] = useState(0);
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
@@ -1059,237 +1052,207 @@ export const Viewport: React.FC<ViewportProps> = ({
               <span className="text-[9px] font-bold text-slate-500 uppercase">{viewMode}</span>
             </button>
           </div>
-
-          {/* TAB SWITCHER */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-            <button
-              onClick={() => setActiveTab('properties')}
-              className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded transition-all text-[10px] font-bold uppercase ${activeTab === 'properties'
-                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-            >
-              <Icon name="list" className="text-sm" /> Properties
-            </button>
-            <button
-              onClick={() => setActiveTab('modifiers')}
-              className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded transition-all text-[10px] font-bold uppercase ${activeTab === 'modifiers'
-                ? 'bg-white dark:bg-slate-700 text-purple-500 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-            >
-              <Icon name="extension" className="text-sm" /> Modifiers
-            </button>
-          </div>
         </div>
+
+
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
 
           {selectedModel ? (
-            activeTab === 'modifiers' ? (
-              <ModifiersPanel
-                model={selectedModel}
-                patterns={patterns}
-                onSavePattern={onSavePattern}
-                onDeletePattern={onDeletePattern}
-                onUpdateModifiers={(mods) => onUpdateModifiers && onUpdateModifiers(mods)}
-              />
-            ) : (
-              <>
-                {/* Model Info Section */}
+            <>
+              {/* Model Info Section */}
+              <section>
+                <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Model Information
+                </div>
+                <ModelInfoPanel
+                  model={selectedModel}
+                  adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
+                />
+              </section>
+
+              {/* Transform Section */}
+              {!isAdvancedSliceMode && (
                 <section>
                   <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Model Information
+                    Transform
                   </div>
-                  <ModelInfoPanel
-                    model={selectedModel}
-                    adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
-                  />
-                </section>
 
-                {/* Transform Section */}
-                {!isAdvancedSliceMode && (
-                  <section>
-                    <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Transform
+                  <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 mb-2">
+                    <div className="grid grid-cols-4 gap-0.5">
+                      {[
+                        { id: 'translate', icon: 'open_with', label: 'Move' },
+                        { id: 'rotate', icon: 'rotate_right', label: 'Rotate' },
+                        { id: 'scale', icon: 'aspect_ratio', label: 'Scale' },
+                        { id: 'modify', icon: 'build', label: 'Tools' },
+                      ].map(tool => (
+                        <button
+                          key={tool.id}
+                          onClick={() => setObjectTool(tool.id as ObjectTool)}
+                          className={`flex flex-col items-center justify-center py-1.5 rounded-lg transition-all ${objectTool === tool.id
+                            ? 'bg-white dark:bg-slate-700 shadow-sm text-primary ring-1 ring-slate-200 dark:ring-slate-600'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          title={tool.label}
+                        >
+                          <Icon name={tool.icon} className="text-lg mb-0.5" />
+                        </button>
+                      ))}
                     </div>
+                  </div>
 
-                    <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 mb-2">
-                      <div className="grid grid-cols-4 gap-0.5">
-                        {[
-                          { id: 'translate', icon: 'open_with', label: 'Move' },
-                          { id: 'rotate', icon: 'rotate_right', label: 'Rotate' },
-                          { id: 'scale', icon: 'aspect_ratio', label: 'Scale' },
-                          { id: 'modify', icon: 'build', label: 'Tools' },
-                        ].map(tool => (
+                  {/* Transform Inputs */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+                    {objectTool === 'modify' ? (
+                      <div className="flex flex-col gap-3">
+                        {/* Arrange Section */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-2">
+                            <Icon name="grid_view" className="text-sm" /> Arrange Models
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={arraySpacing}
+                              onChange={(e) => setArraySpacing(parseFloat(e.target.value) || 0)}
+                              className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary outline-none"
+                              placeholder="Spacing (mm)"
+                            />
+                            <button
+                              onClick={() => onArrayModels(arraySpacing)}
+                              className="h-[30px] px-3 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-all"
+                            >
+                              Apply
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="h-px bg-slate-100 dark:bg-slate-700/50"></div>
+
+                        {/* Quick Actions */}
+                        <div className="grid grid-cols-1 gap-2">
                           <button
-                            key={tool.id}
-                            onClick={() => setObjectTool(tool.id as ObjectTool)}
-                            className={`flex flex-col items-center justify-center py-1.5 rounded-lg transition-all ${objectTool === tool.id
-                              ? 'bg-white dark:bg-slate-700 shadow-sm text-primary ring-1 ring-slate-200 dark:ring-slate-600'
-                              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              }`}
-                            title={tool.label}
+                            onClick={() => selectedModelId && onCloneModel(selectedModelId)}
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
                           >
-                            <Icon name={tool.icon} className="text-lg mb-0.5" />
+                            <Icon name="content_copy" className="text-xs" /> Duplication
                           </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Transform Inputs */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
-                      {objectTool === 'modify' ? (
-                        <div className="flex flex-col gap-3">
-                          {/* Arrange Section */}
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-2">
-                              <Icon name="grid_view" className="text-sm" /> Arrange Models
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                value={arraySpacing}
-                                onChange={(e) => setArraySpacing(parseFloat(e.target.value) || 0)}
-                                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary outline-none"
-                                placeholder="Spacing (mm)"
-                              />
-                              <button
-                                onClick={() => onArrayModels(arraySpacing)}
-                                className="h-[30px] px-3 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-all"
-                              >
-                                Apply
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="h-px bg-slate-100 dark:bg-slate-700/50"></div>
-
-                          {/* Quick Actions */}
-                          <div className="grid grid-cols-1 gap-2">
-                            <button
-                              onClick={() => selectedModelId && onCloneModel(selectedModelId)}
-                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Icon name="content_copy" className="text-xs" /> Duplication
-                            </button>
-                            <button
-                              onClick={() => selectedModelId && onTransformChange(selectedModelId, { ...selectedModel.transform, position: { x: 0, y: 0, z: 0 } })}
-                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Icon name="center_focus_strong" className="text-xs" /> Center to Build Plate
-                            </button>
-                            <button
-                              onClick={() => setObjectTool('orient')}
-                              className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Icon name="vertical_align_bottom" className="text-xs" /> Orient Face to Bed
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => selectedModelId && onTransformChange(selectedModelId, { ...selectedModel.transform, position: { x: 0, y: 0, z: 0 } })}
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Icon name="center_focus_strong" className="text-xs" /> Center to Build Plate
+                          </button>
+                          <button
+                            onClick={() => setObjectTool('orient')}
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Icon name="vertical_align_bottom" className="text-xs" /> Orient Face to Bed
+                          </button>
                         </div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {/* Quick Uniform Toggle for Scale */}
-                          {objectTool === 'scale' && (
-                            <div className="flex items-center justify-end mb-1">
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform Scaling</span>
-                                <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
-                                  {uniformScale && <Icon name="check" className="text-[10px] text-white font-bold" />}
-                                </div>
-                                <input type="checkbox" className="hidden" checked={uniformScale} onChange={(e) => setUniformScale(e.target.checked)} />
-                              </label>
-                            </div>
-                          )}
-
-                          {['x', 'y', 'z'].map((axis) => {
-                            const value = objectTool === 'translate'
-                              ? selectedModel.transform.position[axis as 'x' | 'y' | 'z']
-                              : objectTool === 'rotate'
-                                ? selectedModel.transform.rotation[axis as 'x' | 'y' | 'z']
-                                : selectedModel.transform.scale[axis as 'x' | 'y' | 'z'];
-
-                            return (
-                              <div key={axis} className="flex items-center gap-2 group">
-                                <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase">
-                                  {axis}
-                                </div>
-                                <div className="relative flex-1">
-                                  <input
-                                    type="number"
-                                    step={objectTool === 'rotate' ? 15 : objectTool === 'scale' ? 0.1 : 1}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 pr-6 text-right text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all appearance-none"
-                                    value={value !== undefined ? Number(value).toFixed(objectTool === 'scale' ? 2 : 1) : ''}
-                                    placeholder="0.0"
-                                    onChange={(e) => {
-                                      const val = parseFloat(e.target.value);
-                                      if (isNaN(val)) return;
-
-                                      const newTransform = { ...selectedModel.transform };
-                                      if (objectTool === 'translate') newTransform.position = { ...newTransform.position, [axis]: val };
-                                      if (objectTool === 'rotate') newTransform.rotation = { ...newTransform.rotation, [axis]: val };
-                                      if (objectTool === 'scale') {
-                                        if (uniformScale) {
-                                          newTransform.scale = { x: val, y: val, z: val };
-                                        } else {
-                                          newTransform.scale = { ...newTransform.scale, [axis]: val };
-                                        }
-                                      }
-
-                                      onTransformChange(selectedModel.id, newTransform);
-                                    }}
-                                  />
-                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-medium pointer-events-none select-none bg-transparent">
-                                    {objectTool === 'rotate' ? '°' : objectTool === 'scale' ? 'x' : 'mm'}
-                                  </span>
-                                </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {/* Quick Uniform Toggle for Scale */}
+                        {objectTool === 'scale' && (
+                          <div className="flex items-center justify-end mb-1">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                              <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform Scaling</span>
+                              <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
+                                {uniformScale && <Icon name="check" className="text-[10px] text-white font-bold" />}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                )}
+                              <input type="checkbox" className="hidden" checked={uniformScale} onChange={(e) => setUniformScale(e.target.checked)} />
+                            </label>
+                          </div>
+                        )}
 
-                <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
+                        {['x', 'y', 'z'].map((axis) => {
+                          const value = objectTool === 'translate'
+                            ? selectedModel.transform.position[axis as 'x' | 'y' | 'z']
+                            : objectTool === 'rotate'
+                              ? selectedModel.transform.rotation[axis as 'x' | 'y' | 'z']
+                              : selectedModel.transform.scale[axis as 'x' | 'y' | 'z'];
 
-                {/* Cross Section Analysis */}
-                <section>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <Icon name="layers" className="text-xs" /> Cross-Section
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
-                      <div className="w-7 h-4 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
+                          return (
+                            <div key={axis} className="flex items-center gap-2 group">
+                              <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase">
+                                {axis}
+                              </div>
+                              <div className="relative flex-1">
+                                <input
+                                  type="number"
+                                  step={objectTool === 'rotate' ? 15 : objectTool === 'scale' ? 0.1 : 1}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 pr-6 text-right text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all appearance-none"
+                                  value={value !== undefined ? Number(value).toFixed(objectTool === 'scale' ? 2 : 1) : ''}
+                                  placeholder="0.0"
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (isNaN(val)) return;
+
+                                    const newTransform = { ...selectedModel.transform };
+                                    if (objectTool === 'translate') newTransform.position = { ...newTransform.position, [axis]: val };
+                                    if (objectTool === 'rotate') newTransform.rotation = { ...newTransform.rotation, [axis]: val };
+                                    if (objectTool === 'scale') {
+                                      if (uniformScale) {
+                                        newTransform.scale = { x: val, y: val, z: val };
+                                      } else {
+                                        newTransform.scale = { ...newTransform.scale, [axis]: val };
+                                      }
+                                    }
+
+                                    onTransformChange(selectedModel.id, newTransform);
+                                  }}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-medium pointer-events-none select-none bg-transparent">
+                                  {objectTool === 'rotate' ? '°' : objectTool === 'scale' ? 'x' : 'mm'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-
-                  {isClipping && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2 border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex justify-between items-baseline mb-2">
-                        <span className="text-[10px] text-slate-500 font-medium">Cut Height</span>
-                        <span className="font-mono text-primary font-bold text-xs">{clippingHeight.toFixed(1)}mm</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="150"
-                        step="0.1"
-                        value={clippingHeight}
-                        onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
-                        className="w-full h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-primary"
-                      />
-                      <div className="flex justify-between text-[9px] text-slate-400 mt-1 font-mono">
-                        <span>0mm</span>
-                        <span>150mm</span>
-                      </div>
-                    </div>
-                  )}
                 </section>
-              </>
-            )
+              )}
+
+              <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
+
+              {/* Cross Section Analysis */}
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <Icon name="layers" className="text-xs" /> Cross-Section
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
+                    <div className="w-7 h-4 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {isClipping && (
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2 border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex justify-between items-baseline mb-2">
+                      <span className="text-[10px] text-slate-500 font-medium">Cut Height</span>
+                      <span className="font-mono text-primary font-bold text-xs">{clippingHeight.toFixed(1)}mm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="150"
+                      step="0.1"
+                      value={clippingHeight}
+                      onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-400 mt-1 font-mono">
+                      <span>0mm</span>
+                      <span>150mm</span>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center h-32 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
               <Icon name="inbox" className="text-3xl mb-1 opacity-50" />
