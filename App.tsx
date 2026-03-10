@@ -5,7 +5,7 @@ import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
-import { SlicePreview } from './components/SlicePreview';
+
 import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
 import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
 import { Icon } from './components/Icon';
@@ -614,14 +614,20 @@ export default function App() {
 
   if (isSlicePreviewMode && currentJobId) {
     return (
-      <SlicePreview
-        onBack={() => {
-          setIsSlicePreviewMode(false);
-          setIsExperimentsMode(true); // Return to experiments panel when closing preview
-        }}
-        layerHeight={globalSettings.layerHeight}
-        jobId={currentJobId}
-      />
+      <div className="flex flex-col items-center justify-center p-8 h-screen w-screen bg-slate-900 text-slate-300">
+        <Icon name="code" className="text-6xl text-primary mb-4" />
+        <h2 className="text-2xl font-bold mb-4 text-white">G-Code Preview (FDM)</h2>
+        <p className="mb-6">The 3D visual toolpath viewer is coming soon.</p>
+        <button
+          onClick={() => {
+            setIsSlicePreviewMode(false);
+            setIsExperimentsMode(true);
+          }}
+          className="px-6 py-2 bg-primary rounded-md text-white font-bold text-sm shadow hover:bg-teal-500"
+        >
+          Back
+        </button>
+      </div>
     );
   }
 
