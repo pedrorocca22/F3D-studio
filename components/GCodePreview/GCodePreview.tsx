@@ -10,6 +10,24 @@ import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { Icon } from '../Icon';
 
+declare global {
+    namespace JSX {
+        interface IntrinsicElements {
+            mesh: any;
+            instancedMesh: any;
+            cylinderGeometry: any;
+            lineSegments: any;
+            lineBasicMaterial: any;
+            planeGeometry: any;
+            meshStandardMaterial: any;
+            gridHelper: any;
+            ambientLight: any;
+            directionalLight: any;
+            group: any;
+        }
+    }
+}
+
 // ── Color mapping by toolhead ──────────────────────────────────────────────────
 const TOOLHEAD_COLOR: Record<string, string> = {
     T0: '#14b8a6',  // teal  – FDM
@@ -117,14 +135,40 @@ function parseGCode(raw: string): ParsedGCode {
     return { moves, layerCount: currentLayer, bbox };
 }
 
-// ── Build BufferGeometry lines per toolhead ───────────────────────────────────
-function buildLineGeometries(parsed: ParsedGCode, upToLayer: number) {
-    // Accumulate positions per color key
-    const buckets: Record<string, number[]> = {};
+// ── Build tube geometries per toolhead ───────────────────────────────────────
+interface TubeData {
+    color: string;
+    matrices: THREE.Matrix4[];
+    nozzleDiameter: number;
+}
+
+function buildTubeGeometries(parsed: ParsedGCode, upToLayer: number, nozzleDiameter: number = 0.4): TubeData[] {
+    const buckets: Record<string, THREE.Matrix4[]> = {};
 
     const add = (key: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) => {
+        // G-code coordinates: X=X, Y=Y, Z=Z
+        // Three.js coordinates (Y-up): X=X, Y=Z (G-code), Z=Y (G-code)
+        const p1 = new THREE.Vector3(x1, z1, y1);
+        const p2 = new THREE.Vector3(x2, z2, y2);
+        const diff = new THREE.Vector3().subVectors(p2, p1);
+        const len = diff.length();
+        if (len < 0.0001) return;
+
+        const dir = diff.clone().normalize();
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+        // Cylinder starts vertical (Y-axis)
+        const up = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
+
+        const matrix = new THREE.Matrix4().compose(
+            mid,
+            quaternion,
+            new THREE.Vector3(nozzleDiameter, len, nozzleDiameter) // X/Z = radius (dia here for better visibility), Y = length
+        );
+
         if (!buckets[key]) buckets[key] = [];
-        buckets[key].push(x1, z1, y1, x2, z2, y2); // swap Y↔Z for Three.js convention
+        buckets[key].push(matrix);
     };
 
     let prev: Move | null = null;
@@ -139,27 +183,54 @@ function buildLineGeometries(parsed: ParsedGCode, upToLayer: number) {
         prev = m;
     }
 
-    return Object.entries(buckets).map(([color, positions]) => {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        return { color, geo };
-    });
+    return Object.entries(buckets).map(([color, matrices]) => ({
+        color,
+        matrices,
+        nozzleDiameter
+    }));
+}
+
+// ── Single tube segment component ─────────────────────────────────────────────
+function TubeSegment({ matrices, color, nozzleDiameter }: { matrices: THREE.Matrix4[]; color: string; nozzleDiameter: number }) {
+    const meshRef = useRef<THREE.InstancedMesh>(null);
+
+    useEffect(() => {
+        if (!meshRef.current) return;
+        for (let i = 0; i < matrices.length; i++) {
+            meshRef.current.setMatrixAt(i, matrices[i]);
+        }
+        meshRef.current.instanceMatrix.needsUpdate = true;
+    }, [matrices]);
+
+    if (matrices.length === 0) return null;
+
+    return (
+        <instancedMesh ref={meshRef} args={[undefined, undefined, matrices.length]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
+            <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+        </instancedMesh>
+    );
 }
 
 // ── Three.js scene component ──────────────────────────────────────────────────
-function GCodeScene({ parsed, upToLayer }: { parsed: ParsedGCode; upToLayer: number }) {
-    const lineData = useMemo(() => buildLineGeometries(parsed, upToLayer), [parsed, upToLayer]);
+function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4 }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number }) {
+    const tubeData = useMemo(() => buildTubeGeometries(parsed, upToLayer, nozzleDiameter), [parsed, upToLayer, nozzleDiameter]);
     const { camera } = useThree();
+
+    const centerOffset = useMemo(() => ({
+        x: 50 - (parsed.bbox.minX + parsed.bbox.maxX) / 2,
+        y: 50 - (parsed.bbox.minY + parsed.bbox.maxY) / 2,
+    }), [parsed.bbox]);
 
     useEffect(() => {
         // Center camera on BBox
-        const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
-        const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2;
+        const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2 + centerOffset.x;
+        const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2 + centerOffset.y;
         const sz = Math.max(parsed.bbox.maxX - parsed.bbox.minX, parsed.bbox.maxY - parsed.bbox.minY, parsed.bbox.maxZ);
         (camera as THREE.PerspectiveCamera).position.set(cx + sz * 0.8, sz * 1.2, cy + sz * 0.8);
         camera.lookAt(cx, 0, cy);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parsed]);
+    }, [parsed, centerOffset]);
 
     return (
         <>
@@ -172,12 +243,12 @@ function GCodeScene({ parsed, upToLayer }: { parsed: ParsedGCode; upToLayer: num
             {/* Grid */}
             <gridHelper args={[100, 10, '#334155', '#1e293b']} position={[50, 0.01, 50]} />
 
-            {/* Toolpaths */}
-            {lineData.map(({ color, geo }, i) => (
-                <lineSegments key={i} geometry={geo}>
-                    <lineBasicMaterial color={color} linewidth={1} />
-                </lineSegments>
-            ))}
+            {/* Toolpaths - centered on bed */}
+            <group position={[centerOffset.x, 0, centerOffset.y]}>
+                {tubeData.map(({ color, matrices, nozzleDiameter }, i) => (
+                    <TubeSegment key={i} matrices={matrices} color={color} nozzleDiameter={nozzleDiameter} />
+                ))}
+            </group>
         </>
     );
 }
@@ -187,16 +258,20 @@ interface GCodePreviewProps {
     gcodeUrl: string;      // full URL to fetch .gcode from
     jobId: string;
     layerCount: number;
+    initialNozzleDiameter?: number;
     onClose: () => void;
 }
 
-export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, layerCount, onClose }) => {
+export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, layerCount, initialNozzleDiameter = 0.4, onClose }) => {
+    console.log("[GCodePreview] Mounting for job:", jobId);
     const [parsed, setParsed] = useState<ParsedGCode | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [upToLayer, setUpToLayer] = useState(layerCount);
+    const [nozzleDiameter, setNozzleDiameter] = useState(initialNozzleDiameter);
 
     useEffect(() => {
+        console.log("[GCodePreview] Fetching G-code from:", gcodeUrl);
         setLoading(true);
         setError(null);
         fetch(gcodeUrl)
@@ -205,19 +280,22 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                 return r.text();
             })
             .then(raw => {
+                console.log("[GCodePreview] G-code received, parsing...");
                 const result = parseGCode(raw);
+                console.log("[GCodePreview] Parsing complete. Moves:", result.moves.length, "Layers:", result.layerCount);
                 setParsed(result);
                 setUpToLayer(result.layerCount);
                 setLoading(false);
             })
             .catch(e => {
+                console.error("[GCodePreview] Load error:", e);
                 setError(e.message);
                 setLoading(false);
             });
     }, [gcodeUrl]);
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
+        <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950">
             {/* Header bar */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
                 <div className="flex items-center gap-3">
@@ -227,6 +305,22 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* Nozzle diameter control */}
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <Icon name="settings" className="text-xs" />
+                        <span>Nozzle</span>
+                        <input
+                            type="number"
+                            min="0.1"
+                            max="2.0"
+                            step="0.05"
+                            value={nozzleDiameter}
+                            onChange={e => setNozzleDiameter(parseFloat(e.target.value) || 0.4)}
+                            className="w-16 px-1 py-0.5 bg-slate-800 border border-slate-600 rounded text-slate-200 text-center"
+                        />
+                        <span className="text-slate-500">mm</span>
+                    </div>
+
                     {/* Toolhead legend */}
                     <div className="flex items-center gap-3 text-[10px] text-slate-400">
                         <span className="flex items-center gap-1"><span className="w-3 h-1 rounded inline-block" style={{ background: '#14b8a6' }} />FDM</span>
@@ -266,8 +360,8 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                     >
                         <ambientLight intensity={0.5} />
                         <directionalLight position={[50, 80, 50]} intensity={1} />
-                        <GCodeScene parsed={parsed} upToLayer={upToLayer} />
-                        <OrbitControls makeDefault />
+                        <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} />
+                        <OrbitControls makeDefault target={[50, 0, 50]} />
                     </Canvas>
                 )}
             </div>

@@ -82,6 +82,7 @@ export interface GlobalSettings {
   infillPattern?: InfillPattern;
   perimeters?: number;
   supportsEnabled?: boolean;
+  nozzleDiameter?: number;
 }
 
 export interface SettingsState {
@@ -194,7 +195,11 @@ export interface JobManifest {
 export type ToolheadId = 'fdm' | 'syringe' | 'uv' | 'none';
 
 /** Infill pattern types valid for FDM / syringe printing */
-export type InfillPattern = 'grid' | 'gyroid' | 'honeycomb' | 'linear' | 'concentric' | 'triangles' | 'none';
+export type InfillPattern =
+  | 'rectilinear' | 'grid' | 'triangles' | 'stars' | 'cubic' | 'line'
+  | 'concentric' | 'honeycomb' | '3dhoneycomb' | 'gyroid' | 'hilbertcurve'
+  | 'archimedeanchords' | 'octagramspiral' | 'adaptivecubic' | 'supportcubic'
+  | 'lightning' | 'none';
 
 /** PrusaSlicer speed profile presets */
 export type PrintQuality = 'draft' | 'standard' | 'quality' | 'ultra';

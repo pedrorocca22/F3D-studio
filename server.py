@@ -115,6 +115,14 @@ def _set_progress(job_id: str, progress: float, message: str, status: str = "run
         print(f"Error updating db for job {job_id}: {e}")
 
 
+@app.get("/job/<job_id>/progress")
+def get_job_progress(job_id):
+    """Returns the slicing progress for a job."""
+    if job_id not in _slice_jobs:
+        return jsonify({"status": "unknown", "message": "Job not found"}), 404
+    return jsonify(_slice_jobs[job_id])
+
+
 # ----------------------------
 # INI helpers
 # ----------------------------
@@ -297,26 +305,56 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
         infill         = form_params.get("infill", "15")
         nozzle_temp    = form_params.get("nozzle_temp", "210")
         bed_temp       = form_params.get("bed_temp", "60")
-        supports       = "1" if form_params.get("supports", False) else "0"
+        supports_raw   = form_params.get("supports")
+        supports       = (supports_raw is True or supports_raw == "true" or supports_raw == "1")
+        
         infill_pattern = form_params.get("infill_pattern", "gyroid")
         perimeters     = form_params.get("perimeters", "3")
+        models_meta    = json.loads(form_params.get("models_metadata", "[]"))
 
         cmd = [
             PRUSA_SLICER_CONSOLE,
             "--load", str(fdm_config),
             "--export-gcode",
-            "--dont-arrange",
             "--layer-height", layer_height,
             "--fill-density", f"{infill}%",
             "--temperature", nozzle_temp,
             "--first-layer-temperature", nozzle_temp,
             "--bed-temperature", bed_temp,
-            "--support-material", supports,
             "--fill-pattern", infill_pattern,
             "--perimeters", perimeters,
+            "--nozzle-diameter", form_params.get("nozzle_diameter", "0.4"),
             "--output", str(gcode_out),
-            str(stl_path),
         ]
+
+        # Use the models metadata to apply transforms
+        if models_meta:
+            for meta in models_meta:
+                t = meta.get("transform", {})
+                s = t.get("scale", {"x": 1, "y": 1, "z": 1})
+                r = t.get("rotation", {"x": 0, "y": 0, "z": 0})
+                
+                # Apply rotation (x, y, z in degrees)
+                if r.get("x"): cmd.extend(["--rotate-x", str(r["x"])])
+                if r.get("y"): cmd.extend(["--rotate-y", str(r["y"])])
+                if r.get("z"): cmd.extend(["--rotate-z", str(r["z"])])
+                
+                # Apply scale (factor x,y,z)
+                sx, sy, sz = s.get("x", 1), s.get("y", 1), s.get("z", 1)
+                cmd.extend(["--scale", f"{sx},{sy},{sz}"])
+                
+                # Append the specific file for this meta
+                f_name = secure_filename(meta.get("name", ""))
+                if f_name:
+                    f_path = job_dir / f_name
+                    if f_path.exists():
+                        cmd.append(str(f_path))
+        else:
+            # Fallback if no metadata (shouldn't happen with updated UI)
+            cmd.append(str(stl_path))
+
+        if supports:
+            cmd.append("--support-material")
 
         _set_progress(job_id, 0.1, "Running PrusaSlicer FDM...")
         t0 = _t.time()
@@ -404,6 +442,8 @@ def fdm_slice():
         "perimeters":     request.form.get("perimeters", "3"),
         "supports":       request.form.get("supports", "false") == "true",
         "layer_actions":  request.form.get("layer_actions", "[]"),
+        "models_metadata": request.form.get("models_metadata", "[]"),
+        "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
     }
 
     experiment_name = request.form.get("experiment_name", "FDM Experiment")

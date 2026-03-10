@@ -55,7 +55,8 @@ export default function App() {
     infill: 15,
     infillPattern: 'gyroid',
     perimeters: 3,
-    supportsEnabled: false
+    supportsEnabled: false,
+    nozzleDiameter: 0.4
   });
 
   // State for multiple models
@@ -84,7 +85,11 @@ export default function App() {
   const [layerActions, setLayerActions] = useState<LayerAction[]>([]);
 
   // G-code preview state
-  const [gcodePreviewJob, setGcodePreviewJob] = useState<{ jobId: string; layerCount: number } | null>(null);
+  const [gcodePreviewJob, setGcodePreviewJob] = useState<{
+    jobId: string;
+    layerCount: number;
+    nozzleDiameter?: number
+  } | null>(null);
 
 
   useEffect(() => {
@@ -283,7 +288,13 @@ export default function App() {
 
     const formData = new FormData();
 
-    // Attach each model's STL
+    // Attach each model's STL and its metadata (transform)
+    const modelsMetadata = models.map(m => ({
+      name: m.file?.name,
+      transform: m.transform
+    }));
+    formData.append('models_metadata', JSON.stringify(modelsMetadata));
+
     models.forEach(m => { if (m.file) formData.append('files[]', m.file); });
 
     // FDM print parameters
@@ -295,6 +306,7 @@ export default function App() {
     formData.append('infill_pattern', globalSettings.infillPattern ?? 'gyroid');
     formData.append('perimeters', String(globalSettings.perimeters ?? 3));
     formData.append('supports', globalSettings.supportsEnabled ? 'true' : 'false');
+    formData.append('nozzle_diameter', String(globalSettings.nozzleDiameter ?? 0.4));
 
     // Toolhead layer-schedule
     formData.append('layer_actions', JSON.stringify(layerActions));
@@ -306,6 +318,7 @@ export default function App() {
     formData.append('material', experimentMaterial);
 
     try {
+      console.log("[executeSlice] Sending FDM slice request...");
       const resp = await fetch('http://127.0.0.1:8000/fdm/slice', {
         method: 'POST',
         body: formData,
@@ -315,50 +328,65 @@ export default function App() {
 
       const data = await resp.json();
       const jobId: string = data.job_id;
+      console.log("[executeSlice] Job ID received:", jobId);
       setCurrentJobId(jobId);
       setSliceProgress('PrusaSlicer is processing...');
 
-      // Poll /fdm/job/<id>/progress (uses the shared _slice_jobs dict)
-      // Note: we re-use the existing progress endpoint pattern
+      // Poll /job/<id>/progress
       let layerCount = 0;
       await new Promise<void>((resolve, reject) => {
         const poll = setInterval(async () => {
           try {
             const pRes = await fetch(`http://127.0.0.1:8000/job/${jobId}/progress`);
-            if (!pRes.ok) return;
+            if (!pRes.ok) {
+              console.warn("[executeSlice] Progress poll failed (404?), continuing...");
+              return;
+            }
             const p = await pRes.json();
+            console.log("[executeSlice] Progress update:", p);
+
             setSliceProgress(p.message || 'Processing...');
             setSlicePercent(typeof p.progress === 'number' ? p.progress : 0);
+
             if (p.status === 'done') {
               clearInterval(poll);
-              // Fetch manifest to get layer_count
+              console.log("[executeSlice] Job done, fetching manifest...");
+
               const mRes = await fetch(`http://127.0.0.1:8000/fdm/job/${jobId}/manifest`);
               if (mRes.ok) {
                 const manifest = await mRes.json();
                 layerCount = manifest.layer_count ?? 0;
+                console.log("[executeSlice] Manifest fetched. Layer count:", layerCount);
+              } else {
+                console.error("[executeSlice] Manifest fetch failed:", mRes.status);
               }
               resolve();
             } else if (p.status === 'error') {
               clearInterval(poll);
               reject(new Error(p.message || 'Slicing failed'));
             }
-          } catch { /* hiccup */ }
-        }, 500);
+          } catch (err) {
+            console.error("[executeSlice] Polling error:", err);
+          }
+        }, 800);
       });
 
+      console.log("[executeSlice] Slicing workflow complete.");
       setIsSlicing(false);
       setLastSliceHash(JSON.stringify({ models: models.map(m => m.file?.name) }));
 
       // Open G-code preview automatically
-      setGcodePreviewJob({ jobId, layerCount });
+      if (jobId) {
+        setGcodePreviewJob({ jobId, layerCount, nozzleDiameter: globalSettings.nozzleDiameter });
+      }
 
     } catch (error) {
+      console.error("[executeSlice] Caught error:", error);
       const msg = (error as Error).message;
       setSliceError(msg.includes('Failed to fetch')
         ? 'Cannot reach server.\nMake sure server.py is running on port 8000.'
         : msg);
-    } finally {
-      setIsSlicing(false);
+      setIsSlicing(true); // Ensure overlay stays open for errors
     }
   };
 
@@ -778,6 +806,7 @@ export default function App() {
         <GCodePreview
           jobId={gcodePreviewJob.jobId}
           layerCount={gcodePreviewJob.layerCount}
+          initialNozzleDiameter={gcodePreviewJob.nozzleDiameter}
           gcodeUrl={`http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`}
           onClose={() => setGcodePreviewJob(null)}
         />

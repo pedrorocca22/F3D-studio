@@ -361,6 +361,49 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </div>
 
+              {/* Nozzle Diameter */}
+              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nozzle Diameter (mm)</span>
+                <div className="w-32">
+                  <NumericInput
+                    className={inputClass}
+                    value={globalSettings.nozzleDiameter ?? 0.4}
+                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v })}
+                    step={0.05}
+                    min={0.1}
+                    max={2.0}
+                  />
+                </div>
+              </div>
+
+              {/* Infill Pattern Selector */}
+              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Infill Pattern</span>
+                <select
+                  value={globalSettings.infillPattern ?? 'gyroid'}
+                  onChange={(e) => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
+                  className="w-32 text-xs py-1 px-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded outline-none focus:ring-1 focus:ring-primary transition-all"
+                >
+                  <option value="rectilinear">Rectilinear</option>
+                  <option value="grid">Grid</option>
+                  <option value="triangles">Triangles</option>
+                  <option value="stars">Stars</option>
+                  <option value="cubic">Cubic</option>
+                  <option value="line">Line</option>
+                  <option value="concentric">Concentric</option>
+                  <option value="honeycomb">Honeycomb</option>
+                  <option value="3dhoneycomb">3D Honeycomb</option>
+                  <option value="gyroid">Gyroid</option>
+                  <option value="hilbertcurve">Hilbert Curve</option>
+                  <option value="archimedeanchords">Archimedean Chords</option>
+                  <option value="octagramspiral">Octagram Spiral</option>
+                  <option value="adaptivecubic">Adaptive Cubic</option>
+                  <option value="supportcubic">Support Cubic</option>
+                  <option value="lightning">Lightning</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+
               {/* Infill & Walls */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
