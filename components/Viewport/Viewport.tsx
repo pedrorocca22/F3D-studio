@@ -43,7 +43,6 @@ interface ViewportProps {
   onFileUpload?: (file: File) => void;
   isAdvancedSliceMode?: boolean;
   globalSettings: GlobalSettings;
-  onSavePattern: (pattern: import('../../types').Pattern) => void;
 }
 
 // --- CLIPPING PLANE LOGIC ---
