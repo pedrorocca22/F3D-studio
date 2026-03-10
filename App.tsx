@@ -5,6 +5,7 @@ import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
+import { GCodePreview } from './components/GCodePreview/GCodePreview';
 
 import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
 import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
@@ -48,7 +49,13 @@ export default function App() {
 
   // Global Print Settings (Physical machine constraints)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
-    layerHeight: 50
+    layerHeight: 200, // 0.2mm = 200um
+    nozzleTemperature: 210,
+    bedTemperature: 60,
+    infill: 15,
+    infillPattern: 'gyroid',
+    perimeters: 3,
+    supportsEnabled: false
   });
 
   // State for multiple models
@@ -75,6 +82,9 @@ export default function App() {
   ];
   const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
   const [layerActions, setLayerActions] = useState<LayerAction[]>([]);
+
+  // G-code preview state
+  const [gcodePreviewJob, setGcodePreviewJob] = useState<{ jobId: string; layerCount: number } | null>(null);
 
 
   useEffect(() => {
@@ -260,171 +270,57 @@ export default function App() {
   const executeSlice = async () => {
     setShowPreFlight(false);
 
-    // Helper to detect if anything changed since last slice
-    const generateSliceStateHash = () => {
-      return JSON.stringify({
-        global: globalSettings,
-        models: models.map(m => ({
-          name: m.file?.name,
-          size: m.file?.size, // Identifies file
-          transform: m.transform,
-          settings: m.settings,
-          advanced: m.advancedSettings,
-          modifiers: m.modifiers
-        }))
-      });
-    };
-
-    const currentHash = generateSliceStateHash();
-
-    // Si la configuración no ha cambiado y ya tenemos un trabajo, nos saltamos la carga del backend
-    if (currentHash === lastSliceHash && currentJobId) {
-      setIsSlicePreviewMode(true);
+    if (models.length === 0 || !models[0].file) {
+      alert('No models loaded.');
       return;
     }
 
     setIsSlicing(true);
     setSliceError(null);
     setSlicePercent(0);
-    setSliceProgress('Preparing scene data...');
+    setSliceProgress('Uploading STL to slicer...');
     setSliceStartTime(Date.now());
 
     const formData = new FormData();
-    const sceneData: SceneObject[] = [];
 
-    // 1. Build Scene Data matching Backend Expectations
-    const adhesionEnabled = globalSettings.adhesion?.enabled ?? false;
-    const adhesionLayers = globalSettings.adhesion?.layers ?? 0;
-    const adhesionHeightMM = adhesionEnabled ? (adhesionLayers * (globalSettings.adhesion?.layerHeight ?? 50)) / 1000 : 0;
+    // Attach each model's STL
+    models.forEach(m => { if (m.file) formData.append('files[]', m.file); });
 
-    if (adhesionEnabled) {
-      formData.append('initial_layer_height', ((globalSettings.adhesion?.layerHeight ?? 50) / 1000).toString());
-      if (globalSettings.adhesion?.exposureTime) {
-        formData.append('initial_exposure_time', globalSettings.adhesion.exposureTime.toString());
-      }
-      formData.append('faded_layers', adhesionLayers.toString());
-    }
+    // FDM print parameters
+    const layerH = (globalSettings.layerHeight / 1000).toFixed(3); // μm → mm
+    formData.append('layer_height', layerH);
+    formData.append('nozzle_temp', String(globalSettings.nozzleTemperature ?? 210));
+    formData.append('bed_temp', String(globalSettings.bedTemperature ?? 60));
+    formData.append('infill', String(globalSettings.infill ?? 15));
+    formData.append('infill_pattern', globalSettings.infillPattern ?? 'gyroid');
+    formData.append('perimeters', String(globalSettings.perimeters ?? 3));
+    formData.append('supports', globalSettings.supportsEnabled ? 'true' : 'false');
 
-    if (globalSettings.thermodynamic?.enabled) {
-      formData.append('thermodynamic_enabled', 'true');
-      formData.append('thermodynamic_max_flash', globalSettings.thermodynamic.maxFlashTime.toString());
-      formData.append('thermodynamic_cooling', globalSettings.thermodynamic.coolingPause.toString());
-    }
+    // Toolhead layer-schedule
+    formData.append('layer_actions', JSON.stringify(layerActions));
 
-    if (globalSettings.motor?.enabled) {
-      formData.append('motor_enabled', 'true');
-      formData.append('motor_peel_speed', globalSettings.motor.peelSpeed.toString());
-      formData.append('motor_retract_speed', globalSettings.motor.retractSpeed.toString());
-      formData.append('motor_separation_distance', globalSettings.motor.separationDistance.toString());
-    }
-
-    models.forEach((model, index) => {
-      if (!model.file) return;
-
-      formData.append('files[]', model.file);
-
-      const dose = model.settings.exposureTime * model.settings.lightIntensity;
-      const layerHeightMM = globalSettings.layerHeight / 1000;
-
-      let currentStartLayer = 0;
-      if (adhesionEnabled) {
-        currentStartLayer = adhesionLayers;
-      }
-
-      const ranges = model.advancedSettings.enabled
-        ? model.advancedSettings.segments.map(seg => {
-          let endLayer = 0;
-          let startLayer = currentStartLayer;
-
-          if (seg.bottomLimit !== undefined) {
-            const startH = seg.bottomLimit;
-            if (adhesionEnabled && startH > adhesionHeightMM) {
-              const extraHeight = startH - adhesionHeightMM;
-              startLayer = adhesionLayers + Math.floor(extraHeight / layerHeightMM);
-            } else {
-              const effectiveLH = adhesionEnabled && startH <= adhesionHeightMM
-                ? ((globalSettings.adhesion?.layerHeight ?? 50) / 1000)
-                : layerHeightMM;
-              startLayer = Math.floor(startH / effectiveLH);
-            }
-          }
-
-          if (adhesionEnabled && seg.topLimit > adhesionHeightMM) {
-            const extraHeight = seg.topLimit - adhesionHeightMM;
-            const extraLayers = extraHeight / layerHeightMM;
-            endLayer = adhesionLayers + Math.floor(extraLayers);
-          } else {
-            const effectiveLH = adhesionEnabled && seg.topLimit <= adhesionHeightMM
-              ? ((globalSettings.adhesion?.layerHeight ?? 50) / 1000)
-              : layerHeightMM;
-            endLayer = Math.floor(seg.topLimit / effectiveLH);
-          }
-
-          if (endLayer <= startLayer) return null;
-
-          const rangeObj: BackendRangeOverride = {
-            start: startLayer,
-            end: endLayer,
-            gradientMode: seg.gradientMode || 'flat',
-            irr: seg.lightIntensity,
-            exposure: seg.exposureTime,
-            ...(seg.gradientMode === 'gradient' ? {
-              endLightIntensity: seg.endLightIntensity ?? seg.lightIntensity,
-              endExposureTime: seg.endExposureTime ?? seg.exposureTime
-            } : {}),
-            ...(seg.modifiers && seg.modifiers.length > 0 ? { modifiers: seg.modifiers } : {})
-          };
-          currentStartLayer = endLayer;
-          return rangeObj;
-        }).filter(Boolean) as BackendRangeOverride[]
-        : [];
-
-      sceneData.push({
-        original_filename: model.file.name,
-        pos_x_mm: model.transform.position.x,
-        pos_y_mm: model.transform.position.y,
-        scale: model.transform.scale.x,
-        scale_x: model.transform.scale.x,
-        scale_y: model.transform.scale.y,
-        scale_z: model.transform.scale.z,
-        irradiance_mW_cm2: model.settings.lightIntensity,
-        dose_mJ_cm2: dose,
-        rotation: { x: model.transform.rotation.x, y: model.transform.rotation.y, z: model.transform.rotation.z },
-        override_ranges: ranges,
-        modifiers: model.modifiers && model.modifiers.length > 0 ? [...model.modifiers] : []
-      });
-    });
-
-    console.log("[App] Slicing Scene Data:", JSON.stringify(sceneData, null, 2));
-
-    formData.append('scene_json', JSON.stringify(sceneData));
-    formData.append('layer_height', (globalSettings.layerHeight / 1000).toString());
+    // Experiment metadata
     formData.append('experiment_name', experimentName);
     formData.append('author', experimentAuthor);
     formData.append('intent', experimentIntent);
     formData.append('material', experimentMaterial);
 
     try {
-      setSliceProgress('Uploading to server...');
-
-      const API_URL = 'http://127.0.0.1:8000/slice_scene';
-
-      const response = await fetch(API_URL, {
+      const resp = await fetch('http://127.0.0.1:8000/fdm/slice', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(errText || `Server Error ${response.status}`);
-      }
+      if (!resp.ok) throw new Error(`Server error ${resp.status}: ${await resp.text()}`);
 
-      const data: SliceJobResponse = await response.json();
-      const jobId = data.job_id;
+      const data = await resp.json();
+      const jobId: string = data.job_id;
       setCurrentJobId(jobId);
-      setSliceProgress('Waiting for slicer to start...');
+      setSliceProgress('PrusaSlicer is processing...');
 
-      // --- Poll /job/<id>/progress until done or error ---
+      // Poll /fdm/job/<id>/progress (uses the shared _slice_jobs dict)
+      // Note: we re-use the existing progress endpoint pattern
+      let layerCount = 0;
       await new Promise<void>((resolve, reject) => {
         const poll = setInterval(async () => {
           try {
@@ -433,25 +329,36 @@ export default function App() {
             const p = await pRes.json();
             setSliceProgress(p.message || 'Processing...');
             setSlicePercent(typeof p.progress === 'number' ? p.progress : 0);
-            if (p.status === 'done') { clearInterval(poll); resolve(); }
-            else if (p.status === 'error') { clearInterval(poll); reject(new Error(p.message || 'Slicing failed')); }
-          } catch { /* network hiccup — keep polling */ }
+            if (p.status === 'done') {
+              clearInterval(poll);
+              // Fetch manifest to get layer_count
+              const mRes = await fetch(`http://127.0.0.1:8000/fdm/job/${jobId}/manifest`);
+              if (mRes.ok) {
+                const manifest = await mRes.json();
+                layerCount = manifest.layer_count ?? 0;
+              }
+              resolve();
+            } else if (p.status === 'error') {
+              clearInterval(poll);
+              reject(new Error(p.message || 'Slicing failed'));
+            }
+          } catch { /* hiccup */ }
         }, 500);
       });
 
       setIsSlicing(false);
-      setLastSliceHash(currentHash);
+      setLastSliceHash(JSON.stringify({ models: models.map(m => m.file?.name) }));
 
-      // Navigate to Experiments mode instead of auto-opening preview
-      setIsExperimentsMode(true);
-      setViewingExperimentId(null);
+      // Open G-code preview automatically
+      setGcodePreviewJob({ jobId, layerCount });
 
     } catch (error) {
       const msg = (error as Error).message;
       setSliceError(msg.includes('Failed to fetch')
-        ? 'Cannot reach server.\nEnsure server.py is running.'
+        ? 'Cannot reach server.\nMake sure server.py is running on port 8000.'
         : msg);
-      // keep overlay open so the user sees the error; Dismiss button closes it
+    } finally {
+      setIsSlicing(false);
     }
   };
 
@@ -866,6 +773,14 @@ export default function App() {
           <span className="text-3xl font-bold">Drop STL file here</span>
           <span className="text-lg text-slate-500 dark:text-slate-400 mt-2">to add it to the scene</span>
         </div>
+      )}
+      {gcodePreviewJob && (
+        <GCodePreview
+          jobId={gcodePreviewJob.jobId}
+          layerCount={gcodePreviewJob.layerCount}
+          gcodeUrl={`http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`}
+          onClose={() => setGcodePreviewJob(null)}
+        />
       )}
     </div>
   );

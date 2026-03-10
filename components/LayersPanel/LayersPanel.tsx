@@ -319,119 +319,81 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
 
 
-        {/* Slice Settings */}
+        {/* FFF Print Settings */}
         <div className={!selectedModel || isAdvancedSliceMode ? 'opacity-50 pointer-events-none grayscale' : ''}>
           <AccordionSection
-            title="Slice settings"
+            title="FFF Print Settings"
             isOpen={openSections.sliceSettings}
             onToggle={() => toggleSection('sliceSettings')}
-
+            info
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Mode</span>
-              <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded-md">
-                <button
-                  onClick={() => updateModelSettings('exposureMode', 'time' as any)}
-                  className={`px-3 py-1 text-[10px] font-bold rounded ${(!currentSettings.exposureMode || currentSettings.exposureMode === 'time')
-                    ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
-                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                >
-                  Time (s)
-                </button>
-                <button
-                  onClick={() => updateModelSettings('exposureMode', 'dose' as any)}
-                  className={`px-3 py-1 text-[10px] font-bold rounded ${(currentSettings.exposureMode === 'dose')
-                    ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
-                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                >
-                  Dose (mJ)
-                </button>
+            <div className="space-y-4">
+              {/* Layer Height */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Layer height (μm):</span>
+                <NumericInput
+                  className={inputClass}
+                  value={globalSettings.layerHeight}
+                  onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })}
+                  step={10}
+                />
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Layer height (μm):</span>
-              <NumericInput
-                className={inputClass}
-                value={globalSettings.layerHeight}
-                onChange={updateGlobalLayerHeight}
-                step={0.1}
-              />
-            </div>
-
-            {/* Intensity First (Base for Dose Calc) */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Light intensity (mW/cm²):</span>
-              <NumericInput
-                className={inputClass}
-                value={currentSettings.lightIntensity}
-                onChange={v => {
-                  const updates: any = { lightIntensity: v };
-
-                  if (currentSettings.exposureMode === 'dose' && currentSettings.targetDose) {
-                    // Start Dose Mode: Recalc Time
-                    const t = v > 0 ? (currentSettings.targetDose / v) : 0;
-                    updates.exposureTime = parseFloat(t.toFixed(2));
-                  } else {
-                    // Time Mode: Update Dose metadata
-                    const d = v * currentSettings.exposureTime;
-                    updates.targetDose = parseFloat(d.toFixed(1));
-                  }
-
-                  onUpdateSettings({ ...currentSettings, ...updates });
-                }}
-                step={0.1}
-              />
-            </div>
-
-            {/* Conditional Input based on Mode */}
-            {currentSettings.exposureMode === 'dose' ? (
-              <div className="flex items-start justify-between">
-                <span className="text-xs text-slate-500 text-primary font-semibold mt-1.5">Target Dose (mJ/cm²):</span>
-                <div className="flex flex-col w-28">
+              {/* Temperatures */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Nozzle (°C)</span>
                   <NumericInput
                     className="w-full"
-                    value={currentSettings.targetDose || 0}
-                    onChange={v => {
-                      const irr = currentSettings.lightIntensity;
-                      const t = irr > 0 ? (v / irr) : 0;
-                      onUpdateSettings({
-                        ...currentSettings,
-                        targetDose: v, // Update dose
-                        exposureTime: parseFloat(t.toFixed(2)) // Update time
-                      });
-                    }}
+                    value={globalSettings.nozzleTemperature || 210}
+                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v })}
+                    step={5}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Bed (°C)</span>
+                  <NumericInput
+                    className="w-full"
+                    value={globalSettings.bedTemperature || 60}
+                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })}
+                    step={5}
+                  />
+                </div>
+              </div>
+
+              {/* Infill & Walls */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Infill (%)</span>
+                  <NumericInput
+                    className="w-full"
+                    value={globalSettings.infill || 15}
+                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, infill: v })}
                     step={1}
                   />
-                  <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
-                    ≈ {currentSettings.exposureTime.toFixed(2)}s
-                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-start justify-between">
-                <span className="text-xs text-slate-500 mt-1.5">Exposure time (s):</span>
-                <div className="flex flex-col w-28">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Walls (Count)</span>
                   <NumericInput
                     className="w-full"
-                    value={currentSettings.exposureTime}
-                    onChange={v => {
-                      const d = v * currentSettings.lightIntensity;
-                      onUpdateSettings({
-                        ...currentSettings,
-                        exposureTime: v, // Update time
-                        targetDose: parseFloat(d.toFixed(1)) // Update dose
-                      });
-                    }}
-                    step={0.1}
+                    value={globalSettings.perimeters || 3}
+                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, perimeters: v })}
+                    step={1}
                   />
-                  <div className="mt-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs font-bold px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 shadow-sm text-center w-full">
-                    ≈ {(currentSettings.exposureTime * currentSettings.lightIntensity).toFixed(1)} mJ/cm²
-                  </div>
                 </div>
               </div>
-            )}
 
+              {/* Supports Toggle */}
+              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Generate Supports</span>
+                <button
+                  onClick={() => onUpdateGlobalSettings({ ...globalSettings, supportsEnabled: !globalSettings.supportsEnabled })}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${globalSettings.supportsEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-1' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
 
             <div className="h-2"></div>
 

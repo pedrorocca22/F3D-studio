@@ -76,7 +76,12 @@ export interface GlobalSettings {
   thermodynamic?: ThermodynamicSettings;
   motor?: MotorControlSettings;
   // FDM additions
-  fdm?: FDMGlobalSettings;
+  nozzleTemperature?: number;
+  bedTemperature?: number;
+  infill?: number;
+  infillPattern?: InfillPattern;
+  perimeters?: number;
+  supportsEnabled?: boolean;
 }
 
 export interface SettingsState {
