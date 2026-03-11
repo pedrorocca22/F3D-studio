@@ -24,6 +24,8 @@ declare global {
             ambientLight: any;
             directionalLight: any;
             group: any;
+            bufferGeometry: any;
+            bufferAttribute: any;
         }
     }
 }
@@ -61,6 +63,10 @@ function parseGCode(raw: string): ParsedGCode {
     let currentLayer = 0;
     let prevE = 0;
     let relativeE = false;
+    
+    // Track unique Z heights where actual extrusion occurs to robustly build layers
+    const knownZ: number[] = [];
+    let maxSeenLayer = 0;
 
     const bbox = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: 0, maxZ: -Infinity };
 
@@ -76,12 +82,6 @@ function parseGCode(raw: string): ParsedGCode {
 
         if (line.startsWith('M83')) { relativeE = true; continue; }
         if (line.startsWith('M82')) { relativeE = false; continue; }
-
-        // Layer comment — PrusaSlicer emits ";LAYER_CHANGE" or ";layer_num"
-        if (rawLine.includes(';LAYER_CHANGE') || rawLine.includes('; layer')) {
-            currentLayer++;
-            continue;
-        }
 
         if (!line.startsWith('G0') && !line.startsWith('G1') && !line.startsWith('G92')) continue;
 
@@ -113,8 +113,23 @@ function parseGCode(raw: string): ParsedGCode {
             }
         }
 
-        if (zM) {
-            currentLayer = Math.round(nz / 0.2); // fallback layer calc
+        // Only assign layers dynamically based on Z height where ACTUAL material is dispensed.
+        // This flawlessly ignores Z-hops since they happen during empty travel moves.
+        if (extrude) {
+            let found = false;
+            for (let i = 0; i < knownZ.length; i++) {
+                if (Math.abs(knownZ[i] - nz) < 0.005) {
+                    found = true;
+                    currentLayer = i + 1; // 1-indexed to match UI
+                    break;
+                }
+            }
+            if (!found) {
+                knownZ.push(nz);
+                knownZ.sort((a,b) => a-b);
+                currentLayer = knownZ.findIndex(z => Math.abs(z - nz) < 0.005) + 1;
+            }
+            if (currentLayer > maxSeenLayer) maxSeenLayer = currentLayer;
         }
 
         moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead });
@@ -127,94 +142,165 @@ function parseGCode(raw: string): ParsedGCode {
             bbox.maxZ = Math.max(bbox.maxZ, nz);
         }
 
-        cx = nx; cy = ny; cz = nz;
+        cx = nx; cy = cy = ny; cz = nz;
     }
 
     if (!isFinite(bbox.minX)) { bbox.minX = 0; bbox.maxX = 100; bbox.minY = 0; bbox.maxY = 100; }
 
-    return { moves, layerCount: currentLayer, bbox };
+    return { moves, layerCount: maxSeenLayer, bbox };
 }
 
-// ── Build tube geometries per toolhead ───────────────────────────────────────
-interface TubeData {
+// ── Pre-calculate geometries for lightning-fast slider updates ──────────────────
+interface ExtrusionData {
     color: string;
     matrices: THREE.Matrix4[];
-    nozzleDiameter: number;
+    countsByLayer: number[]; // countsByLayer[N] = number of elements up to layer N
 }
 
-function buildTubeGeometries(parsed: ParsedGCode, upToLayer: number, nozzleDiameter: number = 0.4): TubeData[] {
-    const buckets: Record<string, THREE.Matrix4[]> = {};
+interface GeometryData {
+    extrusions: ExtrusionData[];
+    travelPoints: Float32Array;
+    travelCountsByLayer: number[];
+}
 
-    const add = (key: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) => {
-        // G-code coordinates: X=X, Y=Y, Z=Z
-        // Three.js coordinates (Y-up): X=X, Y=Z (G-code), Z=Y (G-code)
-        const p1 = new THREE.Vector3(x1, z1, y1);
-        const p2 = new THREE.Vector3(x2, z2, y2);
+function buildGeometries(parsed: ParsedGCode, nozzleDiameter: number = 0.4): GeometryData {
+    console.time("buildGeometries");
+    const buckets: Record<string, THREE.Matrix4[]> = {};
+    const countsByLayer: Record<string, number[]> = {};
+    const travelList: number[] = [];
+    
+    // Initialize count tracking arrays
+    for (const key of Object.values(TOOLHEAD_COLOR)) countsByLayer[key] = new Array(parsed.layerCount + 1).fill(0);
+    countsByLayer[DEFAULT_COLOR] = new Array(parsed.layerCount + 1).fill(0);
+    const travelCountsByLayer: number[] = new Array(parsed.layerCount + 1).fill(0);
+
+    let prev: Move | null = null;
+    let currentCounts: Record<string, number> = {};
+    for (const key of Object.keys(countsByLayer)) currentCounts[key] = 0;
+    let currentTravelCount = 0;
+    let currentLayerTracking = 0;
+
+    const addTube = (key: string, p1: THREE.Vector3, p2: THREE.Vector3) => {
         const diff = new THREE.Vector3().subVectors(p2, p1);
         const len = diff.length();
         if (len < 0.0001) return;
-
-        const dir = diff.clone().normalize();
         const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-
-        // Cylinder starts vertical (Y-axis)
-        const up = new THREE.Vector3(0, 1, 0);
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-
+        const dir = diff.clone().normalize();
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         const matrix = new THREE.Matrix4().compose(
-            mid,
-            quaternion,
-            new THREE.Vector3(nozzleDiameter, len, nozzleDiameter) // X/Z = radius (dia here for better visibility), Y = length
+            mid, quaternion, new THREE.Vector3(nozzleDiameter, len, nozzleDiameter)
         );
-
         if (!buckets[key]) buckets[key] = [];
         buckets[key].push(matrix);
+        currentCounts[key] = buckets[key].length;
     };
 
-    let prev: Move | null = null;
     for (const m of parsed.moves) {
-        if (m.layer > upToLayer) break;
+        // As we move through moves, snapshot counts when returning to higher layers
+        while (currentLayerTracking < m.layer && currentLayerTracking <= parsed.layerCount) {
+            for (const key of Object.keys(countsByLayer)) {
+                countsByLayer[key][currentLayerTracking] = currentCounts[key] || 0;
+            }
+            travelCountsByLayer[currentLayerTracking] = currentTravelCount;
+            currentLayerTracking++;
+        }
+
         if (prev) {
-            const key = m.extrude ? (TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR) : TRAVEL_COLOR;
-            if (m.extrude || upToLayer === parsed.layerCount) {
-                add(key, prev.x, prev.y, prev.z, m.x, m.y, m.z);
+            // Translate from GCode coords (Z=height) to ThreeJS coords (Y=height)
+            const p1 = new THREE.Vector3(prev.x, prev.z, prev.y);
+            const p2 = new THREE.Vector3(m.x, m.z, m.y);
+
+            if (m.extrude) {
+                const key = TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR;
+                addTube(key, p1, p2);
+            } else {
+                travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+                currentTravelCount += 2; // Each line segment requires 2 vertices
             }
         }
         prev = m;
     }
 
-    return Object.entries(buckets).map(([color, matrices]) => ({
+    // Fill any remaining layers (e.g., up to max layer) with the final totals
+    while (currentLayerTracking <= parsed.layerCount) {
+        for (const key of Object.keys(countsByLayer)) {
+            countsByLayer[key][currentLayerTracking] = currentCounts[key] || 0;
+        }
+        travelCountsByLayer[currentLayerTracking] = currentTravelCount;
+        currentLayerTracking++;
+    }
+
+    const extrusions = Object.entries(buckets).map(([color, matrices]) => ({
         color,
         matrices,
-        nozzleDiameter
+        countsByLayer: countsByLayer[color] || []
     }));
+
+    console.timeEnd("buildGeometries");
+    return {
+        extrusions,
+        travelPoints: new Float32Array(travelList),
+        travelCountsByLayer
+    };
 }
 
-// ── Single tube segment component ─────────────────────────────────────────────
-function TubeSegment({ matrices, color, nozzleDiameter }: { matrices: THREE.Matrix4[]; color: string; nozzleDiameter: number }) {
+// ── Render single toolhead path (O(1) updates) ──────────────────────────────
+function TubeSegment({ extrusion, count, nozzleDiameter }: { extrusion: ExtrusionData; count: number; nozzleDiameter: number }) {
     const meshRef = useRef<THREE.InstancedMesh>(null);
 
+    // Only set matrices once!
     useEffect(() => {
         if (!meshRef.current) return;
-        for (let i = 0; i < matrices.length; i++) {
-            meshRef.current.setMatrixAt(i, matrices[i]);
+        for (let i = 0; i < extrusion.matrices.length; i++) {
+            meshRef.current.setMatrixAt(i, extrusion.matrices[i]);
         }
         meshRef.current.instanceMatrix.needsUpdate = true;
-    }, [matrices]);
+    }, [extrusion.matrices]);
 
-    if (matrices.length === 0) return null;
+    // Update count immediately without rebuilding geometry
+    useEffect(() => {
+        if (meshRef.current) {
+            meshRef.current.count = count;
+        }
+    }, [count]);
+
+    if (extrusion.matrices.length === 0) return null;
 
     return (
-        <instancedMesh ref={meshRef} args={[undefined, undefined, matrices.length]} castShadow receiveShadow>
+        <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} castShadow receiveShadow>
             <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+            <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
         </instancedMesh>
     );
 }
 
+// ── Render travel moves as thin red lines ───────────────────────────────────
+function TravelSegments({ points, count, visible }: { points: Float32Array; count: number; visible: boolean }) {
+    const geoRef = useRef<THREE.BufferGeometry>(null);
+
+    useEffect(() => {
+        if (geoRef.current) {
+            geoRef.current.setDrawRange(0, count);
+        }
+    }, [count]);
+
+    if (points.length === 0) return null;
+
+    return (
+        <lineSegments visible={visible}>
+            <bufferGeometry ref={geoRef}>
+                <bufferAttribute attach="attributes-position" array={points} itemSize={3} count={points.length / 3} />
+            </bufferGeometry>
+            <lineBasicMaterial color="#ef4444" opacity={0.6} transparent linewidth={1} />
+        </lineSegments>
+    );
+}
+
 // ── Three.js scene component ──────────────────────────────────────────────────
-function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4 }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number }) {
-    const tubeData = useMemo(() => buildTubeGeometries(parsed, upToLayer, nozzleDiameter), [parsed, upToLayer, nozzleDiameter]);
+function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number; showTravel?: boolean }) {
+    // Heavy calculation computed exactly ONCE upon load (or if nozzle diameter changes)
+    const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter), [parsed, nozzleDiameter]);
+    
     const { camera } = useThree();
 
     const centerOffset = useMemo(() => {
@@ -236,25 +322,36 @@ function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4 }: { parsed: Parse
             (camera as THREE.PerspectiveCamera).position.set(cx + sz * 0.8, sz * 1.2, cy + sz * 0.8);
             camera.lookAt(cx, 0, cy);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parsed, centerOffset]);
+    }, [parsed, centerOffset, camera]);
+
+    // Safety clamp (just in case upToLayer goes out of bounds)
+    const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
 
     return (
         <>
-            {/* Build plate */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[50, 0, 50]}>
                 <planeGeometry args={[100, 100]} />
                 <meshStandardMaterial color="#1e293b" opacity={0.6} transparent />
             </mesh>
-
-            {/* Grid */}
             <gridHelper args={[100, 10, '#334155', '#1e293b']} position={[50, 0.01, 50]} />
 
-            {/* Toolpaths - centered on bed */}
             <group position={[centerOffset.x, 0, centerOffset.y]}>
-                {tubeData.map(({ color, matrices, nozzleDiameter }, i) => (
-                    <TubeSegment key={i} matrices={matrices} color={color} nozzleDiameter={nozzleDiameter} />
+                {/* Render Extrusions */}
+                {geoData.extrusions.map((ext, i) => (
+                    <TubeSegment 
+                        key={i} 
+                        extrusion={ext} 
+                        count={ext.countsByLayer[safeLayer] ?? ext.matrices.length} 
+                        nozzleDiameter={nozzleDiameter} 
+                    />
                 ))}
+                
+                {/* Render Travel Moves */}
+                <TravelSegments 
+                    points={geoData.travelPoints} 
+                    count={geoData.travelCountsByLayer[safeLayer] ?? (geoData.travelPoints.length / 3 * 2)} 
+                    visible={showTravel} 
+                />
             </group>
         </>
     );
@@ -276,6 +373,7 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
     const [error, setError] = useState<string | null>(null);
     const [upToLayer, setUpToLayer] = useState(layerCount);
     const [nozzleDiameter, setNozzleDiameter] = useState(initialNozzleDiameter);
+    const [showTravel, setShowTravel] = useState(false);
 
     useEffect(() => {
         console.log("[GCodePreview] Fetching G-code from:", gcodeUrl);
@@ -339,7 +437,7 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                     >
                         <ambientLight intensity={0.5} />
                         <directionalLight position={[50, 80, 50]} intensity={1} />
-                        <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} />
+                        <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} showTravel={showTravel} />
                         <OrbitControls makeDefault target={[50, 0, 50]} />
                     </Canvas>
                 )}
@@ -386,6 +484,19 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                             <span className="text-slate-600 font-bold uppercase">mm</span>
                         </div>
                     </div>
+
+                    <div className="h-6 w-[1px] bg-slate-800" />
+
+                    {/* Travel Toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-400 font-bold uppercase tracking-tight hover:text-slate-300 transition-colors">
+                        <input 
+                            type="checkbox" 
+                            checked={showTravel} 
+                            onChange={e => setShowTravel(e.target.checked)} 
+                            className="w-3 h-3 accent-primary cursor-pointer"
+                        />
+                        Travel Moves
+                    </label>
 
                     <div className="h-6 w-[1px] bg-slate-800" />
 

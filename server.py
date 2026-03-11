@@ -26,7 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # Configuracion
 PRUSA_SLICER_CONSOLE = str(BASE_DIR / "PrusaSlicer-2.9.3" / "prusa-slicer-console.exe")
 DEFAULT_CONFIG_INI = str(BASE_DIR / "config.ini")
-FDM_CONFIG_INI = str(BASE_DIR / "config_fdm.ini")   # NEW: FDM profile
+FDM_CONFIG_INI = str(BASE_DIR / "config.ini")   # NEW: FDM uses the replaced config.ini array
 
 JOBS_DIR = BASE_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
@@ -312,49 +312,119 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
         perimeters     = form_params.get("perimeters", "3")
         models_meta    = json.loads(form_params.get("models_metadata", "[]"))
 
+        # Build a unified config file to override PrusaSlicer's priority system
+        # PrusaSlicer processes CLI args first, then --load files. This means --load 
+        # completely wipes out CLI arguments! We must write overrides into the INI.
+        job_config_ini = job_dir / "job_config.ini"
+        
+        overrides_dict = {
+            "layer_height": str(layer_height),
+            "fill_density": f"{infill}%",
+            "temperature": str(nozzle_temp),
+            "first_layer_temperature": str(nozzle_temp),
+            "bed_temperature": str(bed_temp),
+            "fill_pattern": str(infill_pattern),
+            "perimeters": str(perimeters),
+            "nozzle_diameter": str(form_params.get("nozzle_diameter", "0.4")),
+            "support_material": "1" if supports else "0"
+        }
+        
+        config_lines = []
+        applied_overrides = set()
+        
+        if fdm_config and fdm_config.exists():
+            with open(fdm_config, 'r', encoding='utf-8') as f:
+                for line in f.readlines():
+                    line_strip = line.strip()
+                    if line_strip == "[Hardware]":
+                        break
+                        
+                    if "=" in line_strip and not line_strip.startswith("#"):
+                        key = line_strip.split("=")[0].strip()
+                        if key in overrides_dict:
+                            # Replace the line in-place
+                            config_lines.append(f"{key} = {overrides_dict[key]}\n")
+                            applied_overrides.add(key)
+                        else:
+                            config_lines.append(line)
+                    else:
+                        config_lines.append(line)
+        else:
+            config_lines = ["# Minimal FDM Profile\n", "printer_technology = FFF\n", "gcode_flavor = klipper\n", "use_relative_e_distances = 1\n"]
+            
+        # Append any overrides that were NOT found in the original file
+        missing_overrides = [k for k in overrides_dict.keys() if k not in applied_overrides]
+        if missing_overrides:
+            config_lines.append("\n# --- Added by UI ---\n")
+            for k in missing_overrides:
+                config_lines.append(f"{k} = {overrides_dict[k]}\n")
+
+        with open(job_config_ini, 'w', encoding='utf-8') as f:
+            f.writelines(config_lines)
+
         cmd = [
             PRUSA_SLICER_CONSOLE,
-            "--load", str(fdm_config),
+            "--load", str(job_config_ini),
             "--export-gcode",
-            "--layer-height", layer_height,
-            "--fill-density", f"{infill}%",
-            "--temperature", nozzle_temp,
-            "--first-layer-temperature", nozzle_temp,
-            "--bed-temperature", bed_temp,
-            "--fill-pattern", infill_pattern,
-            "--perimeters", perimeters,
-            "--nozzle-diameter", form_params.get("nozzle_diameter", "0.4"),
+            "--dont-arrange",
             "--output", str(gcode_out),
         ]
 
-        # Use the models metadata to apply transforms
+        # Process and apply transforms to STLs directly
+        import math
+        from stl import mesh
+
         if models_meta:
             for meta in models_meta:
-                t = meta.get("transform", {})
-                s = t.get("scale", {"x": 1, "y": 1, "z": 1})
-                r = t.get("rotation", {"x": 0, "y": 0, "z": 0})
-                
-                # Apply rotation (x, y, z in degrees)
-                if r.get("x"): cmd.extend(["--rotate-x", str(r["x"])])
-                if r.get("y"): cmd.extend(["--rotate-y", str(r["y"])])
-                if r.get("z"): cmd.extend(["--rotate-z", str(r["z"])])
-                
-                # Apply scale (using factor as percentage, e.g. 1.0 -> 100%)
-                sx, sy, sz = s.get("x", 1), s.get("y", 1), s.get("z", 1)
-                cmd.extend(["--scale", f"{sx*100}%"])
-                
-                # Append the specific file for this meta
                 f_name = secure_filename(meta.get("name", ""))
                 if f_name:
                     f_path = job_dir / f_name
                     if f_path.exists():
-                        cmd.append(str(f_path))
+                        try:
+                            # Load and transform STL to match UI
+                            m = mesh.Mesh.from_file(str(f_path))
+                            
+                            # 1. Center the raw geometry first
+                            cx = (m.x.min() + m.x.max()) / 2.0
+                            cy = (m.y.min() + m.y.max()) / 2.0
+                            cz = (m.z.min() + m.z.max()) / 2.0
+                            m.x -= cx
+                            m.y -= cy
+                            m.z -= cz
+                            
+                            # Read transforms
+                            t = meta.get("transform", {})
+                            s = t.get("scale", {"x": 1, "y": 1, "z": 1})
+                            r = t.get("rotation", {"x": 0, "y": 0, "z": 0})
+                            p = t.get("position", {"x": 0, "y": 0, "z": 0})
+                            
+                            # 2. Scale
+                            m.x *= s.get("x", 1.0)
+                            m.y *= s.get("y", 1.0)
+                            m.z *= s.get("z", 1.0)
+                            
+                            # 3. Rotate (match Three.js XYZ Euler mapped to physical axes)
+                            if r.get("x"): m.rotate([1, 0, 0], math.radians(r.get("x")))
+                            if r.get("z"): m.rotate([0, 0, 1], math.radians(r.get("z")))
+                            if r.get("y"): m.rotate([0, 1, 0], math.radians(r.get("y")))
+                            
+                            # 4. Snap to Z=0 after rotation to ensure it prints flat
+                            min_z = m.z.min()
+                            m.z -= min_z
+                            
+                            # 5. Translate (Bed center is 50,50 for 100x100)
+                            m.x += p.get("x", 0.0) + 50.0
+                            m.y += p.get("y", 0.0) + 50.0
+                            m.z += p.get("z", 0.0)
+                            
+                            # Save back and append to cmd
+                            m.save(str(f_path))
+                            cmd.append(str(f_path))
+                        except Exception as e:
+                            print(f"[FDM SLICE] Error applying transforms to {f_name}: {e}")
+                            cmd.append(str(f_path))
         else:
-            # Fallback if no metadata (shouldn't happen with updated UI)
             cmd.append(str(stl_path))
-
-        if supports:
-            cmd.append("--support-material")
 
         _set_progress(job_id, 0.1, "Running PrusaSlicer FDM...")
         t0 = _t.time()

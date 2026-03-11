@@ -937,7 +937,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   };
 
   return (
-    <main className="flex-1 relative bg-slate-50 dark:bg-slate-900 overflow-hidden flex">
+    <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 overflow-hidden flex">
 
       {/* Main Viewport Area */}
       <div className="flex-1 relative h-full">
@@ -1260,6 +1260,6 @@ export const Viewport: React.FC<ViewportProps> = ({
           )}
         </div>
       </div>
-    </main >
+    </div>
   );
 };
