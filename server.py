@@ -18,7 +18,6 @@ from PIL import Image, ImageOps
 from flask_cors import CORS
 from moonraker_client import MoonrakerClient
 from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_default_toolhead_actions
-import sqlite3
 from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -58,61 +57,13 @@ def get_fdm_manager() -> FDMPrintManager:
     return _fdm_print_manager
 
 # ----------------------------
-# Database Initialization (History)
-# ----------------------------
-def get_db():
-    conn = sqlite3.connect(str(JOBS_DIR / "history.db"), timeout=10)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    with get_db() as db:
-        db.execute('''
-        CREATE TABLE IF NOT EXISTS experiments (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            author TEXT,
-            intent TEXT,
-            status TEXT,
-            material TEXT,
-            config_snapshot TEXT,
-            patterns_snapshot TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            notes TEXT,
-            rating INTEGER
-        )
-        ''')
-        
-        # Safely add the column if it doesn't exist for existing databases
-        try:
-            db.execute("ALTER TABLE experiments ADD COLUMN author TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column likely already exists
-            
-        db.commit()
-
-init_db()
-
-# ----------------------------
 # Job progress tracking
 # ----------------------------
 _slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
 
 def _set_progress(job_id: str, progress: float, message: str, status: str = "running"):
-    """Thread-safe progress update (CPython GIL makes dict assignment atomic)."""
+    """Thread-safe progress update."""
     _slice_jobs[job_id] = {"status": status, "progress": round(progress, 3), "message": message}
-    
-    # We only want to update the experiment DB status when the slicing represents a definitive state.
-    # We will use "printing" or "done" as terminal states for the EXPERIMENT later triggered by endpoints, 
-    # but if slicing fails ("error") or finishes ("sliced") we log that here.
-    try:
-        if status in ["error", "done"]:
-            db_status = "sliced" if status == "done" else "slicing_error"
-            with get_db() as db:
-                db.execute("UPDATE experiments SET status = ? WHERE id = ?", (db_status, job_id))
-                db.commit()
-    except Exception as e:
-        print(f"Error updating db for job {job_id}: {e}")
 
 
 @app.get("/job/<job_id>/progress")
@@ -162,53 +113,6 @@ def ensure_local_config():
         else:
             shutil.copy(src, config_path)
     return config_path
-
-
-# Experiments API (History)
-# ----------------------------
-@app.get("/api/experiments")
-def get_experiments():
-    with get_db() as db:
-        rows = db.execute("SELECT id, name, author, intent, status, material, created_at, rating FROM experiments ORDER BY created_at DESC").fetchall()
-        return jsonify([dict(r) for r in rows])
-
-@app.get("/api/experiments/<experiment_id>")
-def get_experiment(experiment_id):
-    with get_db() as db:
-        row = db.execute("SELECT * FROM experiments WHERE id = ?", (experiment_id,)).fetchone()
-        if not row:
-            return jsonify({"error": "Experiment not found"}), 404
-        data = dict(row)
-        if data.get("config_snapshot"):
-            data["config_snapshot"] = json.loads(data["config_snapshot"])
-        if data.get("patterns_snapshot"):
-            data["patterns_snapshot"] = json.loads(data["patterns_snapshot"])
-        return jsonify(data)
-
-@app.post("/api/experiments/<experiment_id>/evaluate")
-def evaluate_experiment(experiment_id):
-    req = request.json or {}
-    rating = req.get("rating")
-    notes = req.get("notes")
-    with get_db() as db:
-        db.execute("UPDATE experiments SET rating = ?, notes = ? WHERE id = ?", (rating, notes, experiment_id))
-        db.commit()
-    return jsonify({"status": "success"})
-
-@app.delete("/api/experiments/<experiment_id>")
-def delete_experiment(experiment_id):
-    with get_db() as db:
-        db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
-        db.commit()
-    # Try to delete the physical files as well
-    job_dir = JOBS_DIR / experiment_id
-    try:
-        if job_dir.exists() and job_dir.is_dir():
-            shutil.rmtree(job_dir)
-    except Exception as e:
-        print(f"Could not delete physical job folder {job_dir}: {e}")
-    return jsonify({"status": "deleted"})
-
 
 
 # WiFi AP Configuration Routes
@@ -516,10 +420,16 @@ def fdm_slice():
         "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
     }
 
-    experiment_name = request.form.get("experiment_name", "FDM Experiment")
-    author = request.form.get("author", "")
-    intent = request.form.get("intent", "")
-    material = request.form.get("material", "")
+    # Limit to 1 job: Clean up previous ones
+    try:
+        if JOBS_DIR.exists():
+            for item in JOBS_DIR.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                elif item.name != "history.db":
+                    item.unlink()
+    except Exception as e:
+        print(f"Cleanup error: {e}")
 
     job_id = uuid.uuid4().hex[:10]
     job_dir = JOBS_DIR / job_id
@@ -533,17 +443,6 @@ def fdm_slice():
         f.save(stl_path)
         if saved_stl is None:
             saved_stl = stl_path  # Use first file for now
-
-    # Register experiment
-    try:
-        with get_db() as db:
-            db.execute(
-                "INSERT INTO experiments (id, name, author, intent, material, status) VALUES (?, ?, ?, ?, ?, ?)",
-                (job_id, experiment_name, author, intent, material, "pending")
-            )
-            db.commit()
-    except Exception as e:
-        print(f"FDM experiment register error: {e}")
 
     _set_progress(job_id, 0.0, "Queued", status="pending")
 
@@ -659,12 +558,6 @@ def moonraker_start_print():
     success = fm.start_job(print_job)
 
     if success:
-        try:
-            with get_db() as db:
-                db.execute("UPDATE experiments SET status = 'printing' WHERE id = ?", (job_id,))
-                db.commit()
-        except Exception as e:
-            print(f"DB update error: {e}")
         return jsonify({"status": "started", "job_id": job_id})
     else:
         return jsonify({"error": fm.state.message}), 500

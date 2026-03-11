@@ -7,14 +7,13 @@ interface HeaderProps {
   onSaveProject: () => void;
   onLoadProject: () => void;
   onOpenCalibration?: () => void;
-  onOpenExperiments?: () => void;
   onOpenWifi?: () => void;
   onOpenPrinterStatus?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
-  onOpenCalibration, onOpenExperiments, onOpenWifi, onOpenPrinterStatus
+  onOpenCalibration, onOpenWifi, onOpenPrinterStatus
 }) => {
   const [printerState, setPrinterState] = useState<'unknown' | 'ready' | 'printing' | 'error'>('unknown');
 
@@ -92,10 +91,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
-
-          <button onClick={onOpenExperiments} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-            <Icon name="history" className="text-sm text-primary" /> Experiments
-          </button>
 
           <button
             onClick={onOpenWifi}

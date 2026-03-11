@@ -7,8 +7,6 @@ import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
 // GCodePreview is now integrated into Viewport directly
 
-import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
-import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
 import { Icon } from './components/Icon';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from './types';
 import { generateUUID } from './utils';
@@ -27,8 +25,6 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
-  const [isExperimentsMode, setIsExperimentsMode] = useState(false);
-  const [viewingExperimentId, setViewingExperimentId] = useState<string | null>(null);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isWifiOpen, setIsWifiOpen] = useState(false);
 
@@ -42,11 +38,6 @@ export default function App() {
 
   // Pre-flight State
   const [showPreFlight, setShowPreFlight] = useState(false);
-  const [experimentName, setExperimentName] = useState('');
-  const [experimentAuthor, setExperimentAuthor] = useState('');
-  const [experimentIntent, setExperimentIntent] = useState('');
-  const [experimentMaterial, setExperimentMaterial] = useState('');
-
   // Global Print Settings (Physical machine constraints)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     layerHeight: 200, // 0.2mm = 200um
@@ -319,11 +310,6 @@ export default function App() {
     // Toolhead layer-schedule
     formData.append('layer_actions', JSON.stringify(layerActions));
 
-    // Experiment metadata
-    formData.append('experiment_name', experimentName);
-    formData.append('author', experimentAuthor);
-    formData.append('intent', experimentIntent);
-    formData.append('material', experimentMaterial);
 
     try {
       console.log("[executeSlice] Sending FDM slice request...");
@@ -556,10 +542,6 @@ export default function App() {
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
-        onOpenExperiments={() => {
-          setIsExperimentsMode(true);
-          setViewingExperimentId(null);
-        }}
         onOpenWifi={() => setIsWifiOpen(true)}
       />
       {isCalibrationOpen && (
@@ -621,48 +603,6 @@ export default function App() {
           {isWifiOpen && (
             <WifiConfig onClose={() => setIsWifiOpen(false)} />
           )}
-
-          {/* ── Experiments Mode (Absolute Overlay) ── */}
-          {isExperimentsMode && (
-            <div className="absolute inset-0 z-[60] bg-white dark:bg-slate-950 flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-300">
-              <Header
-                darkMode={darkMode}
-                toggleDarkMode={() => setDarkMode(!darkMode)}
-                onSaveProject={handleSaveProject}
-                onLoadProject={handleLoadProject}
-                onOpenCalibration={() => setIsCalibrationOpen(true)}
-                onOpenExperiments={() => setIsExperimentsMode(false)}
-              />
-              <div className="flex-1 overflow-hidden">
-                {viewingExperimentId ? (
-                  <ExperimentDetails
-                    experimentId={viewingExperimentId}
-                    onBack={() => setViewingExperimentId(null)}
-                    onOpenPreview={(id) => {
-                      setCurrentJobId(id);
-                      setIsExperimentsMode(false);
-                      // In integrated mode, we just set the preview job
-                      setGcodePreviewJob({ jobId: id, layerCount: 100, nozzleDiameter: globalSettings.nozzleDiameter });
-                    }}
-                    onDelete={() => setViewingExperimentId(null)}
-                  />
-                ) : (
-                  <ExperimentsPanel
-                    onClose={() => setIsExperimentsMode(false)}
-                    onReplicate={(id) => { console.log("Replicate", id) }}
-                    onViewDetails={(id) => setViewingExperimentId(id)}
-                    onOpenPreview={(id) => {
-                      setCurrentJobId(id);
-                      setIsExperimentsMode(false);
-                      setGcodePreviewJob({ jobId: id, layerCount: 100, nozzleDiameter: globalSettings.nozzleDiameter });
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-
 
           {isDragging && (
             <div className="absolute inset-4 z-50 rounded-xl border-4 border-dashed border-primary bg-blue-50/90 dark:bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center text-primary animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
