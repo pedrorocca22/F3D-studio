@@ -65,10 +65,154 @@ def get_fdm_manager() -> FDMPrintManager:
 # ----------------------------
 _slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
 
-
 def _set_progress(job_id: str, progress: float, message: str, status: str = "running"):
     """Thread-safe progress update."""
     _slice_jobs[job_id] = {"status": status, "progress": round(progress, 3), "message": message}
+
+def _extract_number_from_text(text: str) -> float:
+    match = re.search(r"[-+]?\d*\.\d+|\d+", text)
+    return float(match.group()) if match else None
+
+
+def _write_multimaterial_3mf(models_data, output_path):
+    """
+    Generates a PrusaSlicer-compatible 3MF file with per-volume extruder assignment.
+    models_data: list of dicts: [{"mesh": m, "toolhead": "fdm"}, ...]
+    output_path: Path to the .3mf file to write (it's a ZIP archive).
+    """
+    toolhead_to_extruder = {
+        "fdm": 1,
+        "syringe": 2,
+        "uv": 3
+    }
+
+    # ---- Build welded vertex list and per-volume triangle indices ----
+    vertices = []
+    vertex_map = {}
+    volumes = []  # list of {"triangles": [(i0,i1,i2), ...], "extruder": int}
+
+    for m_data in models_data:
+        m = m_data["mesh"]
+        extruder = toolhead_to_extruder.get(m_data.get("toolhead", "fdm"), 1)
+        tris = []
+        for tri in m.vectors:
+            idxs = []
+            for v in tri:
+                vt = (round(float(v[0]), 6), round(float(v[1]), 6), round(float(v[2]), 6))
+                if vt not in vertex_map:
+                    vertex_map[vt] = len(vertices)
+                    vertices.append(vt)
+                idxs.append(vertex_map[vt])
+            if idxs[0] != idxs[1] and idxs[1] != idxs[2] and idxs[0] != idxs[2]:
+                tris.append(tuple(idxs))
+        volumes.append({"triangles": tris, "extruder": extruder})
+
+    # ---- 3dmodel.model (OPC 3MF core) ----
+    # Each volume becomes a separate <object> so PrusaSlicer can assign extruder per-object.
+    # Then a root object with <components> assembles them.
+    model_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<model unit="millimeter" xml:lang="en-US"'
+        ' xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"'
+        ' xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">',
+        ' <resources>',
+    ]
+
+    # Write each volume as its own object with its own mesh
+    for vol_idx, vol in enumerate(volumes):
+        obj_id = vol_idx + 1
+        # Collect only the vertices used by this volume
+        local_verts = []
+        local_map = {}
+        local_tris = []
+        for tri in vol["triangles"]:
+            local_idxs = []
+            for vi in tri:
+                if vi not in local_map:
+                    local_map[vi] = len(local_verts)
+                    local_verts.append(vertices[vi])
+                local_idxs.append(local_map[vi])
+            local_tris.append(tuple(local_idxs))
+
+        model_lines.append(f'  <object id="{obj_id}" type="model">')
+        model_lines.append(f'   <mesh>')
+        model_lines.append(f'    <vertices>')
+        for vt in local_verts:
+            model_lines.append(
+                f'     <vertex x="{vt[0]:.6f}" y="{vt[1]:.6f}" z="{vt[2]:.6f}" />'
+            )
+        model_lines.append(f'    </vertices>')
+        model_lines.append(f'    <triangles>')
+        for t in local_tris:
+            model_lines.append(f'     <triangle v1="{t[0]}" v2="{t[1]}" v3="{t[2]}" />')
+        model_lines.append(f'    </triangles>')
+        model_lines.append(f'   </mesh>')
+        model_lines.append(f'  </object>')
+
+    model_lines.append(' </resources>')
+    model_lines.append(' <build>')
+    for vol_idx in range(len(volumes)):
+        obj_id = vol_idx + 1
+        model_lines.append(f'  <item objectid="{obj_id}" />')
+    model_lines.append(' </build>')
+    model_lines.append('</model>')
+
+    model_xml = "\n".join(model_lines)
+
+    # ---- [Content_Types].xml ----
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+        ' <Default Extension="rels" ContentType='
+        '"application/vnd.openxmlformats-package.relationships+xml" />\n'
+        ' <Default Extension="model" ContentType='
+        '"application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />\n'
+        '</Types>'
+    )
+
+    # ---- _rels/.rels ----
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        ' <Relationship Target="/3D/3dmodel.model" Id="rel0"'
+        ' Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
+        '</Relationships>'
+    )
+
+    # ---- Metadata/Slic3r_PE_model.config ----
+    # This is the key file: tells PrusaSlicer which extruder each object uses.
+    config_lines = []
+    for vol_idx, vol in enumerate(volumes):
+        obj_id = vol_idx + 1
+        config_lines.append(f' <object id="{obj_id}" instances_count="1">')
+        config_lines.append(f'  <metadata type="object" key="name" value="Part_{obj_id}"/>')
+        config_lines.append(f'  <metadata type="object" key="extruder" value="{vol["extruder"]}"/>')
+        config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
+        config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
+        config_lines.append(f'   <metadata type="volume" key="extruder" value="{vol["extruder"]}"/>')
+        config_lines.append(f'   <metadata type="volume" key="volume_type" value="ModelPart"/>')
+        config_lines.append(f'  </volume>')
+        config_lines.append(f' </object>')
+
+    slic3r_config = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<config>\n'
+        + "\n".join(config_lines) + "\n"
+        '</config>'
+    )
+
+    # ---- Write the ZIP (3MF) ----
+    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", rels)
+        zf.writestr("3D/3dmodel.model", model_xml)
+        zf.writestr("Metadata/Slic3r_PE_model.config", slic3r_config)
+
+    print(f"[3MF] Written multi-material 3MF with {len(volumes)} volumes, {len(vertices)} vertices to {output_path}")
+
+# Global active jobs / previews
+# Structure: { job_id: { "status": ..., "progress": ..., "message": ... } }
+active_jobs = {}
 
 
 @app.get("/job/<job_id>/progress")
@@ -340,15 +484,20 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         # completely wipes out CLI arguments! We must write overrides into the INI.
         job_config_ini = job_dir / "job_config.ini"
 
+        noz_d = str(form_params.get("nozzle_diameter", "0.4"))
+        ret_l = str(form_params.get("retract_length", "1.0"))
+        ret_s = str(form_params.get("retract_speed", "45"))
+        ext_m = str(form_params.get("extrusion_multiplier", "1.0"))
+
         overrides_dict = {
             "layer_height": str(layer_height),
             "fill_density": f"{infill}%",
-            "temperature": str(nozzle_temp),
-            "first_layer_temperature": str(nozzle_temp),
+            "temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
+            "first_layer_temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
             "bed_temperature": str(bed_temp),
             "fill_pattern": str(infill_pattern),
             "perimeters": str(perimeters),
-            "nozzle_diameter": str(form_params.get("nozzle_diameter", "0.4")),
+            "nozzle_diameter": f"{noz_d},{noz_d},{noz_d}",
             "first_layer_height": str(form_params.get("first_layer_height", "0.3")),
             "support_material": "1" if supports else "0",
             "skirts": str(form_params.get("skirt_count", "1")),
@@ -357,6 +506,19 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "top_solid_layers": str(form_params.get("top_shell", "3")),
             "bottom_solid_layers": str(form_params.get("bottom_shell", "3")),
             "fill_angle": str(form_params.get("fill_angle", "45")),
+            "first_layer_speed": str(form_params.get("first_layer_speed", "20")),
+            "perimeter_speed": str(form_params.get("perimeter_speed", "45")),
+            "external_perimeter_speed": str(form_params.get("external_perimeter_speed", "25")),
+            "infill_speed": str(form_params.get("infill_speed", "80")),
+            "travel_speed": str(form_params.get("travel_speed", "130")),
+            "retract_length": f"{ret_l},{ret_l},{ret_l}",
+            "retract_speed": f"{ret_s},{ret_s},{ret_s}",
+            "extrusion_multiplier": f"{ext_m},{ext_m},{ext_m}",
+            "extruder_offset": "0x0,0x0,0x0",
+            "fan_always_on": str(form_params.get("fan_always_on", "1")),
+            "min_fan_speed": str(form_params.get("min_fan_speed", "100")),
+            "max_fan_speed": str(form_params.get("max_fan_speed", "100")),
+            "disable_fan_first_layers": str(form_params.get("disable_fan_first_layers", "1")),
         }
 
         config_lines = []
@@ -459,15 +621,16 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                         m.y += p.get("z", 0.0) + bed_center_y
                         m.z += p.get("y", 0.0)
 
-                        consolidated_data.append(m.data.copy())
+                        consolidated_data.append({
+                            "mesh": m,
+                            "toolhead": meta.get("toolhead", "fdm")
+                        })
                     except Exception as e:
                         print(f"[FDM SLICE] Error processing {f_name}: {e}")
 
             if consolidated_data:
-                merged_mesh = mesh.Mesh(np.concatenate(consolidated_data))
-
-                consolidated_path = job_dir / "consolidated.stl"
-                merged_mesh.save(str(consolidated_path))
+                consolidated_path = job_dir / "consolidated.3mf"
+                _write_multimaterial_3mf(consolidated_data, consolidated_path)
                 cmd.append(str(consolidated_path))
             else:
                 for stl_path in stl_paths:
@@ -585,6 +748,18 @@ def fdm_slice():
         "top_shell": request.form.get("top_shell", "3"),
         "bottom_shell": request.form.get("bottom_shell", "3"),
         "fill_angle": request.form.get("fill_angle", "45"),
+        "first_layer_speed": request.form.get("first_layer_speed", "20"),
+        "perimeter_speed": request.form.get("perimeter_speed", "45"),
+        "external_perimeter_speed": request.form.get("external_perimeter_speed", "25"),
+        "infill_speed": request.form.get("infill_speed", "80"),
+        "travel_speed": request.form.get("travel_speed", "130"),
+        "retract_length": request.form.get("retraction_length", "1.0"),
+        "retract_speed": request.form.get("retraction_speed", "45"),
+        "extrusion_multiplier": request.form.get("extrusion_multiplier", "1.0"),
+        "fan_always_on": request.form.get("fan_always_on", "1"),
+        "min_fan_speed": request.form.get("min_fan_speed", "100"),
+        "max_fan_speed": request.form.get("max_fan_speed", "100"),
+        "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
     }
 
     # Limit to 1 job: Clean up previous ones

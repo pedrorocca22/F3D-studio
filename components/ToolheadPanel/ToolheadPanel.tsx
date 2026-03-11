@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from '../../types';
+import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData } from '../../types';
 
 interface ToolheadPanelProps {
+    models: ModelData[];
+    onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
     toolheads: ToolheadConfig[];
     layerActions: LayerAction[];
     totalLayers: number;
@@ -179,10 +181,11 @@ const LayerActionRow: React.FC<{
 // ---------- Main panel ----------
 
 export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
+    models, onUpdateModel,
     toolheads, layerActions, totalLayers,
     onUpdateToolheads, onUpdateLayerActions
 }) => {
-    const [activeTab, setActiveTab] = useState<'schedule' | 'config'>('schedule');
+    const [activeTab, setActiveTab] = useState<'mapping' | 'schedule' | 'config'>('mapping');
     const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
 
     const addLayerAction = () => {
@@ -217,19 +220,55 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
         <div className="flex flex-col gap-3">
             {/* Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700">
-                {(['schedule', 'config'] as const).map(tab => (
+                {(['mapping', 'schedule', 'config'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 text-xs font-bold capitalize transition-colors border-b-2 -mb-px ${activeTab === tab
+                        className={`px-3 py-2 text-[11px] font-bold capitalize transition-colors border-b-2 -mb-px ${activeTab === tab
                                 ? 'border-primary text-primary'
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                     >
-                        {tab === 'schedule' ? '🗓 Layer Schedule' : '🔧 Toolhead Config'}
+                        {tab === 'mapping' ? 'STL Mapping' : tab === 'schedule' ? 'Layer Schedule' : 'Hardware'}
                     </button>
                 ))}
             </div>
+
+            {/* ── MAPPING TAB ── */}
+            {activeTab === 'mapping' && (
+                <div className="space-y-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Assign each 3D model to a specific toolhead. BioFFF Studio will combine them into a multi-material print sequence automatically.
+                    </p>
+
+                    {models.length === 0 ? (
+                        <div className="text-center py-6 text-slate-400 dark:text-slate-500 text-sm">
+                            No models loaded.
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {models.map(m => (
+                                <div key={m.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg">
+                                    <div className="flex flex-col overflow-hidden mr-2">
+                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate" title={m.name}>
+                                            {m.name}
+                                        </span>
+                                    </div>
+                                    <select
+                                        value={m.toolhead || 'fdm'}
+                                        onChange={e => onUpdateModel(m.id, { toolhead: e.target.value as ToolheadId })}
+                                        className="bg-slate-50 dark:bg-slate-800 border-none text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary w-28 shrink-0 font-medium"
+                                    >
+                                        <option value="fdm">FDM (T0)</option>
+                                        <option value="syringe">Syringe (T1)</option>
+                                        <option value="uv">UV (T2)</option>
+                                    </select>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── SCHEDULE TAB ── */}
             {activeTab === 'schedule' && (

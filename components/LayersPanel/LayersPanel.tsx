@@ -6,7 +6,13 @@ import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceS
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
 import { ToolheadPanel } from '../ToolheadPanel/ToolheadPanel';
+import { TOOLHEAD_COLORS } from '../Viewport/Viewport';
 
+const TOOLHEAD_LABELS: Record<string, string> = {
+  fdm: 'FDM',
+  syringe: 'SYR',
+  uv: 'UV',
+};
 
 
 interface LayersPanelProps {
@@ -16,6 +22,7 @@ interface LayersPanelProps {
   selectedModelId: string | null;
   onSelectModel: (id: string) => void;
   onDeleteModel: (id: string) => void;
+  onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
   onTransformChange: (data: TransformData) => void;
   onUpdateSettings: (data: SliceSettings) => void;
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
@@ -44,6 +51,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   selectedModelId,
   onSelectModel,
   onDeleteModel,
+  onUpdateModel,
   onTransformChange,
   onUpdateSettings,
   onUpdateAdvancedSettings,
@@ -63,10 +71,16 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   hasGCode,
   onPrint
 }) => {
+  const [activeTab, setActiveTab] = useState<'environment' | 'toolheads' | 'material' | 'slicing'>('environment');
+  
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
-    sliceSettings: false,
-    heating: false,
+    fffQuality: true,
+    fffShell: false,
+    fffSpeeds: false,
+    fffAdhesion: false,
+    fffMaterial: false,
+    fffCooling: false,
     toolheads: true,
   });
 
@@ -289,7 +303,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           onToggle={() => toggleSection('models')}
         >
           <div className="space-y-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-            {models.map(model => (
+            {models.map(model => {
+              const thId = model.toolhead || 'none';
+              const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
+              const thLabel = TOOLHEAD_LABELS[thId] || '';
+              return (
               <div
                 key={model.id}
                 onClick={() => onSelectModel(model.id)}
@@ -299,10 +317,21 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   }`}
               >
                 <div className="flex items-center gap-2 overflow-hidden">
-                  <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors ${selectedModelId === model.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                    <Icon name="view_in_ar" className="text-xs" />
+                  <div
+                    className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                    style={{ backgroundColor: selectedModelId === model.id ? 'rgba(255,255,255,0.2)' : thColor + '22' }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: thColor }} />
                   </div>
                   <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
+                  {thLabel && (
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${selectedModelId === model.id ? 'bg-white/20 text-white' : ''}`}
+                      style={selectedModelId !== model.id ? { backgroundColor: thColor + '22', color: thColor } : {}}
+                    >
+                      {thLabel}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
@@ -315,7 +344,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <Icon name="close" className="text-sm" />
                 </button>
               </div>
-            ))}
+              );
+            })}
             {models.length === 0 && (
               <div className="text-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
                 <span className="text-slate-400 text-sm block mb-1">No models loaded</span>
@@ -325,256 +355,99 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           </div>
         </AccordionSection>
 
+        {/* Bioprinting Workflow Tabs */}
+        <div className={`mt-2 ${!selectedModel || isAdvancedSliceMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg mb-4 border border-slate-200 dark:border-slate-800">
+            {[
+              { id: 'environment', label: '1. Env', icon: 'public' },
+              { id: 'toolheads', label: '2. Tools', icon: 'my_location' },
+              { id: 'material', label: '3. Material', icon: 'science' },
+              { id: 'slicing', label: '4. Slicing', icon: 'layers' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 py-1.5 px-2 text-[10px] sm:text-xs font-bold rounded-md flex items-center justify-center gap-1 transition-all
+                  ${activeTab === tab.id 
+                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
+              >
+                <Icon name={tab.icon} className="text-sm" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
 
-
-
-
-        {/* FFF Print Settings */}
-        <div className={!selectedModel || isAdvancedSliceMode ? 'opacity-50 pointer-events-none grayscale' : ''}>
-          <AccordionSection
-            title="FFF Print Settings"
-            isOpen={openSections.sliceSettings}
-            onToggle={() => toggleSection('sliceSettings')}
-            info
-          >
+          {/* TAB 1: ENVIRONMENT */}
+          {activeTab === 'environment' && (
             <div className="space-y-4">
-              {/* Layer Height */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">Layer height (μm):</span>
-                <NumericInput
-                  className={inputClass}
-                  value={globalSettings.layerHeight}
-                  onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })}
-                  step={10}
-                />
-              </div>
-
-              {/* First Layer Height */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">First layer height (μm):</span>
-                <NumericInput
-                  className={inputClass}
-                  value={globalSettings.firstLayerHeight ?? 300}
-                  onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })}
-                  step={10}
-                />
-              </div>
-
-              {/* Temperatures */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Nozzle (°C)</span>
-                  <NumericInput
-                    className="w-full"
-                    value={globalSettings.nozzleTemperature || 210}
-                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v })}
-                    step={5}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Bed (°C)</span>
-                  <NumericInput
-                    className="w-full"
-                    value={globalSettings.bedTemperature || 60}
-                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })}
-                    step={5}
-                  />
-                </div>
-              </div>
-
-              {/* Nozzle Diameter */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nozzle Diameter (mm)</span>
-                  <div className="w-32">
-                    <NumericInput
-                      className={inputClass}
-                      value={globalSettings.nozzleDiameter ?? 0.4}
-                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v })}
-                      step={0.05}
-                      min={0.1}
-                      max={2.0}
-                    />
-                  </div>
-                </div>
-                {((globalSettings.firstLayerHeight || 300) / 1000) > (globalSettings.nozzleDiameter || 0.4) && (
-                  <div className="px-2 py-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded flex items-center gap-2 animate-pulse mt-1">
-                    <Icon name="warning" className="text-red-500 text-xs" />
-                    <span className="text-[10px] text-red-600 dark:text-red-400 font-medium leading-tight">
-                      First layer height must be ≤ nozzle diameter ({globalSettings.nozzleDiameter}mm).
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Infill Pattern Selector */}
-              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Infill Pattern</span>
-                <select
-                  value={globalSettings.infillPattern ?? 'gyroid'}
-                  onChange={(e) => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
-                  className="w-32 text-xs py-1 px-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded outline-none focus:ring-1 focus:ring-primary transition-all"
-                >
-                  <option value="rectilinear">Rectilinear</option>
-                  <option value="grid">Grid</option>
-                  <option value="triangles">Triangles</option>
-                  <option value="stars">Stars</option>
-                  <option value="cubic">Cubic</option>
-                  <option value="line">Line</option>
-                  <option value="concentric">Concentric</option>
-                  <option value="honeycomb">Honeycomb</option>
-                  <option value="3dhoneycomb">3D Honeycomb</option>
-                  <option value="gyroid">Gyroid</option>
-                  <option value="hilbertcurve">Hilbert Curve</option>
-                  <option value="archimedeanchords">Archimedean Chords</option>
-                  <option value="octagramspiral">Octagram Spiral</option>
-                  <option value="adaptivecubic">Adaptive Cubic</option>
-                  <option value="supportcubic">Support Cubic</option>
-                  <option value="lightning">Lightning</option>
-                  <option value="none">None</option>
-                </select>
-              </div>
-
-              {/* Infill & Walls */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Infill (%)</span>
-                  <NumericInput
-                    className="w-full"
-                    value={globalSettings.infill || 15}
-                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, infill: v })}
-                    step={1}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Walls (Count)</span>
-                  <NumericInput
-                    className="w-full"
-                    value={globalSettings.perimeters || 3}
-                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, perimeters: v })}
-                    step={1}
-                  />
-                </div>
-              </div>
-
-              {/* Supports Toggle */}
-              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Generate Supports</span>
-                <button
-                  onClick={() => onUpdateGlobalSettings({ ...globalSettings, supportsEnabled: !globalSettings.supportsEnabled })}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${globalSettings.supportsEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}
-                >
-                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-1' : 'left-1'}`} />
-                </button>
-              </div>
-
-              {/* Adhesion & Shells Section */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mt-2">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Adhesion & Structure</h4>
-                
-                <div className="space-y-3">
-                  {/* Skirt Settings */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase">Skirt Loops</span>
-                      <NumericInput
-                        className="w-full"
-                        value={globalSettings.skirtCount ?? 1}
-                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtCount: v })}
-                        min={0}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase">Skirt Dist (mm)</span>
-                      <NumericInput
-                        className="w-full"
-                        value={globalSettings.skirtDistance ?? 6}
-                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtDistance: v })}
-                        min={0}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Brim Width */}
+              <AccordionSection title="Base Parameters" isOpen={true} onToggle={() => {}} disableToggle>
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Brim Width (mm):</span>
+                    <span className="text-xs text-slate-500">Layer height (μm):</span>
                     <NumericInput
                       className={inputClass}
-                      value={globalSettings.brimWidth ?? 0}
-                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })}
-                      min={0}
+                      value={globalSettings.layerHeight}
+                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })}
+                      step={10}
                     />
                   </div>
 
-                  {/* Shell Layers */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase">Top Shells</span>
-                      <NumericInput
-                        className="w-full"
-                        value={globalSettings.topSolidLayers ?? 3}
-                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, topSolidLayers: v })}
-                        min={0}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 uppercase">Bottom Shells</span>
-                      <NumericInput
-                        className="w-full"
-                        value={globalSettings.bottomSolidLayers ?? 3}
-                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })}
-                        min={0}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Fill Angle */}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Fill Angle (°):</span>
+                    <span className="text-xs text-slate-500">First layer height (μm):</span>
                     <NumericInput
                       className={inputClass}
-                      value={globalSettings.fillAngle ?? 45}
-                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, fillAngle: v })}
+                      value={globalSettings.firstLayerHeight ?? 300}
+                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })}
+                      step={10}
                     />
                   </div>
                 </div>
-              </div>
+              </AccordionSection>
+
+              <AccordionSection title="Heating Bed" isOpen={true} onToggle={() => {}} disableToggle>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Bed Temp (°C):</span>
+                  <NumericInput className={inputClass} value={heating.temp} onChange={v => setHeating({ temp: v })} step={0.5} />
+                </div>
+              </AccordionSection>
             </div>
-
-            <div className="h-2"></div>
-
-            <button
-              onClick={handleApplyToAll}
-              className="w-full py-2 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 shadow-sm"
-              title="Copy these settings to all other models"
-            >
-              <Icon name="done_all" className="text-sm" />
-              Apply to All Models
-            </button>
-          </AccordionSection>
-        </div>
-
-        {/* Build Plate Adhesion (New Position & Logic) */}
-
-
-        {/* Advance Slice (Active Section) */}
-
-
-        {/* Other Sections */}
-        {!isAdvancedSliceMode && (
-          <>
-            <AccordionSection title="Heating Bed" isOpen={openSections.heating} onToggle={() => toggleSection('heating')} info>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">Bed Temp (°C):</span>
-                <NumericInput className={inputClass} value={heating.temp} onChange={v => setHeating({ temp: v })} step={0.5} />
+          )}
+          
+          {/* ENVIRONMENT CONTINUED */}
+          {activeTab === 'environment' && (
+            <AccordionSection title="Adhesion & Supports" isOpen={openSections.fffAdhesion} onToggle={() => toggleSection('fffAdhesion')}>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Generate Supports</span>
+                  <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, supportsEnabled: !globalSettings.supportsEnabled })} className={`w-10 h-5 rounded-full transition-colors relative ${globalSettings.supportsEnabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                    <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Brim Width (mm):</span>
+                  <NumericInput className={inputClass} value={globalSettings.brimWidth ?? 0} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} min={0} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 uppercase">Skirt Loops</span>
+                    <NumericInput className="w-full" value={globalSettings.skirtCount ?? 1} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtCount: v })} min={0} />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 uppercase">Skirt Dist (mm)</span>
+                    <NumericInput className="w-full" value={globalSettings.skirtDistance ?? 6} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtDistance: v })} min={0} />
+                  </div>
+                </div>
               </div>
-              <p className="text-[10px] text-slate-400 mt-2 leading-tight">
-                Controls the heated bed temperature via Klipper <code>SET_HEATER_TEMPERATURE</code> macro.
-              </p>
             </AccordionSection>
+          )}
 
-            <AccordionSection title="Toolheads &amp; Layer Schedule" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')} info>
+          {/* TAB 2: TOOLHEADS */}
+          {activeTab === 'toolheads' && (
+            <AccordionSection title="Toolhead Mapping" isOpen={true} onToggle={() => {}} disableToggle info>
               <ToolheadPanel
+                models={models}
+                onUpdateModel={onUpdateModel}
                 toolheads={toolheads}
                 layerActions={layerActions}
                 totalLayers={totalLayers}
@@ -582,8 +455,130 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 onUpdateLayerActions={onUpdateLayerActions}
               />
             </AccordionSection>
-          </>
-        )}
+          )}
+
+          {/* TAB 3: MATERIAL */}
+          {activeTab === 'material' && (
+            <>
+              <AccordionSection title="Extruder (Nozzle)" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Temp (°C)</span>
+                      <NumericInput className="w-full" value={globalSettings.nozzleTemperature || 210} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v })} step={5} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Diameter (mm)</span>
+                      <NumericInput className="w-full" value={globalSettings.nozzleDiameter ?? 0.4} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v })} step={0.05} min={0.1} max={2.0} />
+                    </div>
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Extrusion Flow & Retraction" isOpen={true} onToggle={() => {}} disableToggle>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Flow Multiplier:</span>
+                    <NumericInput className={inputClass} value={globalSettings.extrusionMultiplier ?? 1.0} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v })} step={0.01} min={0.1} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Retract Length</span>
+                      <NumericInput className="w-full" value={globalSettings.retractionLength ?? 1.0} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, retractionLength: v })} step={0.1} min={0} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Speed (mm/s)</span>
+                      <NumericInput className="w-full" value={globalSettings.retractionSpeed ?? 45} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, retractionSpeed: v })} min={1} />
+                    </div>
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Cooling" isOpen={openSections.fffCooling} onToggle={() => toggleSection('fffCooling')}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Keep Fan Always On</span>
+                    <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, fanAlwaysOn: globalSettings.fanAlwaysOn === false ? true : false })} className={`w-10 h-5 rounded-full transition-colors relative ${globalSettings.fanAlwaysOn !== false ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.fanAlwaysOn !== false ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Min Speed (%)</span>
+                      <NumericInput className="w-full" value={globalSettings.minFanSpeed ?? 100} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, minFanSpeed: v })} min={0} max={100} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Max Speed (%)</span>
+                      <NumericInput className="w-full" value={globalSettings.maxFanSpeed ?? 100} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, maxFanSpeed: v })} min={0} max={100} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Disable Fan for first layers:</span>
+                    <NumericInput className={inputClass} value={globalSettings.disableFanFirstLayers ?? 1} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} min={0} />
+                  </div>
+                </div>
+              </AccordionSection>
+            </>
+          )}
+
+          {/* TAB 4: SLICING */}
+          {activeTab === 'slicing' && (
+            <>
+              <AccordionSection title="Shell & Infill" isOpen={openSections.fffShell} onToggle={() => toggleSection('fffShell')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Walls (Perimeters)</span>
+                      <NumericInput className="w-full" value={globalSettings.perimeters || 3} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, perimeters: v })} step={1} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Infill (%)</span>
+                      <NumericInput className="w-full" value={globalSettings.infill || 15} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, infill: v })} step={1} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Infill Pattern</span>
+                    <select value={globalSettings.infillPattern ?? 'gyroid'} onChange={(e) => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })} className="w-32 text-xs py-1 px-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded outline-none focus:ring-1 focus:ring-primary transition-all">
+                      <option value="rectilinear">Rectilinear</option>
+                      <option value="grid">Grid</option>
+                      <option value="gyroid">Gyroid</option>
+                      <option value="cubic">Cubic</option>
+                      <option value="honeycomb">Honeycomb</option>
+                      <option value="lightning">Lightning</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">Top Shells</span><NumericInput className="w-full" value={globalSettings.topSolidLayers ?? 3} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, topSolidLayers: v })} min={0} /></div>
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">Bottom Shells</span><NumericInput className="w-full" value={globalSettings.bottomSolidLayers ?? 3} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })} min={0} /></div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Fill Angle (°):</span><NumericInput className={inputClass} value={globalSettings.fillAngle ?? 45} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, fillAngle: v })} />
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Speeds (mm/s)" isOpen={openSections.fffSpeeds} onToggle={() => toggleSection('fffSpeeds')}>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">First Layer</span><NumericInput className="w-full" value={globalSettings.firstLayerSpeed ?? 20} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, firstLayerSpeed: v })} min={1} /></div>
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">Infill</span><NumericInput className="w-full" value={globalSettings.infillSpeed ?? 80} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, infillSpeed: v })} min={1} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">Inner Shells</span><NumericInput className="w-full" value={globalSettings.perimeterSpeed ?? 45} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, perimeterSpeed: v })} min={1} /></div>
+                    <div className="space-y-1"><span className="text-[10px] text-slate-500 uppercase">Outer Shells</span><NumericInput className="w-full" value={globalSettings.externalPerimeterSpeed ?? 25} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, externalPerimeterSpeed: v })} min={1} /></div>
+                  </div>
+                  <div className="flex items-center justify-between"><span className="text-xs text-slate-500">Travel:</span><NumericInput className={inputClass} value={globalSettings.travelSpeed ?? 130} onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, travelSpeed: v })} min={1} /></div>
+                </div>
+              </AccordionSection>
+
+              <div className="h-4"></div>
+              <button onClick={handleApplyToAll} className="w-full py-2 rounded text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 bg-green-600 text-white hover:bg-green-700 shadow-sm" title="Copy these settings to all other models">
+                <Icon name="done_all" className="text-sm" /> Apply to All Models
+              </button>
+            </>
+          )}
+
+        </div>
       </div>
 
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-surface-light dark:bg-surface-dark">

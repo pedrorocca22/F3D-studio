@@ -72,6 +72,14 @@ const SEGMENT_COLORS = [
 
 const getSegmentColor = (index: number) => SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 
+// Toolhead colors for 3D preview
+export const TOOLHEAD_COLORS: Record<string, string> = {
+  fdm:     '#3b82f6', // Blue
+  syringe: '#22c55e', // Green
+  uv:      '#a855f7', // Purple
+  none:    '#94a3b8', // Slate gray (default)
+};
+
 type CameraMode = 'orbit' | 'pan';
 type ObjectTool = 'translate' | 'rotate' | 'scale' | 'orient' | 'modify';
 type ViewMode = 'solid' | 'transparent';
@@ -443,6 +451,7 @@ interface ModelProps {
   adhesionOffset: number;
   isClipping: boolean;
   clippingHeight: number;
+  toolheadColor?: string;
 }
 
 const Model: React.FC<ModelProps> = ({
@@ -461,7 +470,8 @@ const Model: React.FC<ModelProps> = ({
   onUpdateSize,
   adhesionOffset,
   isClipping,
-  clippingHeight
+  clippingHeight,
+  toolheadColor = '#94a3b8'
 }) => {
 
   const result = useLoader(STLLoader, url);
@@ -763,7 +773,7 @@ const Model: React.FC<ModelProps> = ({
               <meshPhysicalMaterial
                 ref={materialRef}
                 onBeforeCompile={onBeforeCompile}
-                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : "#94a3b8")}
+                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : toolheadColor)}
                 roughness={0.4}
                 reflectivity={0.5}
                 clearcoat={1.0}
@@ -1036,6 +1046,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                     adhesionOffset={adhesionOffset}
                     isClipping={isClipping}
                     clippingHeight={clippingHeight}
+                    toolheadColor={TOOLHEAD_COLORS[model.toolhead || 'none'] || TOOLHEAD_COLORS.none}
                   />
                 );
               })}

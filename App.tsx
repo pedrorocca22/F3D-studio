@@ -49,6 +49,21 @@ export default function App() {
     supportsEnabled: false,
     nozzleDiameter: 0.4,
     firstLayerHeight: 300,
+    // Speeds Defaults
+    firstLayerSpeed: 20,
+    perimeterSpeed: 45,
+    externalPerimeterSpeed: 25,
+    infillSpeed: 80,
+    travelSpeed: 130,
+    // Material & Retraction Defaults
+    retractionLength: 1.0,
+    retractionSpeed: 45,
+    extrusionMultiplier: 1.0,
+    // Cooling Defaults
+    fanAlwaysOn: true,
+    minFanSpeed: 100,
+    maxFanSpeed: 100,
+    disableFanFirstLayers: 1,
     skirtCount: 1,
     skirtDistance: 6,
     brimWidth: 0,
@@ -147,6 +162,12 @@ export default function App() {
   const handleTransformChange = (id: string, newTransform: TransformData) => {
     setModels(prev => prev.map(m =>
       m.id === id ? { ...m, transform: newTransform } : m
+    ));
+  };
+
+  const handleUpdateModel = (id: string, updates: Partial<ModelData>) => {
+    setModels(prev => prev.map(m =>
+      m.id === id ? { ...m, ...updates } : m
     ));
   };
 
@@ -294,10 +315,11 @@ export default function App() {
 
     const formData = new FormData();
 
-    // Attach each model's STL and its metadata (transform)
+    // Attach each model's STL and its metadata (transform, toolhead)
     const modelsMetadata = models.map(m => ({
       name: m.file?.name,
-      transform: m.transform
+      transform: m.transform,
+      toolhead: m.toolhead || 'fdm'
     }));
     formData.append('models_metadata', JSON.stringify(modelsMetadata));
 
@@ -322,6 +344,24 @@ export default function App() {
     formData.append('top_shell', String(globalSettings.topSolidLayers ?? 3));
     formData.append('bottom_shell', String(globalSettings.bottomSolidLayers ?? 3));
     formData.append('fill_angle', String(globalSettings.fillAngle ?? 45));
+
+    // Speeds
+    formData.append('first_layer_speed', String(globalSettings.firstLayerSpeed ?? 20));
+    formData.append('perimeter_speed', String(globalSettings.perimeterSpeed ?? 45));
+    formData.append('external_perimeter_speed', String(globalSettings.externalPerimeterSpeed ?? 25));
+    formData.append('infill_speed', String(globalSettings.infillSpeed ?? 80));
+    formData.append('travel_speed', String(globalSettings.travelSpeed ?? 130));
+
+    // Material & Retraction
+    formData.append('retraction_length', String(globalSettings.retractionLength ?? 1.0));
+    formData.append('retraction_speed', String(globalSettings.retractionSpeed ?? 45));
+    formData.append('extrusion_multiplier', String(globalSettings.extrusionMultiplier ?? 1.0));
+
+    // Cooling
+    formData.append('fan_always_on', globalSettings.fanAlwaysOn !== false ? '1' : '0');
+    formData.append('min_fan_speed', String(globalSettings.minFanSpeed ?? 100));
+    formData.append('max_fan_speed', String(globalSettings.maxFanSpeed ?? 100));
+    formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
 
     // Toolhead layer-schedule
     formData.append('layer_actions', JSON.stringify(layerActions));
@@ -572,6 +612,7 @@ export default function App() {
           selectedModelId={selectedModelId}
           onSelectModel={setSelectedModelId}
           onDeleteModel={handleDeleteModel}
+          onUpdateModel={handleUpdateModel}
           onTransformChange={(data) => selectedModelId && handleTransformChange(selectedModelId, data)}
           onUpdateSettings={(data) => selectedModelId && handleUpdateSettings(selectedModelId, data)}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}

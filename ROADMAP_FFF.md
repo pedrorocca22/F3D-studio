@@ -12,32 +12,32 @@ Implementación de controles para la base de la pieza y la arquitectura interna 
 
 ---
 
-## 🚀 Fase 2: Control de Velocidades (Próxima sesión)
+## 🚀 Fase 2: Control de Velocidades (Completado)
 Optimización del tiempo de impresión y calidad superficial diferenciando tipos de movimiento.
-- [ ] **First Layer Speed**: Velocidad reducida para asegurar la primera capa.
-- [ ] **Perimeter Speed**: Velocidades diferenciadas para perímetros internos (rápidos) y externos (calidad).
-- [ ] **Infill Speed**: Velocidad máxima para el relleno interno.
-- [ ] **Travel Speed**: Velocidad de movimientos en vacío (sin extrusión).
-- [ ] **Interfaz**: Nueva sección "Speeds" en el panel lateral.
+- [x] **First Layer Speed**: Velocidad reducida para asegurar la primera capa.
+- [x] **Perimeter Speed**: Velocidades diferenciadas para perímetros internos (rápidos) y externos (calidad).
+- [x] **Infill Speed**: Velocidad máxima para el relleno interno.
+- [x] **Travel Speed**: Velocidad de movimientos en vacío (sin extrusión).
+- [x] **Interfaz**: Nueva sección "Speeds" en el panel lateral.
 
 ---
 
-## 🧪 Fase 3: Material y Retracciones
+## 🧪 Fase 3: Material y Retracciones (Completado)
 Control del flujo y prevención de hilos (*stringing*).
-- [ ] **Retraction Length**: Distancia de retroceso del filamento.
-- [ ] **Retraction Speed**: Velocidad de retroceso y re-introducción.
-- [ ] **Extrusion Multiplier (Flow)**: Ajuste fino del caudal de material.
-- [ ] **First Layer Flow**: Sobre-extrusión opcional para la base.
-- [ ] **Interfaz**: Nueva sección "Filament & Retraction".
+- [x] **Retraction Length**: Distancia de retroceso del filamento.
+- [x] **Retraction Speed**: Velocidad de retroceso y re-introducción.
+- [x] **Extrusion Multiplier (Flow)**: Ajuste fino del caudal de material.
+- [x] ~~**First Layer Flow**: Sobre-extrusión opcional para la base.~~ *(Unificado al multiplicador global)*
+- [x] **Interfaz**: Nueva sección "Filament & Retraction".
 
 ---
 
-## ❄️ Fase 4: Enfriamiento (Cooling)
+## ❄️ Fase 4: Enfriamiento (Cooling) (Completado)
 Esencial para detalles pequeños y puentes (*bridges*).
-- [ ] **Fan Always On**: Toggle para control del ventilador de capa.
-- [ ] **Min/Max Fan Speed**: Rangos de potencia del ventilador.
-- [ ] **Disable Fan First Layers**: Protección de la adherencia inicial.
-- [ ] **Interfaz**: Nueva sección "Cooling".
+- [x] **Fan Always On**: Toggle para control del ventilador de capa.
+- [x] **Min/Max Fan Speed**: Rangos de potencia del ventilador.
+- [x] **Disable Fan First Layers**: Protección de la adherencia inicial.
+- [x] **Interfaz**: Nueva sección "Cooling".
 
 ---
 

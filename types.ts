@@ -84,6 +84,21 @@ export interface GlobalSettings {
   supportsEnabled?: boolean;
   nozzleDiameter?: number;
   firstLayerHeight?: number;
+  // Speeds
+  firstLayerSpeed?: number;
+  perimeterSpeed?: number;
+  externalPerimeterSpeed?: number;
+  infillSpeed?: number;
+  travelSpeed?: number;
+  // Material & Retraction
+  retractionLength?: number;
+  retractionSpeed?: number;
+  extrusionMultiplier?: number;
+  // Cooling
+  fanAlwaysOn?: boolean;
+  minFanSpeed?: number;
+  maxFanSpeed?: number;
+  disableFanFirstLayers?: number;
   // Adhesion & Shell
   skirtCount?: number;
   skirtDistance?: number;
@@ -136,6 +151,7 @@ export interface ModelData {
   size?: { x: number; y: number; z: number };
   file?: File;
   isCube?: boolean;
+  toolhead?: ToolheadId;
 }
 
 export interface BackendRangeOverride {

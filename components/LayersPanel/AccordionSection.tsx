@@ -11,6 +11,7 @@ interface AccordionSectionProps {
   onSwitchChange?: () => void;
   children?: React.ReactNode;
   headerActions?: React.ReactNode;
+  disableToggle?: boolean;
 }
 
 export const AccordionSection: React.FC<AccordionSectionProps> = ({
@@ -22,7 +23,8 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
   switchOn,
   onSwitchChange,
   children,
-  headerActions
+  headerActions,
+  disableToggle
 }) => {
   const handleSwitchClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -36,14 +38,16 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden transition-all duration-200">
       <div
-        className="bg-slate-50 dark:bg-slate-800/50 p-3 flex items-center justify-between cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-        onClick={onToggle}
+        className={`bg-slate-50 dark:bg-slate-800/50 p-3 flex items-center justify-between select-none transition-colors ${disableToggle ? 'cursor-default' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+        onClick={disableToggle ? undefined : onToggle}
       >
         <div className="flex items-center gap-2">
-          <Icon
-            name="expand_more"
-            className={`text-slate-400 text-sm transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-          />
+          {!disableToggle && (
+            <Icon
+              name="expand_more"
+              className={`text-slate-400 text-sm transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+            />
+          )}
           <span className="text-sm font-semibold">{title}</span>
           {info && <Icon name="info" className="text-primary text-sm ml-1 hover:text-blue-600" />}
         </div>
