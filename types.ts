@@ -84,6 +84,13 @@ export interface GlobalSettings {
   supportsEnabled?: boolean;
   nozzleDiameter?: number;
   firstLayerHeight?: number;
+  // Adhesion & Shell
+  skirtCount?: number;
+  skirtDistance?: number;
+  brimWidth?: number;
+  topSolidLayers?: number;
+  bottomSolidLayers?: number;
+  fillAngle?: number;
 }
 
 export interface SettingsState {

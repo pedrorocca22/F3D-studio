@@ -351,6 +351,12 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "nozzle_diameter": str(form_params.get("nozzle_diameter", "0.4")),
             "first_layer_height": str(form_params.get("first_layer_height", "0.3")),
             "support_material": "1" if supports else "0",
+            "skirts": str(form_params.get("skirt_count", "1")),
+            "skirt_distance": str(form_params.get("skirt_distance", "6")),
+            "brim_width": str(form_params.get("brim_width", "0")),
+            "top_solid_layers": str(form_params.get("top_shell", "3")),
+            "bottom_solid_layers": str(form_params.get("bottom_shell", "3")),
+            "fill_angle": str(form_params.get("fill_angle", "45")),
         }
 
         config_lines = []
@@ -573,6 +579,12 @@ def fdm_slice():
         "models_metadata": request.form.get("models_metadata", "[]"),
         "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
         "first_layer_height": request.form.get("first_layer_height", "0.3"),
+        "skirt_count": request.form.get("skirt_count", "1"),
+        "skirt_distance": request.form.get("skirt_distance", "6"),
+        "brim_width": request.form.get("brim_width", "0"),
+        "top_shell": request.form.get("top_shell", "3"),
+        "bottom_shell": request.form.get("bottom_shell", "3"),
+        "fill_angle": request.form.get("fill_angle", "45"),
     }
 
     # Limit to 1 job: Clean up previous ones

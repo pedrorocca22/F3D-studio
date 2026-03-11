@@ -467,6 +467,78 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-1' : 'left-1'}`} />
                 </button>
               </div>
+
+              {/* Adhesion & Shells Section */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Adhesion & Structure</h4>
+                
+                <div className="space-y-3">
+                  {/* Skirt Settings */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Skirt Loops</span>
+                      <NumericInput
+                        className="w-full"
+                        value={globalSettings.skirtCount ?? 1}
+                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtCount: v })}
+                        min={0}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Skirt Dist (mm)</span>
+                      <NumericInput
+                        className="w-full"
+                        value={globalSettings.skirtDistance ?? 6}
+                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, skirtDistance: v })}
+                        min={0}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Brim Width */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Brim Width (mm):</span>
+                    <NumericInput
+                      className={inputClass}
+                      value={globalSettings.brimWidth ?? 0}
+                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })}
+                      min={0}
+                    />
+                  </div>
+
+                  {/* Shell Layers */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Top Shells</span>
+                      <NumericInput
+                        className="w-full"
+                        value={globalSettings.topSolidLayers ?? 3}
+                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, topSolidLayers: v })}
+                        min={0}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Bottom Shells</span>
+                      <NumericInput
+                        className="w-full"
+                        value={globalSettings.bottomSolidLayers ?? 3}
+                        onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })}
+                        min={0}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Fill Angle */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Fill Angle (°):</span>
+                    <NumericInput
+                      className={inputClass}
+                      value={globalSettings.fillAngle ?? 45}
+                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, fillAngle: v })}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="h-2"></div>

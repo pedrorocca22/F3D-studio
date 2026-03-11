@@ -48,7 +48,13 @@ export default function App() {
     perimeters: 3,
     supportsEnabled: false,
     nozzleDiameter: 0.4,
-    firstLayerHeight: 300
+    firstLayerHeight: 300,
+    skirtCount: 1,
+    skirtDistance: 6,
+    brimWidth: 0,
+    topSolidLayers: 3,
+    bottomSolidLayers: 3,
+    fillAngle: 45
   });
 
   // State for multiple models
@@ -310,6 +316,12 @@ export default function App() {
     formData.append('perimeters', String(globalSettings.perimeters ?? 3));
     formData.append('supports', globalSettings.supportsEnabled ? 'true' : 'false');
     formData.append('nozzle_diameter', String(globalSettings.nozzleDiameter ?? 0.4));
+    formData.append('skirt_count', String(globalSettings.skirtCount ?? 1));
+    formData.append('skirt_distance', String(globalSettings.skirtDistance ?? 6));
+    formData.append('brim_width', String(globalSettings.brimWidth ?? 0));
+    formData.append('top_shell', String(globalSettings.topSolidLayers ?? 3));
+    formData.append('bottom_shell', String(globalSettings.bottomSolidLayers ?? 3));
+    formData.append('fill_angle', String(globalSettings.fillAngle ?? 45));
 
     // Toolhead layer-schedule
     formData.append('layer_actions', JSON.stringify(layerActions));
