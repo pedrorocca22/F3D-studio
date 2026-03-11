@@ -41,6 +41,33 @@ Esencial para detalles pequeños y puentes (*bridges*).
 
 ---
 
+## 🎨 Fase 5: Soporte Multi-Extrusor / Cabezales (Completado)
+Visualización y gestión de impresión con múltiples cabezales (toolheads) en archivos FDM.
+
+### Lectura y Parseo de Modelos Multi-Extrusor
+- [x] **Soporte 3MF multi-extrusor**: Parseo correcto de archivos `.3mf` con múltiples componentes y asignación de extrusores por modelo.
+- [x] **Soporte AMF**: Lectura y extracción de metadatos de extrusor (`extruder` attribute) en archivos `.amf`.
+- [x] **Backend (`server.py`)**: Nuevo endpoint y lógica para extraer el campo `extruder` de modelos dentro de archivos 3MF/AMF y retornarlo al frontend.
+
+### Panel de Capas (Layers Panel)
+- [x] **Icono de cabezal por modelo**: Cada modelo en el árbol de LayersPanel muestra el número de extrusor asignado (T0, T1, T2…) como badge visual junto al nombre.
+- [x] **AccordionSection actualizado**: El componente `AccordionSection` acepta y renderiza la propiedad `extruder` de forma compacta y legible.
+
+### Viewport 3D
+- [x] **Colores por extrusor en el viewport**: Cada modelo se renderiza en Three.js con el color asociado a su extrusor asignado (paleta diferenciada por toolhead).
+- [x] **Override de selección**: El color del modelo seleccionado tiene prioridad sobre el color de extrusor, manteniendo la retroalimentación visual de selección.
+- [x] **Paleta de colores**: Implementada paleta de 8 colores diferenciados (`#E74C3C`, `#3498DB`, `#2ECC71`, `#F39C12`…) para identificar hasta 8 extrusores distintos.
+
+### Panel de Toolhead (ToolheadPanel)
+- [x] **ToolheadPanel**: Panel de configuración de parámetros por cabezal (nozzle diameter, filament diameter, temperatura, etc.) con soporte para múltiples toolheads.
+- [x] **Tipos actualizados (`types.ts`)**: Definición de `ToolheadConfig` con los campos necesarios para multi-extrusor.
+
+### Calidad y Tests
+- [x] **Script de prueba (`test_amf.py`)**: Script de validación para verificar la correcta lectura de archivos AMF multi-extrusor y la extracción de datos por extrusor.
+- [x] **Archivos de prueba**: Incluidos `test_multi.3mf`, `test_multi.amf`, `test_multi.gcode` e `test_multi.ini` como fixtures de referencia.
+
+---
+
 ## 🛠️ Notas de Seguimiento
 - **Importante**: Todas las configuraciones nuevas deben mantener la lógica de validación preventiva (ej: advertencia si `layer_height` > `nozzle_diameter`).
 - **Coordenadas**: Mantener el offset de -50/-50 en el preview de G-code para asegurar posicionamiento absoluto.
