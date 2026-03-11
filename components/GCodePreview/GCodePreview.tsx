@@ -1,57 +1,98 @@
 /**
  * GCodePreview.tsx
  * Renders a 3D G-code toolpath visualisation inside a Three.js Canvas.
- * Supports FDM (T0), Syringe (T1), UV (T2) toolhead color-coding.
+ * Supports FDM (T0), Syringe (T1), UV (T2) toolhead color-coding
+ * AND per-line-type coloring (External perimeter, Infill, Support, etc.)
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { Icon } from '../Icon';
 
+// ── Three.js JSX element declarations ─────────────────────────────────────────
 declare global {
     namespace JSX {
         interface IntrinsicElements {
-            mesh: any;
-            instancedMesh: any;
-            cylinderGeometry: any;
-            lineSegments: any;
-            lineBasicMaterial: any;
-            planeGeometry: any;
-            meshStandardMaterial: any;
-            gridHelper: any;
-            ambientLight: any;
-            directionalLight: any;
-            fog: any;
-            group: any;
-            bufferGeometry: any;
-            bufferAttribute: any;
+            mesh: any; instancedMesh: any; cylinderGeometry: any;
+            lineSegments: any; lineBasicMaterial: any; planeGeometry: any;
+            meshStandardMaterial: any; gridHelper: any; ambientLight: any;
+            directionalLight: any; fog: any; group: any;
+            bufferGeometry: any; bufferAttribute: any;
         }
     }
 }
 
-// ── Color mapping by toolhead ──────────────────────────────────────────────────
-const TOOLHEAD_COLOR: Record<string, string> = {
-    T0: '#14b8a6',  // teal  – FDM
-    T1: '#f59e0b',  // amber – syringe
-    T2: '#8b5cf6',  // violet – UV
+// ── Color mode ────────────────────────────────────────────────────────────────
+export type ColorMode = 'toolhead' | 'linetype';
+
+// ── Color by toolhead ─────────────────────────────────────────────────────────
+export const TOOLHEAD_COLOR: Record<string, string> = {
+    T0: '#14b8a6',   // teal   – FDM
+    T1: '#f59e0b',   // amber  – syringe
+    T2: '#8b5cf6',   // violet – UV
 };
-const TRAVEL_COLOR = '#374151'; // gray – travel moves (no extrusion)
+
+// ── Color by PrusaSlicer line type ────────────────────────────────────────────
+export const LINE_TYPE_COLOR: Record<string, string> = {
+    'External perimeter':           '#ef4444',  // red
+    'Perimeter':                    '#f97316',  // orange
+    'Overhang perimeter':           '#fb923c',  // light orange
+    'Internal infill':              '#eab308',  // yellow
+    'Solid infill':                 '#22c55e',  // green
+    'Top solid infill':             '#16a34a',  // dark green
+    'Bridge infill':                '#3b82f6',  // blue
+    'Support material':             '#a855f7',  // purple
+    'Support material interface':   '#c084fc',  // light purple
+    'Skirt/Brim':                   '#94a3b8',  // slate
+    'Unknown':                      '#64748b',  // dark slate
+};
+
+// ── Human-readable labels for legend ─────────────────────────────────────────
+export const LINE_TYPE_LABELS: [string, string][] = [
+    ['External perimeter',          'Ext. Perimeter'],
+    ['Perimeter',                   'Perimeter'],
+    ['Overhang perimeter',          'Overhang'],
+    ['Internal infill',             'Infill'],
+    ['Solid infill',                'Solid Infill'],
+    ['Top solid infill',            'Top Solid'],
+    ['Bridge infill',               'Bridge'],
+    ['Support material',            'Support'],
+    ['Support material interface',  'Support I/F'],
+    ['Skirt/Brim',                  'Skirt/Brim'],
+];
+
 const DEFAULT_COLOR = '#94a3b8';
 
-// ── G-code parser types ───────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface Move {
     x: number; y: number; z: number;
-    extrude: boolean;   // true = print move, false = travel
+    extrude: boolean;
     layer: number;
-    toolhead: string;   // 'T0' | 'T1' | 'T2'
+    toolhead: string;
+    lineType: string;   // PrusaSlicer "; TYPE:xxx" value
 }
 
-interface ParsedGCode {
+export interface ParsedGCode {
     moves: Move[];
     layerCount: number;
     bbox: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
+    usedLineTypes: Set<string>;
+    usedToolheads: Set<string>;
+}
+
+interface ExtrusionData {
+    color: string;
+    label: string;
+    matrices: THREE.Matrix4[];
+    countsByLayer: number[];
+}
+
+interface GeometryData {
+    extrusions: ExtrusionData[];
+    travelPoints: Float32Array;
+    travelCountsByLayer: number[];
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
@@ -61,39 +102,44 @@ export function parseGCode(raw: string): ParsedGCode {
 
     let cx = 0, cy = 0, cz = 0;
     let activeToolhead = 'T0';
+    let activeLineType = 'Unknown';
     let currentLayer = 0;
     let prevE = 0;
     let relativeE = false;
-    
-    // Track unique Z heights where actual extrusion occurs to robustly build layers
+
     const knownZ: number[] = [];
     let maxSeenLayer = 0;
-
     const bbox = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: 0, maxZ: -Infinity };
+    const usedLineTypes = new Set<string>();
+    const usedToolheads = new Set<string>(['T0']);
 
     for (const rawLine of lines) {
-        const line = rawLine.split(';')[0].trim(); // strip comments
+        // Read PrusaSlicer TYPE comment BEFORE stripping inline comments
+        const typeMatch = rawLine.match(/;\s*TYPE\s*:\s*(.+)/i);
+        if (typeMatch) {
+            activeLineType = typeMatch[1].trim();
+            usedLineTypes.add(activeLineType);
+        }
+
+        const line = rawLine.split(';')[0].trim();
         if (!line) continue;
 
-        // Toolhead change
         if (/^T[0-9]+$/.test(line)) {
             activeToolhead = line;
+            usedToolheads.add(line);
             continue;
         }
 
         if (line.startsWith('M83')) { relativeE = true; continue; }
         if (line.startsWith('M82')) { relativeE = false; continue; }
-
         if (!line.startsWith('G0') && !line.startsWith('G1') && !line.startsWith('G92')) continue;
 
         if (line.startsWith('G92')) {
-            // Reset E
             const eMatch = line.match(/E([-\d.]+)/);
             if (eMatch) prevE = parseFloat(eMatch[1]);
             continue;
         }
 
-        // Parse G0/G1
         const xM = line.match(/X([-\d.]+)/);
         const yM = line.match(/Y([-\d.]+)/);
         const zM = line.match(/Z([-\d.]+)/);
@@ -106,78 +152,70 @@ export function parseGCode(raw: string): ParsedGCode {
         let extrude = false;
         if (eM) {
             const eVal = parseFloat(eM[1]);
-            if (relativeE) {
-                extrude = eVal > 0;
-            } else {
-                extrude = eVal > prevE;
-                prevE = eVal;
-            }
+            if (relativeE) { extrude = eVal > 0; }
+            else { extrude = eVal > prevE; prevE = eVal; }
         }
 
-        // Only assign layers dynamically based on Z height where ACTUAL material is dispensed.
-        // This flawlessly ignores Z-hops since they happen during empty travel moves.
+        // Assign layer only when actual material is being extruded (ignores Z-hops)
         if (extrude) {
             let found = false;
             for (let i = 0; i < knownZ.length; i++) {
-                if (Math.abs(knownZ[i] - nz) < 0.005) {
-                    found = true;
-                    currentLayer = i + 1; // 1-indexed to match UI
-                    break;
-                }
+                if (Math.abs(knownZ[i] - nz) < 0.005) { found = true; currentLayer = i + 1; break; }
             }
             if (!found) {
                 knownZ.push(nz);
-                knownZ.sort((a,b) => a-b);
+                knownZ.sort((a, b) => a - b);
                 currentLayer = knownZ.findIndex(z => Math.abs(z - nz) < 0.005) + 1;
             }
             if (currentLayer > maxSeenLayer) maxSeenLayer = currentLayer;
         }
 
-        moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead });
+        moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead, lineType: activeLineType });
 
         if (extrude) {
-            bbox.minX = Math.min(bbox.minX, nx);
-            bbox.maxX = Math.max(bbox.maxX, nx);
-            bbox.minY = Math.min(bbox.minY, ny);
-            bbox.maxY = Math.max(bbox.maxY, ny);
+            bbox.minX = Math.min(bbox.minX, nx); bbox.maxX = Math.max(bbox.maxX, nx);
+            bbox.minY = Math.min(bbox.minY, ny); bbox.maxY = Math.max(bbox.maxY, ny);
             bbox.maxZ = Math.max(bbox.maxZ, nz);
         }
 
-        cx = nx; cy = cy = ny; cz = nz;
+        cx = nx; cy = ny; cz = nz;
     }
 
     if (!isFinite(bbox.minX)) { bbox.minX = 0; bbox.maxX = 100; bbox.minY = 0; bbox.maxY = 100; }
 
-    return { moves, layerCount: maxSeenLayer, bbox };
+    return { moves, layerCount: maxSeenLayer, bbox, usedLineTypes, usedToolheads };
 }
 
-// ── Pre-calculate geometries for lightning-fast slider updates ──────────────────
-interface ExtrusionData {
-    color: string;
-    matrices: THREE.Matrix4[];
-    countsByLayer: number[]; // countsByLayer[N] = number of elements up to layer N
-}
+// ── Geometry builder ──────────────────────────────────────────────────────────
+function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: ColorMode = 'toolhead'): GeometryData {
+    const getColor = (m: Move): string => {
+        if (colorMode === 'linetype') return LINE_TYPE_COLOR[m.lineType] ?? DEFAULT_COLOR;
+        return TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR;
+    };
 
-interface GeometryData {
-    extrusions: ExtrusionData[];
-    travelPoints: Float32Array;
-    travelCountsByLayer: number[];
-}
+    const getLabel = (color: string): string => {
+        if (colorMode === 'linetype') {
+            const found = Object.entries(LINE_TYPE_COLOR).find(([, c]) => c === color);
+            if (found) return LINE_TYPE_LABELS.find(([k]) => k === found[0])?.[1] ?? found[0];
+            return color;
+        }
+        const th = Object.entries(TOOLHEAD_COLOR).find(([, c]) => c === color);
+        return th ? th[0] : color;
+    };
 
-function buildGeometries(parsed: ParsedGCode, nozzleDiameter: number = 0.4): GeometryData {
-    console.time("buildGeometries");
+    const allColors = colorMode === 'linetype'
+        ? Object.values(LINE_TYPE_COLOR)
+        : [...Object.values(TOOLHEAD_COLOR), DEFAULT_COLOR];
+
     const buckets: Record<string, THREE.Matrix4[]> = {};
     const countsByLayer: Record<string, number[]> = {};
+    for (const c of allColors) countsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
+    const travelCountsByLayer = new Array(parsed.layerCount + 1).fill(0);
     const travelList: number[] = [];
-    
-    // Initialize count tracking arrays
-    for (const key of Object.values(TOOLHEAD_COLOR)) countsByLayer[key] = new Array(parsed.layerCount + 1).fill(0);
-    countsByLayer[DEFAULT_COLOR] = new Array(parsed.layerCount + 1).fill(0);
-    const travelCountsByLayer: number[] = new Array(parsed.layerCount + 1).fill(0);
 
     let prev: Move | null = null;
-    let currentCounts: Record<string, number> = {};
-    for (const key of Object.keys(countsByLayer)) currentCounts[key] = 0;
+    const currentCounts: Record<string, number> = {};
+    for (const c of allColors) currentCounts[c] = 0;
     let currentTravelCount = 0;
     let currentLayerTracking = 0;
 
@@ -186,87 +224,54 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter: number = 0.4): Geo
         const len = diff.length();
         if (len < 0.0001) return;
         const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        const dir = diff.clone().normalize();
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        const matrix = new THREE.Matrix4().compose(
-            mid, quaternion, new THREE.Vector3(nozzleDiameter, len, nozzleDiameter)
-        );
+        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), diff.clone().normalize());
+        const mat = new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(nozzleDiameter, len, nozzleDiameter));
         if (!buckets[key]) buckets[key] = [];
-        buckets[key].push(matrix);
+        buckets[key].push(mat);
         currentCounts[key] = buckets[key].length;
     };
 
     for (const m of parsed.moves) {
-        // As we move through moves, snapshot counts when returning to higher layers
         while (currentLayerTracking < m.layer && currentLayerTracking <= parsed.layerCount) {
-            for (const key of Object.keys(countsByLayer)) {
-                countsByLayer[key][currentLayerTracking] = currentCounts[key] || 0;
-            }
+            for (const k of Object.keys(countsByLayer)) countsByLayer[k][currentLayerTracking] = currentCounts[k] || 0;
             travelCountsByLayer[currentLayerTracking] = currentTravelCount;
             currentLayerTracking++;
         }
-
         if (prev) {
-            // Translate from GCode coords (Z=height) to ThreeJS coords (Y=height)
             const p1 = new THREE.Vector3(prev.x, prev.z, prev.y);
             const p2 = new THREE.Vector3(m.x, m.z, m.y);
-
-            if (m.extrude) {
-                const key = TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR;
-                addTube(key, p1, p2);
-            } else {
-                travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-                currentTravelCount += 2; // Each line segment requires 2 vertices
-            }
+            if (m.extrude) addTube(getColor(m), p1, p2);
+            else { travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z); currentTravelCount += 2; }
         }
         prev = m;
     }
 
-    // Fill any remaining layers (e.g., up to max layer) with the final totals
     while (currentLayerTracking <= parsed.layerCount) {
-        for (const key of Object.keys(countsByLayer)) {
-            countsByLayer[key][currentLayerTracking] = currentCounts[key] || 0;
-        }
+        for (const k of Object.keys(countsByLayer)) countsByLayer[k][currentLayerTracking] = currentCounts[k] || 0;
         travelCountsByLayer[currentLayerTracking] = currentTravelCount;
         currentLayerTracking++;
     }
 
-    const extrusions = Object.entries(buckets).map(([color, matrices]) => ({
-        color,
-        matrices,
-        countsByLayer: countsByLayer[color] || []
+    const extrusions: ExtrusionData[] = Object.entries(buckets).map(([color, matrices]) => ({
+        color, label: getLabel(color), matrices, countsByLayer: countsByLayer[color] || [],
     }));
 
-    console.timeEnd("buildGeometries");
-    return {
-        extrusions,
-        travelPoints: new Float32Array(travelList),
-        travelCountsByLayer
-    };
+    return { extrusions, travelPoints: new Float32Array(travelList), travelCountsByLayer };
 }
 
-// ── Render single toolhead path (O(1) updates) ──────────────────────────────
+// ── TubeSegment renderer ──────────────────────────────────────────────────────
 function TubeSegment({ extrusion, count, nozzleDiameter }: { extrusion: ExtrusionData; count: number; nozzleDiameter: number }) {
     const meshRef = useRef<THREE.InstancedMesh>(null);
 
-    // Only set matrices once!
     useEffect(() => {
         if (!meshRef.current) return;
-        for (let i = 0; i < extrusion.matrices.length; i++) {
-            meshRef.current.setMatrixAt(i, extrusion.matrices[i]);
-        }
+        for (let i = 0; i < extrusion.matrices.length; i++) meshRef.current.setMatrixAt(i, extrusion.matrices[i]);
         meshRef.current.instanceMatrix.needsUpdate = true;
     }, [extrusion.matrices]);
 
-    // Update count immediately without rebuilding geometry
-    useEffect(() => {
-        if (meshRef.current) {
-            meshRef.current.count = count;
-        }
-    }, [count]);
+    useEffect(() => { if (meshRef.current) meshRef.current.count = count; }, [count]);
 
     if (extrusion.matrices.length === 0) return null;
-
     return (
         <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} castShadow receiveShadow>
             <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
@@ -275,18 +280,11 @@ function TubeSegment({ extrusion, count, nozzleDiameter }: { extrusion: Extrusio
     );
 }
 
-// ── Render travel moves as thin red lines ───────────────────────────────────
+// ── TravelSegments renderer ───────────────────────────────────────────────────
 function TravelSegments({ points, count, visible }: { points: Float32Array; count: number; visible: boolean }) {
     const geoRef = useRef<THREE.BufferGeometry>(null);
-
-    useEffect(() => {
-        if (geoRef.current) {
-            geoRef.current.setDrawRange(0, count);
-        }
-    }, [count]);
-
+    useEffect(() => { if (geoRef.current) geoRef.current.setDrawRange(0, count); }, [count]);
     if (points.length === 0) return null;
-
     return (
         <lineSegments visible={visible}>
             <bufferGeometry ref={geoRef}>
@@ -297,52 +295,49 @@ function TravelSegments({ points, count, visible }: { points: Float32Array; coun
     );
 }
 
-// ── Three.js scene component ──────────────────────────────────────────────────
-export function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number; showTravel?: boolean }) {
-    // Heavy calculation computed exactly ONCE upon load (or if nozzle diameter changes)
-    const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter), [parsed, nozzleDiameter]);
+// ── GCodeScene (embedded in Viewport's Canvas) ────────────────────────────────
+export function GCodeScene({
+    parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead'
+}: {
+    parsed: ParsedGCode; upToLayer: number;
+    nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
+}) {
+    const geoData = useMemo(
+        () => buildGeometries(parsed, nozzleDiameter, colorMode),
+        [parsed, nozzleDiameter, colorMode]
+    );
 
     const centerOffset = useMemo(() => {
         const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
         const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2;
         if (!isFinite(cx) || !isFinite(cy)) return { x: 0, y: 0 };
-        // Negate the bbox center so the model lands at world origin (0,0,0)
-        // which is the center of the Viewport's build plate.
         return { x: -cx, y: -cy };
     }, [parsed.bbox]);
 
-    // No camera repositioning here — the Viewport's OrbitControls manages the camera.
-
-    // Safety clamp (just in case upToLayer goes out of bounds)
     const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
 
     return (
         <>
-            {/* No buildplate/grid here — the Viewport's own BuildPlate already provides those */}
             <group position={[centerOffset.x, 0, centerOffset.y]}>
-                {/* Render Extrusions */}
                 {geoData.extrusions.map((ext, i) => (
-                    <TubeSegment 
-                        key={i} 
-                        extrusion={ext} 
-                        count={ext.countsByLayer[safeLayer] ?? ext.matrices.length} 
-                        nozzleDiameter={nozzleDiameter} 
+                    <TubeSegment
+                        key={i}
+                        extrusion={ext}
+                        count={ext.countsByLayer[safeLayer] ?? ext.matrices.length}
+                        nozzleDiameter={nozzleDiameter}
                     />
                 ))}
-                
-                {/* Render Travel Moves */}
-                <TravelSegments 
-                    points={geoData.travelPoints} 
-                    count={geoData.travelCountsByLayer[safeLayer] ?? (geoData.travelPoints.length / 3 * 2)} 
-                    visible={showTravel} 
+                <TravelSegments
+                    points={geoData.travelPoints}
+                    count={geoData.travelCountsByLayer[safeLayer] ?? (geoData.travelPoints.length / 3 * 2)}
+                    visible={showTravel}
                 />
             </group>
         </>
     );
 }
 
-// ── Integrated In-Viewport Overlay ───────────────────────────────────────────
-// useGCodeLoader: hook that fetches + parses a gcode file from a URL.
+// ── useGCodeLoader hook ───────────────────────────────────────────────────────
 export function useGCodeLoader(gcodeUrl: string | null) {
     const [parsed, setParsed] = useState<ParsedGCode | null>(null);
     const [loading, setLoading] = useState(false);
@@ -350,9 +345,7 @@ export function useGCodeLoader(gcodeUrl: string | null) {
 
     useEffect(() => {
         if (!gcodeUrl) { setParsed(null); setLoading(false); setError(null); return; }
-        setLoading(true);
-        setError(null);
-        setParsed(null);
+        setLoading(true); setError(null); setParsed(null);
         fetch(gcodeUrl)
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
             .then(raw => { setParsed(parseGCode(raw)); setLoading(false); })
@@ -362,9 +355,9 @@ export function useGCodeLoader(gcodeUrl: string | null) {
     return { parsed, loading, error };
 }
 
-// ── Main exported component ───────────────────────────────────────────────────
+// ── Standalone GCodePreview component (legacy / experiments panel) ────────────
 interface GCodePreviewProps {
-    gcodeUrl: string;      // full URL to fetch .gcode from
+    gcodeUrl: string;
     jobId: string;
     layerCount: number;
     initialNozzleDiameter?: number;
@@ -372,165 +365,43 @@ interface GCodePreviewProps {
 }
 
 export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, layerCount, initialNozzleDiameter = 0.4, onClose }) => {
-    console.log("[GCodePreview] Mounting for job:", jobId);
     const [parsed, setParsed] = useState<ParsedGCode | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [upToLayer, setUpToLayer] = useState(layerCount);
     const [nozzleDiameter, setNozzleDiameter] = useState(initialNozzleDiameter);
     const [showTravel, setShowTravel] = useState(false);
+    const [colorMode, setColorMode] = useState<ColorMode>('toolhead');
 
     useEffect(() => {
-        console.log("[GCodePreview] Fetching G-code from:", gcodeUrl);
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
         fetch(gcodeUrl)
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.text();
-            })
-            .then(raw => {
-                console.log("[GCodePreview] G-code received, parsing...");
-                const result = parseGCode(raw);
-                console.log("[GCodePreview] Parsing complete. Moves:", result.moves.length, "Layers:", result.layerCount);
-                setParsed(result);
-                setUpToLayer(result.layerCount);
-                setLoading(false);
-            })
-            .catch(e => {
-                console.error("[GCodePreview] Load error:", e);
-                setError(e.message);
-                setLoading(false);
-            });
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+            .then(raw => { const result = parseGCode(raw); setParsed(result); setUpToLayer(result.layerCount); setLoading(false); })
+            .catch(e => { setError(e.message); setLoading(false); });
     }, [gcodeUrl]);
 
     return (
         <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 flex flex-col">
-            {/* Main View Area (matches Viewport container layout) */}
             <div className="flex-1 relative h-full">
-
-                <div className="absolute inset-4 z-0 rounded-xl overflow-hidden shadow-inner bg-slate-100/50 dark:bg-slate-800/20 transition-all">
+                <div className="absolute inset-4 z-0 rounded-xl overflow-hidden shadow-inner">
                     {parsed && !loading && (
-                        <Canvas
-                            camera={{ position: [150, 120, 150], fov: 45 }}
-                            shadows
-                        >
+                        <Canvas camera={{ position: [150, 120, 150], fov: 45 }} shadows>
                             <fog attach="fog" args={['#f8fafc', 200, 500]} />
                             <ambientLight intensity={0.4} />
-                            <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow shadow-bias={-0.0001} />
+                            <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow />
                             <Environment preset="city" />
-                            <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} showTravel={showTravel} />
-                            <OrbitControls makeDefault target={[50, 0, 50]} />
+                            <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} showTravel={showTravel} colorMode={colorMode} />
+                            <OrbitControls makeDefault />
                         </Canvas>
                     )}
                 </div>
-
-                {/* Floating Return Button */}
-                <button
-                    onClick={onClose}
-                    className="absolute top-8 right-8 z-20 px-4 py-2 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-all font-bold text-[10px] uppercase cursor-pointer"
-                    title="Exit Toolpath Preview"
-                >
-                    <Icon name="arrow_back" className="text-base" />
-                    Return to Designer
+                <button onClick={onClose} className="absolute top-8 right-8 z-20 px-4 py-2 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-all font-bold text-[10px] uppercase cursor-pointer">
+                    <Icon name="arrow_back" className="text-base" /> Return to Designer
                 </button>
-
-                {loading && (
-                    <div className="absolute inset-4 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl">
-                        <div className="text-center text-slate-500 dark:text-slate-400">
-                            <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-sm uppercase tracking-widest font-bold opacity-80">Loading Toolpaths...</p>
-                        </div>
-                    </div>
-                )}
-                {error && (
-                    <div className="absolute inset-4 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl">
-                        <div className="text-center text-red-500 p-8 max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-red-200 dark:border-red-900/50">
-                            <Icon name="error_outline" className="text-5xl mb-4" />
-                            <p className="text-sm font-bold uppercase mb-2">Error Loading Preview</p>
-                            <p className="text-xs opacity-80 mb-6">{error}</p>
-                            <button onClick={onClose} className="px-6 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded text-slate-700 dark:text-slate-200 text-xs font-bold uppercase transition-all">Go Back</button>
-                        </div>
-                    </div>
-                )}
+                {loading && <div className="absolute inset-4 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl"><div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
+                {error && <div className="absolute inset-4 flex items-center justify-center z-10 rounded-xl"><div className="text-center text-red-500 p-8 bg-white dark:bg-slate-800 rounded-xl border border-red-200"><Icon name="error_outline" className="text-5xl mb-3" /><p className="text-xs mb-4">{error}</p><button onClick={onClose} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold uppercase">Go Back</button></div></div>}
             </div>
-
-            {/* Bottom Integrated Controls */}
-            {parsed && (
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-sm px-6 py-3 flex items-center gap-6 z-20">
-                    {/* Layer Slider */}
-                    <div className="flex flex-1 items-center gap-4">
-                        <Icon name="layers" className="text-slate-400 dark:text-slate-500 text-base" />
-                        <span className="text-[10px] text-slate-500 uppercase font-bold w-12 tracking-wider">Layer</span>
-                        <input
-                            type="range"
-                            min={0}
-                            max={parsed.layerCount}
-                            step={1}
-                            value={upToLayer}
-                            onChange={e => setUpToLayer(+e.target.value)}
-                            className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
-                        />
-                        <span className="text-xs font-mono text-primary font-bold w-16 text-right">
-                            {upToLayer}/{parsed.layerCount}
-                        </span>
-                    </div>
-
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
-
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                            <span className="uppercase font-bold">Nozzle</span>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    min="0.1"
-                                    max="2.0"
-                                    step="0.05"
-                                    value={nozzleDiameter}
-                                    onChange={e => setNozzleDiameter(parseFloat(e.target.value) || 0.4)}
-                                    className="w-14 px-1 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-700 dark:text-slate-200 text-center text-xs font-mono focus:ring-1 focus:ring-primary/50 outline-none transition-all"
-                                />
-                            </div>
-                            <span className="text-slate-400 font-bold uppercase">mm</span>
-                        </div>
-                    </div>
-
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
-
-                    {/* Travel Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-500 font-bold uppercase tracking-tight hover:text-slate-800 dark:hover:text-slate-300 transition-colors">
-                        <input 
-                            type="checkbox" 
-                            checked={showTravel} 
-                            onChange={e => setShowTravel(e.target.checked)} 
-                            className="w-3.5 h-3.5 accent-primary cursor-pointer rounded-sm border-slate-300"
-                        />
-                        Travel Moves
-                    </label>
-
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
-
-                    {/* Legend */}
-                    <div className="flex items-center gap-3 text-[10px] text-slate-500 font-bold uppercase tracking-tight">
-                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#14b8a6' }} />FDM</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#f59e0b' }} />Syr</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#8b5cf6' }} />UV</span>
-                    </div>
-
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
-
-                    {/* Download */}
-                    <a
-                        href={gcodeUrl}
-                        download="print.gcode"
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-bold rounded border border-slate-700 transition-all uppercase"
-                    >
-                        <Icon name="download" className="text-sm" />
-                        G-code
-                    </a>
-                </div>
-            )}
         </div>
     );
 };

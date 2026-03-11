@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings, Modifier } from '../../types';
 import { ModifiersPanel } from './ModifiersPanel';
 import { ThreeElements } from '@react-three/fiber';
-import { useGCodeLoader, GCodeScene } from '../GCodePreview/GCodePreview';
+import { useGCodeLoader, GCodeScene, ColorMode, LINE_TYPE_COLOR, LINE_TYPE_LABELS, TOOLHEAD_COLOR } from '../GCodePreview/GCodePreview';
 
 declare global {
   namespace JSX {
@@ -176,13 +176,31 @@ const BuildPlate = () => {
         />
       </mesh>
 
-      {/* Build Volume wireframe */}
-      <group position={[0, BUILD_VOLUME.height / 2, 0]}>
-        <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(BUILD_VOLUME.width, BUILD_VOLUME.height, BUILD_VOLUME.depth)]} />
-          <lineBasicMaterial color="#cbd5e1" linewidth={1} />
-        </lineSegments>
-      </group>
+      {/* Print area border — XY plane only, no vertical Z lines */}
+      <lineSegments>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            array={new Float32Array([
+              // 4 edges of the floor rectangle (counter-clockwise)
+              -BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
+               BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
+
+               BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
+               BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+
+               BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+              -BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+
+              -BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+              -BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
+            ])}
+            itemSize={3}
+            count={8}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial color="#cbd5e1" linewidth={1} />
+      </lineSegments>
 
       {/* Dimensions Text labels on the ground plane (Z=0) */}
       {/* Width Label (X-axis) */}
@@ -868,6 +886,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
   const [gcodeNozzle, setGcodeNozzle] = useState(gcodeJob?.nozzleDiameter ?? 0.4);
+  const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
   const isGCodeMode = !!gcodeJob;
 
   // When a new parsed result arrives, reset to last layer  
@@ -1029,6 +1048,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                 upToLayer={gcodeLayer}
                 nozzleDiameter={gcodeNozzle}
                 showTravel={gcodeShowTravel}
+                colorMode={gcodeColorMode}
               />
             )}
 
@@ -1056,6 +1076,18 @@ export const Viewport: React.FC<ViewportProps> = ({
                 <span className="text-sm font-normal text-slate-500 block">Click "Upload Model" or drag & drop a file (STL) here</span>
               </div>
             </div>
+          )}
+
+          {/* ── GCode exit button (top-right corner) */}
+          {isGCodeMode && onExitGCode && (
+            <button
+              onClick={onExitGCode}
+              title="Exit toolpath preview"
+              className="absolute top-8 right-8 z-30 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-lg text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all duration-200 text-[11px] font-bold uppercase tracking-wider animate-in fade-in duration-300"
+            >
+              <Icon name="close" className="text-base" />
+              Exit Preview
+            </button>
           )}
 
           {/* ── GCode Layer Controls Bar ─────────────────────────────── */}
@@ -1107,11 +1139,48 @@ export const Viewport: React.FC<ViewportProps> = ({
 
                   <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
 
-                  {/* Legend */}
-                  <div className="flex items-center gap-2.5 text-[9px] text-slate-400 font-bold uppercase shrink-0">
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#14b8a6' }} />FDM</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />Syr</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#8b5cf6' }} />UV</span>
+                  {/* Color mode toggle + legend popover */}
+                  <div className="relative group shrink-0">
+                    <button
+                      onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-tight transition-all ${
+                        gcodeColorMode === 'linetype'
+                          ? 'bg-primary/10 border-primary/30 text-primary'
+                          : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-primary/30 hover:text-primary'
+                      }`}
+                      title="Toggle coloring mode — hover to see legend"
+                    >
+                      <Icon name="palette" className="text-sm" />
+                      {gcodeColorMode === 'toolhead' ? 'By Tool' : 'By Type'}
+                      <Icon name="expand_less" className="text-[10px] opacity-50" />
+                    </button>
+
+                    {/* Floating legend — appears above the bar on hover */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
+                      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-3 min-w-[140px]">
+                        <p className="text-[9px] font-bold uppercase text-slate-400 mb-2 tracking-widest">
+                          {gcodeColorMode === 'toolhead' ? 'Toolhead' : 'Line Type'}
+                        </p>
+                        <div className="flex flex-col gap-1.5">
+                          {gcodeColorMode === 'toolhead' ? (
+                            <>
+                              <span className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-300 font-medium"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TOOLHEAD_COLOR.T0 }} />FDM Hot-end</span>
+                              <span className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-300 font-medium"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TOOLHEAD_COLOR.T1 }} />Syringe</span>
+                              <span className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-300 font-medium"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TOOLHEAD_COLOR.T2 }} />UV Crosslinker</span>
+                            </>
+                          ) : (
+                            LINE_TYPE_LABELS.filter(([k]) => gcodeParsed?.usedLineTypes?.has(k)).map(([k, label]) => (
+                              <span key={k} className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-300 font-medium">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: LINE_TYPE_COLOR[k] }} />
+                                {label}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        {/* Arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-white dark:border-t-slate-800" />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
