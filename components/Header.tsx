@@ -59,17 +59,11 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Main Header */}
       <header className="h-14 flex-shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex items-center justify-between px-6 z-20 relative shadow-sm">
-        {/* Logo */}
-        <div className="flex items-center gap-3 select-none">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <Icon name="biotech" className="text-white text-base" />
-          </div>
+        {/* Wordmark */}
+        <div className="flex items-center gap-2 select-none">
           <span className="font-black tracking-tighter text-xl text-slate-800 dark:text-white">
-            bio<span className="text-primary">FFF</span>
+            bio<span className="text-primary">FDM</span>
             <span className="font-light text-slate-400 dark:text-slate-500 text-sm ml-1">studio</span>
-          </span>
-          <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-widest text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5">
-            FDM · Syringe · UV
           </span>
         </div>
 
