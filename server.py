@@ -1,5 +1,7 @@
 import uuid
 import os
+import re
+import math
 import subprocess
 import zipfile
 import shutil
@@ -25,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # Configuracion
 PRUSA_SLICER_CONSOLE = str(BASE_DIR / "PrusaSlicer-2.9.3" / "prusa-slicer-console.exe")
 DEFAULT_CONFIG_INI = str(BASE_DIR / "config.ini")
-FDM_CONFIG_INI = str(BASE_DIR / "config.ini")   # NEW: FDM uses the replaced config.ini array
+FDM_CONFIG_INI = str(BASE_DIR / "config.ini")  # NEW: FDM uses the replaced config.ini array
 
 JOBS_DIR = BASE_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
@@ -33,10 +35,10 @@ JOBS_DIR.mkdir(exist_ok=True)
 app = Flask(__name__)
 CORS(app)  # Habilita CORS para todas las rutas
 
-
 # Initialize Moonraker client + FDM manager (reads IP from config at first use)
 _moonraker_client: MoonrakerClient | None = None
 _fdm_print_manager: FDMPrintManager | None = None
+
 
 def get_moonraker() -> MoonrakerClient:
     """Lazy-init the Moonraker client, reading IP from [Hardware] section of config.ini."""
@@ -50,16 +52,19 @@ def get_moonraker() -> MoonrakerClient:
         _moonraker_client = MoonrakerClient(f"http://{ip}:{port}")
     return _moonraker_client
 
+
 def get_fdm_manager() -> FDMPrintManager:
     global _fdm_print_manager
     if _fdm_print_manager is None:
         _fdm_print_manager = FDMPrintManager(get_moonraker())
     return _fdm_print_manager
 
+
 # ----------------------------
 # Job progress tracking
 # ----------------------------
 _slice_jobs: dict = {}  # job_id -> {status, progress, message, error}
+
 
 def _set_progress(job_id: str, progress: float, message: str, status: str = "running"):
     """Thread-safe progress update."""
@@ -100,6 +105,45 @@ def parse_ini_dims(path: Path):
     return dims
 
 
+def _get_bed_center(path: Path) -> tuple[float, float]:
+    """Parse bed_shape from config.ini and return bed center."""
+    default_center = (50.0, 50.0)
+
+    if not path.exists():
+        return default_center
+
+    try:
+        bed_shape = None
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if "=" not in line or line.strip().startswith("#"):
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == "bed_shape":
+                    bed_shape = v.strip()
+                    break
+
+        if not bed_shape:
+            return default_center
+
+        points = []
+        for token in bed_shape.split(","):
+            token = token.strip()
+            if "x" not in token:
+                continue
+            x_str, y_str = token.split("x", 1)
+            points.append((float(x_str), float(y_str)))
+
+        if len(points) < 2:
+            return default_center
+
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        return ((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0)
+    except Exception:
+        return default_center
+
+
 def ensure_local_config():
     """Asegura BASE_DIR/config.ini para que la app sea autocontenida."""
     config_path = BASE_DIR / "config.ini"
@@ -108,11 +152,78 @@ def ensure_local_config():
         if not src.exists():
             # Si no existe el default, creamos uno basico dummy para evitar crash
             print(f"WARNING: No existe DEFAULT_CONFIG_INI: {src}")
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 f.write("printer_technology = SLA\n")
         else:
             shutil.copy(src, config_path)
     return config_path
+
+
+def _format_gcode_float(value: float) -> str:
+    s = f"{value:.5f}".rstrip("0").rstrip(".")
+    if s in ("-0", "-0.0", ""):
+        return "0"
+    return s
+
+
+def _offset_xy_in_gcode_line(line: str, dx: float, dy: float) -> str:
+    if ";" in line:
+        code_part, comment_part = line.split(";", 1)
+        comment = ";" + comment_part
+    else:
+        code_part = line
+        comment = ""
+
+    def repl(match):
+        axis = match.group(1)
+        raw = match.group(2)
+        try:
+            value = float(raw)
+        except Exception:
+            return match.group(0)
+
+        if axis == "X":
+            value += dx
+        elif axis == "Y":
+            value += dy
+
+        return f"{axis}{_format_gcode_float(value)}"
+
+    code_part = re.sub(r"([XY])(-?\d+(?:\.\d+)?)", repl, code_part)
+    return code_part + comment
+
+
+def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
+    """
+    Shift absolute XY motions in generated G-code.
+    Tracks G90/G91 and only modifies G0/G1/G2/G3 lines while in absolute mode.
+    """
+    if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+        return
+
+    lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
+    output = []
+    absolute_mode = True
+
+    for line in lines:
+        stripped = line.lstrip()
+
+        if stripped.startswith("G90"):
+            absolute_mode = True
+            output.append(line)
+            continue
+
+        if stripped.startswith("G91"):
+            absolute_mode = False
+            output.append(line)
+            continue
+
+        if absolute_mode and stripped.startswith(("G0", "G1", "G2", "G3")) and ("X" in line or "Y" in line):
+            output.append(_offset_xy_in_gcode_line(line, dx, dy))
+        else:
+            output.append(line)
+
+    gcode_path.write_text("".join(output), encoding="utf-8")
 
 
 # WiFi AP Configuration Routes
@@ -123,33 +234,38 @@ def wifi_scan():
     try:
         cmd = ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        
+
         if result.returncode != 0:
             return jsonify({"error": "Failed to scan networks", "details": result.stderr}), 500
-            
+
         networks = []
-        for line in result.stdout.split('\n'):
+        for line in result.stdout.split("\n"):
             if not line.strip():
                 continue
-            parts = line.split(':')
+            parts = line.split(":")
             if len(parts) >= 3:
-                ssid = parts[0].replace('\\:', ':') # unescape colons
+                ssid = parts[0].replace("\\:", ":")  # unescape colons
                 if not ssid:
-                     continue
+                    continue
                 signal = parts[1]
                 security = parts[2]
                 networks.append({"ssid": ssid, "signal": signal, "security": security})
-        
+
         unique_networks = {}
         for net in networks:
             ssid = net["ssid"]
             unique_networks[ssid] = net
-            
-        sorted_networks = sorted(unique_networks.values(), key=lambda x: int(x["signal"]) if x["signal"].isdigit() else 0, reverse=True)
-            
+
+        sorted_networks = sorted(
+            unique_networks.values(),
+            key=lambda x: int(x["signal"]) if x["signal"].isdigit() else 0,
+            reverse=True,
+        )
+
         return jsonify(sorted_networks)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.post("/api/wifi/connect")
 def wifi_connect():
@@ -157,14 +273,14 @@ def wifi_connect():
     req = request.json or {}
     ssid = req.get("ssid")
     password = req.get("password", "")
-    
+
     if not ssid:
         return jsonify({"error": "No SSID provided"}), 400
-        
+
     try:
         cmd = ["nmcli", "dev", "wifi", "connect", ssid, "password", password]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        
+
         if result.returncode == 0:
             return jsonify({"status": "connected", "message": f"Successfully connected to {ssid}"})
         else:
@@ -174,12 +290,13 @@ def wifi_connect():
 
 
 # =============================================================================
-#  FDM Slicing Routes (BioFFF Studio)
+# FDM Slicing Routes (BioFFF Studio)
 # =============================================================================
-
-def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: dict):
+def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params: dict):
     """Background worker: slice STL with PrusaSlicer in FDM mode → .gcode."""
-    import traceback, time as _t
+    import traceback
+    import time as _t
+
     try:
         fdm_config = Path(FDM_CONFIG_INI) if Path(FDM_CONFIG_INI).exists() else None
         if not fdm_config:
@@ -200,27 +317,29 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
                 "bed_temperature = 60\n"
                 "gcode_flavor = klipper\n"
                 "use_relative_e_distances = 1\n",
-                encoding="utf-8"
+                encoding="utf-8",
             )
 
         gcode_out = job_dir / "print.gcode"
 
-        layer_height   = form_params.get("layer_height", "0.2")
-        infill         = form_params.get("infill", "15")
-        nozzle_temp    = form_params.get("nozzle_temp", "210")
-        bed_temp       = form_params.get("bed_temp", "60")
-        supports_raw   = form_params.get("supports")
-        supports       = (supports_raw is True or supports_raw == "true" or supports_raw == "1")
-        
+        layer_height = form_params.get("layer_height", "0.2")
+        infill = form_params.get("infill", "15")
+        nozzle_temp = form_params.get("nozzle_temp", "210")
+        bed_temp = form_params.get("bed_temp", "60")
+        supports_raw = form_params.get("supports")
+        supports = (supports_raw is True or supports_raw == "true" or supports_raw == "1")
+
         infill_pattern = form_params.get("infill_pattern", "gyroid")
-        perimeters     = form_params.get("perimeters", "3")
-        models_meta    = json.loads(form_params.get("models_metadata", "[]"))
+        perimeters = form_params.get("perimeters", "3")
+        models_meta = json.loads(form_params.get("models_metadata", "[]"))
+
+        bed_center_x, bed_center_y = _get_bed_center(Path(FDM_CONFIG_INI))
 
         # Build a unified config file to override PrusaSlicer's priority system
-        # PrusaSlicer processes CLI args first, then --load files. This means --load 
+        # PrusaSlicer processes CLI args first, then --load files. This means --load
         # completely wipes out CLI arguments! We must write overrides into the INI.
         job_config_ini = job_dir / "job_config.ini"
-        
+
         overrides_dict = {
             "layer_height": str(layer_height),
             "fill_density": f"{infill}%",
@@ -230,23 +349,22 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
             "fill_pattern": str(infill_pattern),
             "perimeters": str(perimeters),
             "nozzle_diameter": str(form_params.get("nozzle_diameter", "0.4")),
-            "support_material": "1" if supports else "0"
+            "support_material": "1" if supports else "0",
         }
-        
+
         config_lines = []
         applied_overrides = set()
-        
+
         if fdm_config and fdm_config.exists():
-            with open(fdm_config, 'r', encoding='utf-8') as f:
+            with open(fdm_config, "r", encoding="utf-8") as f:
                 for line in f.readlines():
                     line_strip = line.strip()
                     if line_strip == "[Hardware]":
                         break
-                        
+
                     if "=" in line_strip and not line_strip.startswith("#"):
                         key = line_strip.split("=")[0].strip()
                         if key in overrides_dict:
-                            # Replace the line in-place
                             config_lines.append(f"{key} = {overrides_dict[key]}\n")
                             applied_overrides.add(key)
                         else:
@@ -254,16 +372,20 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
                     else:
                         config_lines.append(line)
         else:
-            config_lines = ["# Minimal FDM Profile\n", "printer_technology = FFF\n", "gcode_flavor = klipper\n", "use_relative_e_distances = 1\n"]
-            
-        # Append any overrides that were NOT found in the original file
+            config_lines = [
+                "# Minimal FDM Profile\n",
+                "printer_technology = FFF\n",
+                "gcode_flavor = klipper\n",
+                "use_relative_e_distances = 1\n",
+            ]
+
         missing_overrides = [k for k in overrides_dict.keys() if k not in applied_overrides]
         if missing_overrides:
             config_lines.append("\n# --- Added by UI ---\n")
             for k in missing_overrides:
                 config_lines.append(f"{k} = {overrides_dict[k]}\n")
 
-        with open(job_config_ini, 'w', encoding='utf-8') as f:
+        with open(job_config_ini, "w", encoding="utf-8") as f:
             f.writelines(config_lines)
 
         cmd = [
@@ -275,60 +397,78 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
         ]
 
         # Process and apply transforms to STLs directly
-        import math
-        from stl import mesh
+        consolidated_data = []
+        consolidated_scene_center = None
 
         if models_meta:
-            for meta in models_meta:
-                f_name = secure_filename(meta.get("name", ""))
-                if f_name:
-                    f_path = job_dir / f_name
-                    if f_path.exists():
-                        try:
-                            # Load and transform STL to match UI
-                            m = mesh.Mesh.from_file(str(f_path))
-                            
-                            # 1. Center the raw geometry first
-                            cx = (m.x.min() + m.x.max()) / 2.0
-                            cy = (m.y.min() + m.y.max()) / 2.0
-                            cz = (m.z.min() + m.z.max()) / 2.0
-                            m.x -= cx
-                            m.y -= cy
-                            m.z -= cz
-                            
-                            # Read transforms
-                            t = meta.get("transform", {})
-                            s = t.get("scale", {"x": 1, "y": 1, "z": 1})
-                            r = t.get("rotation", {"x": 0, "y": 0, "z": 0})
-                            p = t.get("position", {"x": 0, "y": 0, "z": 0})
-                            
-                            # 2. Scale
-                            m.x *= s.get("x", 1.0)
-                            m.y *= s.get("y", 1.0)
-                            m.z *= s.get("z", 1.0)
-                            
-                            # 3. Rotate (match Three.js XYZ Euler mapped to physical axes)
-                            if r.get("x"): m.rotate([1, 0, 0], math.radians(r.get("x")))
-                            if r.get("z"): m.rotate([0, 0, 1], math.radians(r.get("z")))
-                            if r.get("y"): m.rotate([0, 1, 0], math.radians(r.get("y")))
-                            
-                            # 4. Snap to Z=0 after rotation to ensure it prints flat
-                            min_z = m.z.min()
-                            m.z -= min_z
-                            
-                            # 5. Translate (Bed center is 50,50 for 100x100)
-                            m.x += p.get("x", 0.0) + 50.0
-                            m.y += p.get("y", 0.0) + 50.0
-                            m.z += p.get("z", 0.0)
-                            
-                            # Save back and append to cmd
-                            m.save(str(f_path))
-                            cmd.append(str(f_path))
-                        except Exception as e:
-                            print(f"[FDM SLICE] Error applying transforms to {f_name}: {e}")
-                            cmd.append(str(f_path))
+            # We process files based on the order they were sent
+            for i, meta in enumerate(models_meta):
+                f_name = f"model_{i}.stl"
+                f_path = job_dir / f_name
+
+                if f_path.exists():
+                    try:
+                        # Load and transform STL to match UI
+                        m = mesh.Mesh.from_file(str(f_path))
+
+                        # 1. Center the raw geometry first to apply rotations/scale correctly
+                        cx = (m.x.min() + m.x.max()) / 2.0
+                        cy = (m.y.min() + m.y.max()) / 2.0
+                        cz = (m.z.min() + m.z.max()) / 2.0
+                        m.x -= cx
+                        m.y -= cy
+                        m.z -= cz
+
+                        # Read transforms
+                        t = meta.get("transform", {})
+                        s = t.get("scale", {"x": 1, "y": 1, "z": 1})
+                        r = t.get("rotation", {"x": 0, "y": 0, "z": 0})
+                        p = t.get("position", {"x": 0, "y": 0, "z": 0})
+
+                        # 2. Scale
+                        m.x *= s.get("x", 1.0)
+                        m.y *= s.get("y", 1.0)
+                        m.z *= s.get("z", 1.0)
+                        # 3. Rotate (match Three.js XYZ Euler mapped to physical axes)
+                        # UI r.y (yaw) -> Print Z axis [0,0,1]
+                        # UI r.x (pitch) -> Print X axis [1,0,0]
+                        # UI r.z (roll) -> Print Y axis [0,1,0]
+                        if r.get("x"):
+                            m.rotate([1, 0, 0], math.radians(r.get("x")))
+                        if r.get("y"):
+                            m.rotate([0, 0, 1], math.radians(r.get("y")))
+                        if r.get("z"):
+                            m.rotate([0, 1, 0], math.radians(r.get("z")))
+
+                        # 4. Snap to Z=0 after rotation to ensure it prints flat
+                        min_z = m.z.min()
+                        m.z -= min_z
+
+                        # 5. Translate to bed coordinates
+                        # UI X -> Print X
+                        # UI Z (Depth) -> Print Y
+                        # UI Y (Height) -> Print Z
+                        m.x += p.get("x", 0.0) + bed_center_x
+                        m.y += p.get("z", 0.0) + bed_center_y
+                        m.z += p.get("y", 0.0)
+
+                        consolidated_data.append(m.data.copy())
+                    except Exception as e:
+                        print(f"[FDM SLICE] Error processing {f_name}: {e}")
+
+            if consolidated_data:
+                merged_mesh = mesh.Mesh(np.concatenate(consolidated_data))
+
+                consolidated_path = job_dir / "consolidated.stl"
+                merged_mesh.save(str(consolidated_path))
+                cmd.append(str(consolidated_path))
+            else:
+                for stl_path in stl_paths:
+                    cmd.append(str(stl_path))
         else:
-            cmd.append(str(stl_path))
+            # Fallback for simple uploads
+            for stl_path in stl_paths:
+                cmd.append(str(stl_path))
 
         _set_progress(job_id, 0.1, "Running PrusaSlicer FDM...")
         t0 = _t.time()
@@ -340,6 +480,11 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
             print(f"FDM Slice Error:\nSTDOUT: {p.stdout}\nSTDERR: {p.stderr}")
             _set_progress(job_id, 0.0, f"PrusaSlicer FDM failed: {p.stderr[:300]}", status="error")
             return
+
+        # NOTE: PrusaSlicer CLI respects the absolute coordinates of a single consolidated STL.
+        # Adding 'XY compensation' usually results in a double-shift if the STL is already 
+        # correctly positioned relative to the bed origin.
+
 
         # Parse basic stats from G-code comments
         layer_count = 0
@@ -373,12 +518,20 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
             "filament_used_mm": filament_used,
             "toolhead_actions": layer_actions_raw,
             "created_at": datetime.utcnow().isoformat(),
+            "xy_compensation": {
+                "applied": False,
+                "bed_center_x": bed_center_x,
+                "bed_center_y": bed_center_y,
+            },
         }
         (job_dir / "job_fdm.json").write_text(json.dumps(job_manifest, indent=2), encoding="utf-8")
 
-        _set_progress(job_id, 1.0,
-                      f"Done — {layer_count} layers, {filament_used:.0f}mm filament",
-                      status="done")
+        _set_progress(
+            job_id,
+            1.0,
+            f"Done — {layer_count} layers, {filament_used:.0f}mm filament",
+            status="done",
+        )
 
     except Exception as e:
         traceback.print_exc()
@@ -388,34 +541,34 @@ def _run_fdm_slice_job(job_id: str, stl_path: Path, job_dir: Path, form_params: 
 @app.post("/fdm/slice")
 def fdm_slice():
     """
-    FDM slicing endpoint — accepts a single STL + print parameters and
+    FDM slicing endpoint — accepts STL file(s) + print parameters and
     produces a .gcode file via PrusaSlicer CLI in FFF mode.
 
     Form fields:
-      files[]:         STL file(s)
-      layer_height:    float (mm), e.g. "0.2"
-      infill:          int (%), e.g. "15"
-      nozzle_temp:     int (°C), e.g. "210"
-      bed_temp:        int (°C), e.g. "60"
-      infill_pattern:  str, e.g. "gyroid"
-      perimeters:      int, e.g. "3"
-      supports:        bool str, "true"|"false"
-      layer_actions:   JSON array of LayerAction objects
-      experiment_name, author, intent, material: metadata
+    files[]: STL file(s)
+    layer_height: float (mm), e.g. "0.2"
+    infill: int (%), e.g. "15"
+    nozzle_temp: int (°C), e.g. "210"
+    bed_temp: int (°C), e.g. "60"
+    infill_pattern: str, e.g. "gyroid"
+    perimeters: int, e.g. "3"
+    supports: bool str, "true"|"false"
+    layer_actions: JSON array of LayerAction objects
+    experiment_name, author, intent, material: metadata
     """
     files = request.files.getlist("files[]")
     if not files:
         return jsonify({"error": "No files[] received"}), 400
 
     form_params = {
-        "layer_height":   request.form.get("layer_height", "0.2"),
-        "infill":         request.form.get("infill", "15"),
-        "nozzle_temp":    request.form.get("nozzle_temp", "210"),
-        "bed_temp":       request.form.get("bed_temp", "60"),
+        "layer_height": request.form.get("layer_height", "0.2"),
+        "infill": request.form.get("infill", "15"),
+        "nozzle_temp": request.form.get("nozzle_temp", "210"),
+        "bed_temp": request.form.get("bed_temp", "60"),
         "infill_pattern": request.form.get("infill_pattern", "gyroid"),
-        "perimeters":     request.form.get("perimeters", "3"),
-        "supports":       request.form.get("supports", "false") == "true",
-        "layer_actions":  request.form.get("layer_actions", "[]"),
+        "perimeters": request.form.get("perimeters", "3"),
+        "supports": request.form.get("supports", "false") == "true",
+        "layer_actions": request.form.get("layer_actions", "[]"),
         "models_metadata": request.form.get("models_metadata", "[]"),
         "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
     }
@@ -436,20 +589,20 @@ def fdm_slice():
     job_dir.mkdir(parents=True, exist_ok=True)
 
     # Save uploaded STL(s)
-    saved_stl = None
+    saved_stls = []
     for i, f in enumerate(files):
-        safe_name = secure_filename(f.filename) or f"model_{i}.stl"
+        # Unique name to match the background thread's expectation
+        safe_name = f"model_{i}.stl"
         stl_path = job_dir / safe_name
         f.save(stl_path)
-        if saved_stl is None:
-            saved_stl = stl_path  # Use first file for now
+        saved_stls.append(stl_path)
 
     _set_progress(job_id, 0.0, "Queued", status="pending")
 
     t = threading.Thread(
         target=_run_fdm_slice_job,
-        args=(job_id, saved_stl, job_dir, form_params),
-        daemon=True
+        args=(job_id, saved_stls, job_dir, form_params),
+        daemon=True,
     )
     t.start()
 
@@ -471,14 +624,17 @@ def fdm_job_gcode(job_id):
     gcode_path = JOBS_DIR / job_id / "print.gcode"
     if not gcode_path.exists():
         return jsonify({"error": "gcode not found"}), 404
-    return send_file(str(gcode_path), mimetype="text/plain",
-                     as_attachment=True, download_name="print.gcode")
+    return send_file(
+        str(gcode_path),
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name="print.gcode",
+    )
 
 
 # =============================================================================
-#  Moonraker Proxy Routes  (avoids CORS issues from browser)
+# Moonraker Proxy Routes (avoids CORS issues from browser)
 # =============================================================================
-
 @app.get("/moonraker/status")
 def moonraker_status():
     """Returns Moonraker server info + printer state."""
@@ -529,18 +685,20 @@ def moonraker_start_print():
     # Build LayerAction objects
     layer_actions = []
     for la in layer_actions_raw:
-        layer_actions.append(LayerAction(
-            layer_from=int(la.get("layerFrom", 1)),
-            layer_to=int(la.get("layerTo", layer_count)),
-            toolhead=la.get("toolhead", "fdm"),
-            klipper_tool=la.get("klipper_tool", "T0"),
-            uv_exposure_time_sec=float(la.get("uvSettings", {}).get("exposureTimeSec", 0)),
-            uv_dose_mjcm2=float(la.get("uvSettings", {}).get("doseTargetMjCm2", 0)),
-            uv_pause_print=la.get("uvSettings", {}).get("pausePrint", True),
-            pressurization_steps=int(la.get("syringeSettings", {}).get("pressurizationSteps", 0)),
-            retraction_steps=int(la.get("syringeSettings", {}).get("retractionSteps", 0)),
-            label=la.get("label", ""),
-        ))
+        layer_actions.append(
+            LayerAction(
+                layer_from=int(la.get("layerFrom", 1)),
+                layer_to=int(la.get("layerTo", layer_count)),
+                toolhead=la.get("toolhead", "fdm"),
+                klipper_tool=la.get("klipper_tool", "T0"),
+                uv_exposure_time_sec=float(la.get("uvSettings", {}).get("exposureTimeSec", 0)),
+                uv_dose_mjcm2=float(la.get("uvSettings", {}).get("doseTargetMjCm2", 0)),
+                uv_pause_print=la.get("uvSettings", {}).get("pausePrint", True),
+                pressurization_steps=int(la.get("syringeSettings", {}).get("pressurizationSteps", 0)),
+                retraction_steps=int(la.get("syringeSettings", {}).get("retractionSteps", 0)),
+                label=la.get("label", ""),
+            )
+        )
 
     if not layer_actions:
         layer_actions = build_default_toolhead_actions()
@@ -649,9 +807,9 @@ def moonraker_uv_expose():
 
 
 if __name__ == "__main__":
-    print(f"Starting BioFFF Studio Server...")
-    print(f"  DLP3 Legacy Config INI : {DEFAULT_CONFIG_INI}")
-    print(f"  FDM Profile INI        : {FDM_CONFIG_INI}")
-    print(f"  PrusaSlicer Console    : {PRUSA_SLICER_CONSOLE}")
-    print(f"  Moonraker URL          : (lazy-init from [Hardware] rpi_ip)")
+    print("Starting BioFFF Studio Server...")
+    print(f" DLP3 Legacy Config INI : {DEFAULT_CONFIG_INI}")
+    print(f" FDM Profile INI : {FDM_CONFIG_INI}")
+    print(f" PrusaSlicer Console : {PRUSA_SLICER_CONSOLE}")
+    print(" Moonraker URL : (lazy-init from [Hardware] rpi_ip)")
     app.run(host="127.0.0.1", port=8000, debug=True)

@@ -344,11 +344,10 @@ export function GCodeScene({
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
 
     const centerOffset = useMemo(() => {
-        const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
-        const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2;
-        if (!isFinite(cx) || !isFinite(cy)) return { x: 0, y: 0 };
-        return { x: -cx, y: -cy };
-    }, [parsed.bbox]);
+        // Bed is 100x100, centered at (0,0) in Viewport. 
+        // G-code coordinates are 0..100.
+        return { x: -50, y: -50 };
+    }, []);
 
     const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
 
