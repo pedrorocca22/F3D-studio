@@ -15,7 +15,7 @@ import { Icon } from '../Icon';
 declare global {
     namespace JSX {
         interface IntrinsicElements {
-            mesh: any; instancedMesh: any; cylinderGeometry: any;
+            mesh: any; instancedMesh: any; cylinderGeometry: any; sphereGeometry: any;
             lineSegments: any; lineBasicMaterial: any; planeGeometry: any;
             meshStandardMaterial: any; gridHelper: any; ambientLight: any;
             directionalLight: any; fog: any; group: any;
@@ -84,9 +84,10 @@ export interface ParsedGCode {
 
 interface ExtrusionData {
     color: string;
-    label: string;
     matrices: THREE.Matrix4[];
+    jointMatrices: THREE.Matrix4[];
     countsByLayer: number[];
+    jointCountsByLayer: number[];
 }
 
 interface GeometryData {
@@ -193,29 +194,31 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
         return TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR;
     };
 
-    const getLabel = (color: string): string => {
-        if (colorMode === 'linetype') {
-            const found = Object.entries(LINE_TYPE_COLOR).find(([, c]) => c === color);
-            if (found) return LINE_TYPE_LABELS.find(([k]) => k === found[0])?.[1] ?? found[0];
-            return color;
-        }
-        const th = Object.entries(TOOLHEAD_COLOR).find(([, c]) => c === color);
-        return th ? th[0] : color;
-    };
-
     const allColors = colorMode === 'linetype'
         ? Object.values(LINE_TYPE_COLOR)
         : [...Object.values(TOOLHEAD_COLOR), DEFAULT_COLOR];
 
     const buckets: Record<string, THREE.Matrix4[]> = {};
+    const jointBuckets: Record<string, THREE.Matrix4[]> = {};
     const countsByLayer: Record<string, number[]> = {};
-    for (const c of allColors) countsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
+    const jointCountsByLayer: Record<string, number[]> = {};
+
+    for (const c of allColors) {
+        countsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
+        jointCountsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
+    }
+
     const travelCountsByLayer = new Array(parsed.layerCount + 1).fill(0);
     const travelList: number[] = [];
 
     let prev: Move | null = null;
     const currentCounts: Record<string, number> = {};
-    for (const c of allColors) currentCounts[c] = 0;
+    const currentJointCounts: Record<string, number> = {};
+    for (const c of allColors) {
+        currentCounts[c] = 0;
+        currentJointCounts[c] = 0;
+    }
+
     let currentTravelCount = 0;
     let currentLayerTracking = 0;
 
@@ -223,45 +226,69 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
         const diff = new THREE.Vector3().subVectors(p2, p1);
         const len = diff.length();
         if (len < 0.0001) return;
+
         const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
         const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), diff.clone().normalize());
         const mat = new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(nozzleDiameter, len, nozzleDiameter));
+
         if (!buckets[key]) buckets[key] = [];
         buckets[key].push(mat);
         currentCounts[key] = buckets[key].length;
+
+        // Sphere joint at the end of segment for continuity
+        const jointMat = new THREE.Matrix4().compose(p2, new THREE.Quaternion(), new THREE.Vector3(nozzleDiameter, nozzleDiameter, nozzleDiameter));
+        if (!jointBuckets[key]) jointBuckets[key] = [];
+        jointBuckets[key].push(jointMat);
+        currentJointCounts[key] = jointBuckets[key].length;
     };
 
     for (const m of parsed.moves) {
         while (currentLayerTracking < m.layer && currentLayerTracking <= parsed.layerCount) {
-            for (const k of Object.keys(countsByLayer)) countsByLayer[k][currentLayerTracking] = currentCounts[k] || 0;
+            for (const k of allColors) {
+                countsByLayer[k][currentLayerTracking] = currentCounts[k];
+                jointCountsByLayer[k][currentLayerTracking] = currentJointCounts[k];
+            }
             travelCountsByLayer[currentLayerTracking] = currentTravelCount;
             currentLayerTracking++;
         }
+
         if (prev) {
             const p1 = new THREE.Vector3(prev.x, prev.z, prev.y);
             const p2 = new THREE.Vector3(m.x, m.z, m.y);
-            if (m.extrude) addTube(getColor(m), p1, p2);
-            else { travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z); currentTravelCount += 2; }
+            if (m.extrude) {
+                addTube(getColor(m), p1, p2);
+            } else {
+                travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+                currentTravelCount += 2;
+            }
         }
         prev = m;
     }
 
     while (currentLayerTracking <= parsed.layerCount) {
-        for (const k of Object.keys(countsByLayer)) countsByLayer[k][currentLayerTracking] = currentCounts[k] || 0;
+        for (const k of allColors) {
+            countsByLayer[k][currentLayerTracking] = currentCounts[k];
+            jointCountsByLayer[k][currentLayerTracking] = currentJointCounts[k];
+        }
         travelCountsByLayer[currentLayerTracking] = currentTravelCount;
         currentLayerTracking++;
     }
 
-    const extrusions: ExtrusionData[] = Object.entries(buckets).map(([color, matrices]) => ({
-        color, label: getLabel(color), matrices, countsByLayer: countsByLayer[color] || [],
+    const extrusions: ExtrusionData[] = Object.keys(buckets).map(color => ({
+        color,
+        matrices: buckets[color],
+        jointMatrices: jointBuckets[color] || [],
+        countsByLayer: countsByLayer[color],
+        jointCountsByLayer: jointCountsByLayer[color] || [],
     }));
 
     return { extrusions, travelPoints: new Float32Array(travelList), travelCountsByLayer };
 }
 
-// ── TubeSegment renderer ──────────────────────────────────────────────────────
-function TubeSegment({ extrusion, count, nozzleDiameter }: { extrusion: ExtrusionData; count: number; nozzleDiameter: number }) {
+// ── TubeSegments renderer ─────────────────────────────────────────────────────
+function TubeSegments({ extrusion, count, jointCount }: { extrusion: ExtrusionData; count: number; jointCount: number }) {
     const meshRef = useRef<THREE.InstancedMesh>(null);
+    const jointRef = useRef<THREE.InstancedMesh>(null);
 
     useEffect(() => {
         if (!meshRef.current) return;
@@ -269,14 +296,26 @@ function TubeSegment({ extrusion, count, nozzleDiameter }: { extrusion: Extrusio
         meshRef.current.instanceMatrix.needsUpdate = true;
     }, [extrusion.matrices]);
 
-    useEffect(() => { if (meshRef.current) meshRef.current.count = count; }, [count]);
+    useEffect(() => {
+        if (!jointRef.current) return;
+        for (let i = 0; i < extrusion.jointMatrices.length; i++) jointRef.current.setMatrixAt(i, extrusion.jointMatrices[i]);
+        jointRef.current.instanceMatrix.needsUpdate = true;
+    }, [extrusion.jointMatrices]);
 
-    if (extrusion.matrices.length === 0) return null;
+    useEffect(() => { if (meshRef.current) meshRef.current.count = count; }, [count]);
+    useEffect(() => { if (jointRef.current) jointRef.current.count = jointCount; }, [jointCount]);
+
     return (
-        <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
-            <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
-        </instancedMesh>
+        <group>
+            <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} castShadow receiveShadow frustumCulled={false}>
+                <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
+                <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
+            </instancedMesh>
+            <instancedMesh ref={jointRef} args={[undefined, undefined, extrusion.jointMatrices.length]} castShadow receiveShadow frustumCulled={false}>
+                <sphereGeometry args={[0.5, 8, 8]} />
+                <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
+            </instancedMesh>
+        </group>
     );
 }
 
@@ -302,10 +341,7 @@ export function GCodeScene({
     parsed: ParsedGCode; upToLayer: number;
     nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
 }) {
-    const geoData = useMemo(
-        () => buildGeometries(parsed, nozzleDiameter, colorMode),
-        [parsed, nozzleDiameter, colorMode]
-    );
+    const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
 
     const centerOffset = useMemo(() => {
         const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
@@ -317,23 +353,21 @@ export function GCodeScene({
     const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
 
     return (
-        <>
-            <group position={[centerOffset.x, 0, centerOffset.y]}>
-                {geoData.extrusions.map((ext, i) => (
-                    <TubeSegment
-                        key={i}
-                        extrusion={ext}
-                        count={ext.countsByLayer[safeLayer] ?? ext.matrices.length}
-                        nozzleDiameter={nozzleDiameter}
-                    />
-                ))}
-                <TravelSegments
-                    points={geoData.travelPoints}
-                    count={geoData.travelCountsByLayer[safeLayer] ?? (geoData.travelPoints.length / 3 * 2)}
-                    visible={showTravel}
+        <group position={[centerOffset.x, 0, centerOffset.y]}>
+            {geoData.extrusions.map((ext, i) => (
+                <TubeSegments
+                    key={`${colorMode}-${ext.color}-${i}`}
+                    extrusion={ext}
+                    count={ext.countsByLayer[safeLayer]}
+                    jointCount={ext.jointCountsByLayer[safeLayer]}
                 />
-            </group>
-        </>
+            ))}
+            <TravelSegments
+                points={geoData.travelPoints}
+                count={geoData.travelCountsByLayer[safeLayer]}
+                visible={showTravel}
+            />
+        </group>
     );
 }
 

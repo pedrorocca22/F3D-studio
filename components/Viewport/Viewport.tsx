@@ -987,11 +987,11 @@ export const Viewport: React.FC<ViewportProps> = ({
         <div className="absolute inset-4 z-0 rounded-xl overflow-hidden shadow-inner bg-slate-100/50 dark:bg-slate-800/20 transition-all">
           <Canvas
             shadows
-            camera={{ position: [100, 100, 150], fov: 45 }}
+            camera={{ position: [100, 100, 150], fov: 45, near: 0.01, far: 2000 }}
             onPointerMissed={onMissed}
             gl={{ localClippingEnabled: true }}
           >
-            <fog attach="fog" args={['#f8fafc', 200, 500]} />
+            <fog attach="fog" args={['#f8fafc', 1000, 2000]} />
             <ambientLight intensity={0.4} />
             <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow shadow-bias={-0.0001} />
             <Environment preset="city" />
