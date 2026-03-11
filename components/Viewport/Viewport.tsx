@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings, Modifier } from '../../types';
 import { ModifiersPanel } from './ModifiersPanel';
 import { ThreeElements } from '@react-three/fiber';
+import { useGCodeLoader, GCodeScene } from '../GCodePreview/GCodePreview';
 
 declare global {
   namespace JSX {
@@ -43,6 +44,9 @@ interface ViewportProps {
   onFileUpload?: (file: File) => void;
   isAdvancedSliceMode?: boolean;
   globalSettings: GlobalSettings;
+  // GCode integration
+  gcodeJob?: { jobId: string; gcodeUrl: string; nozzleDiameter?: number } | null;
+  onExitGCode?: () => void;
 }
 
 // --- CLIPPING PLANE LOGIC ---
@@ -854,8 +858,27 @@ export const Viewport: React.FC<ViewportProps> = ({
   onArrayModels,
   onFileUpload,
   isAdvancedSliceMode,
-  globalSettings
+  globalSettings,
+  gcodeJob = null,
+  onExitGCode,
 }) => {
+  // ── GCode integration ──────────────────────────────────────────
+  const gcodeUrl = gcodeJob?.gcodeUrl ?? null;
+  const { parsed: gcodeParsed, loading: gcodeLoading } = useGCodeLoader(gcodeUrl);
+  const [gcodeLayer, setGcodeLayer] = useState<number>(0);
+  const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
+  const [gcodeNozzle, setGcodeNozzle] = useState(gcodeJob?.nozzleDiameter ?? 0.4);
+  const isGCodeMode = !!gcodeJob;
+
+  // When a new parsed result arrives, reset to last layer  
+  useEffect(() => {
+    if (gcodeParsed) setGcodeLayer(gcodeParsed.layerCount);
+  }, [gcodeParsed]);
+
+  // Update nozzle when job changes
+  useEffect(() => {
+    setGcodeNozzle(gcodeJob?.nozzleDiameter ?? 0.4);
+  }, [gcodeJob]);
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [objectTool, setObjectTool] = useState<ObjectTool>('translate');
   const [viewMode, setViewMode] = useState<ViewMode>('solid');
@@ -955,7 +978,7 @@ export const Viewport: React.FC<ViewportProps> = ({
             <Environment preset="city" />
 
             {/* Render Clipping Plane Visualizer if enabled */}
-            {isClipping && (
+            {isClipping && !isGCodeMode && (
               <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, clippingHeight, 0]}>
                 <planeGeometry args={[BUILD_VOLUME.width, BUILD_VOLUME.depth]} />
                 <meshBasicMaterial color="#ff0000" opacity={0.1} transparent side={THREE.DoubleSide} depthWrite={false} />
@@ -968,8 +991,9 @@ export const Viewport: React.FC<ViewportProps> = ({
 
             <BuildPlate />
 
+            {/* STL Models - hidden when GCode is active */}
             <Suspense fallback={null}>
-              {models.map(model => {
+              {!isGCodeMode && models.map(model => {
                 const adhesionOffset = (globalSettings.adhesion?.enabled)
                   ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
                   : 0;
@@ -998,12 +1022,22 @@ export const Viewport: React.FC<ViewportProps> = ({
               })}
             </Suspense>
 
+            {/* GCode Toolpath - renders in same canvas when active */}
+            {isGCodeMode && gcodeParsed && (
+              <GCodeScene
+                parsed={gcodeParsed}
+                upToLayer={gcodeLayer}
+                nozzleDiameter={gcodeNozzle}
+                showTravel={gcodeShowTravel}
+              />
+            )}
+
             <ContactShadows position={[0, 0.1, 0]} opacity={0.4} scale={200} blur={2.5} far={4} />
             <SceneControls cameraMode={cameraMode} zoomTrigger={zoomTrigger} />
             <CameraManager viewTrigger={viewTrigger} focusTarget={focusTarget} />
           </Canvas>
 
-          {isAdvancedSliceMode && selectedModel && (
+          {isAdvancedSliceMode && !isGCodeMode && selectedModel && (
             <SliceSlider
               segments={selectedModel.advancedSettings.segments}
               maxHeight={sliderMaxHeight}
@@ -1014,7 +1048,7 @@ export const Viewport: React.FC<ViewportProps> = ({
             />
           )}
 
-          {models.length === 0 && (
+          {!isGCodeMode && models.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div onClick={handleEmptyStateClick} className="text-center bg-white/80 dark:bg-slate-900/80 p-8 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 backdrop-blur-sm pointer-events-auto cursor-pointer hover:border-primary hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-all group max-w-md w-full mx-4">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".stl" multiple className="hidden" />
@@ -1023,10 +1057,84 @@ export const Viewport: React.FC<ViewportProps> = ({
               </div>
             </div>
           )}
+
+          {/* ── GCode Layer Controls Bar ─────────────────────────────── */}
+          {isGCodeMode && (
+            <div className="absolute bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-lg px-5 py-2.5 flex items-center gap-5 animate-in slide-in-from-bottom-2 duration-300">
+              {/* Loading state */}
+              {gcodeLoading && (
+                <div className="flex items-center gap-3 flex-1 text-slate-500 dark:text-slate-400">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest">Loading toolpaths...</span>
+                </div>
+              )}
+              {!gcodeLoading && gcodeParsed && (
+                <>
+                  {/* Layer Slider */}
+                  <Icon name="layers" className="text-slate-400 text-base shrink-0" />
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider shrink-0">Layer</span>
+                  <input
+                    type="range" min={0} max={gcodeParsed.layerCount} step={1}
+                    value={gcodeLayer}
+                    onChange={e => setGcodeLayer(+e.target.value)}
+                    className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-600 rounded-full cursor-pointer appearance-none"
+                  />
+                  <span className="text-xs font-mono text-primary font-bold w-14 text-right shrink-0">
+                    {gcodeLayer}/{gcodeParsed.layerCount}
+                  </span>
+
+                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+
+                  {/* Nozzle */}
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                    <span className="font-bold uppercase">⌀</span>
+                    <input
+                      type="number" min="0.1" max="2.0" step="0.05"
+                      value={gcodeNozzle}
+                      onChange={e => setGcodeNozzle(parseFloat(e.target.value) || 0.4)}
+                      className="w-12 px-1 py-0.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary/50 outline-none"
+                    />
+                    <span className="font-bold uppercase text-slate-400">mm</span>
+                  </div>
+
+                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+
+                  {/* Travel toggle */}
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-slate-500 font-bold uppercase tracking-tight hover:text-primary transition-colors shrink-0">
+                    <input type="checkbox" checked={gcodeShowTravel} onChange={e => setGcodeShowTravel(e.target.checked)} className="accent-primary w-3 h-3 cursor-pointer" />
+                    Travel
+                  </label>
+
+                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-2.5 text-[9px] text-slate-400 font-bold uppercase shrink-0">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#14b8a6' }} />FDM</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />Syr</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#8b5cf6' }} />UV</span>
+                  </div>
+
+                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+
+                  {/* G-code download */}
+                  {gcodeUrl && (
+                    <a
+                      href={gcodeUrl}
+                      download="print.gcode"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-primary text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-600 transition-all uppercase shrink-0"
+                    >
+                      <Icon name="download" className="text-sm" />
+                      G-code
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Bottom Center - Camera Views */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-xl z-20">
+        {/* Bottom Center - Camera Views - raised clear of GCode layer bar */}
+        <div className={`absolute ${isGCodeMode ? 'bottom-24' : 'bottom-6'} left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-xl z-20 transition-all duration-300`}>
           <button onClick={() => setView('iso')} className="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 flex items-center justify-center group" title="Isometric View">
             <Icon name="view_in_ar" className="text-xl group-hover:scale-110 transition-transform" />
           </button>

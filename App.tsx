@@ -5,7 +5,7 @@ import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
-import { GCodePreview } from './components/GCodePreview/GCodePreview';
+// GCodePreview is now integrated into Viewport directly
 
 import { ExperimentsPanel } from './components/Experiments/ExperimentsPanel';
 import { ExperimentDetails } from './components/Experiments/ExperimentDetails';
@@ -596,29 +596,26 @@ export default function App() {
         />
 
         <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
-          {gcodePreviewJob ? (
-            <GCodePreview
-              jobId={gcodePreviewJob.jobId}
-              layerCount={gcodePreviewJob.layerCount}
-              initialNozzleDiameter={gcodePreviewJob.nozzleDiameter}
-              gcodeUrl={`http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`}
-              onClose={() => setGcodePreviewJob(null)}
-            />
-          ) : (
-            <Viewport
-              models={models}
-              selectedModelId={selectedModelId}
-              onSelectModel={setSelectedModelId}
-              onTransformChange={handleTransformChange}
-              onUpdateModelSize={handleUpdateModelSize}
-              onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
-              onCloneModel={handleCloneModel}
-              onArrayModels={handleArrayModels}
-              onFileUpload={handleFileUpload}
-              isAdvancedSliceMode={isAdvancedSliceMode}
-              globalSettings={globalSettings}
-            />
-          )}
+          {/* Viewport always shows — in GCode mode the STL is hidden and toolpaths are rendered inside */}
+          <Viewport
+            models={models}
+            selectedModelId={selectedModelId}
+            onSelectModel={setSelectedModelId}
+            onTransformChange={handleTransformChange}
+            onUpdateModelSize={handleUpdateModelSize}
+            onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
+            onCloneModel={handleCloneModel}
+            onArrayModels={handleArrayModels}
+            onFileUpload={handleFileUpload}
+            isAdvancedSliceMode={isAdvancedSliceMode}
+            globalSettings={globalSettings}
+            gcodeJob={gcodePreviewJob ? {
+              jobId: gcodePreviewJob.jobId,
+              gcodeUrl: `http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`,
+              nozzleDiameter: gcodePreviewJob.nozzleDiameter
+            } : null}
+            onExitGCode={() => setGcodePreviewJob(null)}
+          />
 
           {/* ── Wifi Config Modal ── */}
           {isWifiOpen && (

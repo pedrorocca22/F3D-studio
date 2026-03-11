@@ -23,6 +23,7 @@ declare global {
             gridHelper: any;
             ambientLight: any;
             directionalLight: any;
+            fog: any;
             group: any;
             bufferGeometry: any;
             bufferAttribute: any;
@@ -54,7 +55,7 @@ interface ParsedGCode {
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
-function parseGCode(raw: string): ParsedGCode {
+export function parseGCode(raw: string): ParsedGCode {
     const lines = raw.split('\n');
     const moves: Move[] = [];
 
@@ -297,44 +298,27 @@ function TravelSegments({ points, count, visible }: { points: Float32Array; coun
 }
 
 // ── Three.js scene component ──────────────────────────────────────────────────
-function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number; showTravel?: boolean }) {
+export function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false }: { parsed: ParsedGCode; upToLayer: number; nozzleDiameter?: number; showTravel?: boolean }) {
     // Heavy calculation computed exactly ONCE upon load (or if nozzle diameter changes)
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter), [parsed, nozzleDiameter]);
-    
-    const { camera } = useThree();
 
     const centerOffset = useMemo(() => {
         const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2;
         const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2;
         if (!isFinite(cx) || !isFinite(cy)) return { x: 0, y: 0 };
-        return {
-            x: 50 - cx,
-            y: 50 - cy,
-        };
+        // Negate the bbox center so the model lands at world origin (0,0,0)
+        // which is the center of the Viewport's build plate.
+        return { x: -cx, y: -cy };
     }, [parsed.bbox]);
 
-    useEffect(() => {
-        // Center camera on BBox
-        const cx = (parsed.bbox.minX + parsed.bbox.maxX) / 2 + centerOffset.x;
-        const cy = (parsed.bbox.minY + parsed.bbox.maxY) / 2 + centerOffset.y;
-        const sz = Math.max(parsed.bbox.maxX - parsed.bbox.minX, parsed.bbox.maxY - parsed.bbox.minY, parsed.bbox.maxZ);
-        if (isFinite(cx) && isFinite(cy) && isFinite(sz) && sz > 0) {
-            (camera as THREE.PerspectiveCamera).position.set(cx + sz * 0.8, sz * 1.2, cy + sz * 0.8);
-            camera.lookAt(cx, 0, cy);
-        }
-    }, [parsed, centerOffset, camera]);
+    // No camera repositioning here — the Viewport's OrbitControls manages the camera.
 
     // Safety clamp (just in case upToLayer goes out of bounds)
     const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
 
     return (
         <>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[50, 0, 50]}>
-                <planeGeometry args={[100, 100]} />
-                <meshStandardMaterial color="#1e293b" opacity={0.6} transparent />
-            </mesh>
-            <gridHelper args={[100, 10, '#334155', '#1e293b']} position={[50, 0.01, 50]} />
-
+            {/* No buildplate/grid here — the Viewport's own BuildPlate already provides those */}
             <group position={[centerOffset.x, 0, centerOffset.y]}>
                 {/* Render Extrusions */}
                 {geoData.extrusions.map((ext, i) => (
@@ -355,6 +339,27 @@ function GCodeScene({ parsed, upToLayer, nozzleDiameter = 0.4, showTravel = fals
             </group>
         </>
     );
+}
+
+// ── Integrated In-Viewport Overlay ───────────────────────────────────────────
+// useGCodeLoader: hook that fetches + parses a gcode file from a URL.
+export function useGCodeLoader(gcodeUrl: string | null) {
+    const [parsed, setParsed] = useState<ParsedGCode | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!gcodeUrl) { setParsed(null); setLoading(false); setError(null); return; }
+        setLoading(true);
+        setError(null);
+        setParsed(null);
+        fetch(gcodeUrl)
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+            .then(raw => { setParsed(parseGCode(raw)); setLoading(false); })
+            .catch(e => { setError(e.message); setLoading(false); });
+    }, [gcodeUrl]);
+
+    return { parsed, loading, error };
 }
 
 // ── Main exported component ───────────────────────────────────────────────────
@@ -400,56 +405,63 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
     }, [gcodeUrl]);
 
     return (
-        <div className="relative flex flex-col w-full h-full bg-slate-950 overflow-hidden">
-            {/* Main View Area */}
-            <div className="flex-1 relative">
-                {/* Floating Close Button */}
+        <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 flex flex-col">
+            {/* Main View Area (matches Viewport container layout) */}
+            <div className="flex-1 relative h-full">
+
+                <div className="absolute inset-4 z-0 rounded-xl overflow-hidden shadow-inner bg-slate-100/50 dark:bg-slate-800/20 transition-all">
+                    {parsed && !loading && (
+                        <Canvas
+                            camera={{ position: [150, 120, 150], fov: 45 }}
+                            shadows
+                        >
+                            <fog attach="fog" args={['#f8fafc', 200, 500]} />
+                            <ambientLight intensity={0.4} />
+                            <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow shadow-bias={-0.0001} />
+                            <Environment preset="city" />
+                            <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} showTravel={showTravel} />
+                            <OrbitControls makeDefault target={[50, 0, 50]} />
+                        </Canvas>
+                    )}
+                </div>
+
+                {/* Floating Return Button */}
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition-all shadow-xl"
-                    title="Back to Model View"
+                    className="absolute top-8 right-8 z-20 px-4 py-2 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-primary transition-all font-bold text-[10px] uppercase cursor-pointer"
+                    title="Exit Toolpath Preview"
                 >
-                    <Icon name="close" className="text-xl" />
+                    <Icon name="arrow_back" className="text-base" />
+                    Return to Designer
                 </button>
 
                 {loading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950 z-10">
-                        <div className="text-center text-slate-400">
+                    <div className="absolute inset-4 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl">
+                        <div className="text-center text-slate-500 dark:text-slate-400">
                             <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                            <p className="text-sm uppercase tracking-widest font-bold opacity-50">Slicing complete. Loading G-code...</p>
+                            <p className="text-sm uppercase tracking-widest font-bold opacity-80">Loading Toolpaths...</p>
                         </div>
                     </div>
                 )}
                 {error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950 z-10">
-                        <div className="text-center text-red-400 p-8 max-w-md">
-                            <Icon name="error_outline" className="text-5xl mb-4 opacity-50" />
+                    <div className="absolute inset-4 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl">
+                        <div className="text-center text-red-500 p-8 max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-red-200 dark:border-red-900/50">
+                            <Icon name="error_outline" className="text-5xl mb-4" />
                             <p className="text-sm font-bold uppercase mb-2">Error Loading Preview</p>
                             <p className="text-xs opacity-80 mb-6">{error}</p>
-                            <button onClick={onClose} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-xs font-bold uppercase transition-all">Close</button>
+                            <button onClick={onClose} className="px-6 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded text-slate-700 dark:text-slate-200 text-xs font-bold uppercase transition-all">Go Back</button>
                         </div>
                     </div>
-                )}
-                {parsed && !loading && (
-                    <Canvas
-                        camera={{ position: [150, 120, 150], fov: 45 }}
-                        style={{ background: '#0f172a' }}
-                    >
-                        <ambientLight intensity={0.5} />
-                        <directionalLight position={[50, 80, 50]} intensity={1} />
-                        <GCodeScene parsed={parsed} upToLayer={upToLayer} nozzleDiameter={nozzleDiameter} showTravel={showTravel} />
-                        <OrbitControls makeDefault target={[50, 0, 50]} />
-                    </Canvas>
                 )}
             </div>
 
             {/* Bottom Integrated Controls */}
             {parsed && (
-                <div className="bg-slate-900/90 backdrop-blur-md border-t border-slate-800 px-6 py-3 flex items-center gap-6 z-20">
+                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-sm px-6 py-3 flex items-center gap-6 z-20">
                     {/* Layer Slider */}
                     <div className="flex flex-1 items-center gap-4">
-                        <Icon name="layers" className="text-slate-500 text-base" />
-                        <span className="text-[10px] text-slate-500 uppercase font-bold w-12">Layer</span>
+                        <Icon name="layers" className="text-slate-400 dark:text-slate-500 text-base" />
+                        <span className="text-[10px] text-slate-500 uppercase font-bold w-12 tracking-wider">Layer</span>
                         <input
                             type="range"
                             min={0}
@@ -457,19 +469,18 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                             step={1}
                             value={upToLayer}
                             onChange={e => setUpToLayer(+e.target.value)}
-                            className="flex-1 h-1 accent-primary bg-slate-800 rounded-full cursor-pointer appearance-none"
+                            className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
                         />
                         <span className="text-xs font-mono text-primary font-bold w-16 text-right">
                             {upToLayer}/{parsed.layerCount}
                         </span>
                     </div>
 
-                    {/* Nozzle Control (Moved to bottom) */}
-                    <div className="h-6 w-[1px] bg-slate-800" />
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
 
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                            <span className="uppercase font-bold opacity-70">Nozzle</span>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                            <span className="uppercase font-bold">Nozzle</span>
                             <div className="relative">
                                 <input
                                     type="number"
@@ -478,36 +489,36 @@ export const GCodePreview: React.FC<GCodePreviewProps> = ({ gcodeUrl, jobId, lay
                                     step="0.05"
                                     value={nozzleDiameter}
                                     onChange={e => setNozzleDiameter(parseFloat(e.target.value) || 0.4)}
-                                    className="w-14 px-1 py-1 bg-slate-800 border border-slate-700 rounded text-slate-200 text-center text-xs focus:ring-1 focus:ring-primary/50 outline-none transition-all"
+                                    className="w-14 px-1 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-700 dark:text-slate-200 text-center text-xs font-mono focus:ring-1 focus:ring-primary/50 outline-none transition-all"
                                 />
                             </div>
-                            <span className="text-slate-600 font-bold uppercase">mm</span>
+                            <span className="text-slate-400 font-bold uppercase">mm</span>
                         </div>
                     </div>
 
-                    <div className="h-6 w-[1px] bg-slate-800" />
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
 
                     {/* Travel Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-400 font-bold uppercase tracking-tight hover:text-slate-300 transition-colors">
+                    <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-500 font-bold uppercase tracking-tight hover:text-slate-800 dark:hover:text-slate-300 transition-colors">
                         <input 
                             type="checkbox" 
                             checked={showTravel} 
                             onChange={e => setShowTravel(e.target.checked)} 
-                            className="w-3 h-3 accent-primary cursor-pointer"
+                            className="w-3.5 h-3.5 accent-primary cursor-pointer rounded-sm border-slate-300"
                         />
                         Travel Moves
                     </label>
 
-                    <div className="h-6 w-[1px] bg-slate-800" />
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
 
-                    {/* Legend (Moved to bottom) */}
+                    {/* Legend */}
                     <div className="flex items-center gap-3 text-[10px] text-slate-500 font-bold uppercase tracking-tight">
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#14b8a6' }} />FDM</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />Syr</span>
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: '#8b5cf6' }} />UV</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#14b8a6' }} />FDM</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#f59e0b' }} />Syr</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: '#8b5cf6' }} />UV</span>
                     </div>
 
-                    <div className="h-6 w-[1px] bg-slate-800" />
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700" />
 
                     {/* Download */}
                     <a
