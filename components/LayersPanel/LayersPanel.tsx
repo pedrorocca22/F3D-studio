@@ -349,6 +349,17 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 />
               </div>
 
+              {/* First Layer Height */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">First layer height (μm):</span>
+                <NumericInput
+                  className={inputClass}
+                  value={globalSettings.firstLayerHeight ?? 300}
+                  onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })}
+                  step={10}
+                />
+              </div>
+
               {/* Temperatures */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -372,18 +383,28 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </div>
 
               {/* Nozzle Diameter */}
-              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nozzle Diameter (mm)</span>
-                <div className="w-32">
-                  <NumericInput
-                    className={inputClass}
-                    value={globalSettings.nozzleDiameter ?? 0.4}
-                    onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v })}
-                    step={0.05}
-                    min={0.1}
-                    max={2.0}
-                  />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nozzle Diameter (mm)</span>
+                  <div className="w-32">
+                    <NumericInput
+                      className={inputClass}
+                      value={globalSettings.nozzleDiameter ?? 0.4}
+                      onChange={(v) => onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v })}
+                      step={0.05}
+                      min={0.1}
+                      max={2.0}
+                    />
+                  </div>
                 </div>
+                {((globalSettings.firstLayerHeight || 300) / 1000) > (globalSettings.nozzleDiameter || 0.4) && (
+                  <div className="px-2 py-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded flex items-center gap-2 animate-pulse mt-1">
+                    <Icon name="warning" className="text-red-500 text-xs" />
+                    <span className="text-[10px] text-red-600 dark:text-red-400 font-medium leading-tight">
+                      First layer height must be ≤ nozzle diameter ({globalSettings.nozzleDiameter}mm).
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Infill Pattern Selector */}

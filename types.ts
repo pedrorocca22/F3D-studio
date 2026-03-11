@@ -83,6 +83,7 @@ export interface GlobalSettings {
   perimeters?: number;
   supportsEnabled?: boolean;
   nozzleDiameter?: number;
+  firstLayerHeight?: number;
 }
 
 export interface SettingsState {

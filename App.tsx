@@ -47,7 +47,8 @@ export default function App() {
     infillPattern: 'gyroid',
     perimeters: 3,
     supportsEnabled: false,
-    nozzleDiameter: 0.4
+    nozzleDiameter: 0.4,
+    firstLayerHeight: 300
   });
 
   // State for multiple models
@@ -298,7 +299,10 @@ export default function App() {
 
     // FDM print parameters
     const layerH = (globalSettings.layerHeight / 1000).toFixed(3); // μm → mm
+    const firstLayerH = ((globalSettings.firstLayerHeight ?? 300) / 1000).toFixed(3); // μm → mm
+
     formData.append('layer_height', layerH);
+    formData.append('first_layer_height', firstLayerH);
     formData.append('nozzle_temp', String(globalSettings.nozzleTemperature ?? 210));
     formData.append('bed_temp', String(globalSettings.bedTemperature ?? 60));
     formData.append('infill', String(globalSettings.infill ?? 15));

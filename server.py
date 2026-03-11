@@ -349,6 +349,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "fill_pattern": str(infill_pattern),
             "perimeters": str(perimeters),
             "nozzle_diameter": str(form_params.get("nozzle_diameter", "0.4")),
+            "first_layer_height": str(form_params.get("first_layer_height", "0.3")),
             "support_material": "1" if supports else "0",
         }
 
@@ -571,6 +572,7 @@ def fdm_slice():
         "layer_actions": request.form.get("layer_actions", "[]"),
         "models_metadata": request.form.get("models_metadata", "[]"),
         "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
+        "first_layer_height": request.form.get("first_layer_height", "0.3"),
     }
 
     # Limit to 1 job: Clean up previous ones
