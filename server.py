@@ -1101,6 +1101,12 @@ def moonraker_uv_expose():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/assets/<path:filename>")
+def serve_asset(filename):
+    """Serve static assets (like reference STLs) from the project root."""
+    return send_file(BASE_DIR / filename)
+
+
 if __name__ == "__main__":
     print("Starting BioFFF Studio Server...")
     print(f" DLP3 Legacy Config INI : {DEFAULT_CONFIG_INI}")

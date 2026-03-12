@@ -69,7 +69,11 @@ export default function App() {
     brimWidth: 0,
     topSolidLayers: 3,
     bottomSolidLayers: 3,
-    fillAngle: 45
+    fillAngle: 45,
+    printBed: {
+      type: 'glass_bed',
+      dimensions: { width: 100, height: 100 }
+    }
   });
 
   // State for multiple models
@@ -584,6 +588,10 @@ export default function App() {
   };
 
 
+  const selectedModelHeight = models.find(m => m.id === selectedModelId)?.size?.y ?? 0;
+  const calculatedTotalLayers = selectedModelHeight > 0 
+    ? Math.ceil(selectedModelHeight / (globalSettings.layerHeight / 1000)) 
+    : 100;
 
   return (
     <div
@@ -624,7 +632,7 @@ export default function App() {
           onFileUpload={handleFileUpload}
           toolheads={toolheads}
           layerActions={layerActions}
-          totalLayers={models.find(m => m.id === selectedModelId)?.advancedSettings?.segments?.length ?? 0}
+          totalLayers={calculatedTotalLayers}
           onUpdateToolheads={setToolheads}
           onUpdateLayerActions={setLayerActions}
           // Integrated slicing workflow props

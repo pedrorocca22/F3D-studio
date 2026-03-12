@@ -92,7 +92,18 @@ Asignación de herramientas por feature dentro de un mismo modelo (scaffold), pe
 
 ---
 
+## 🧫 Fase 7: Superficie de Bioimpresión (Print Bed)
+Configuración de la base sobre la cual se deposita el material, adaptando el sistema a soportes estándar de laboratorio.
+
+### Interfaz de Usuario (Panel de Capas)
+- [x] **Nueva pestaña "1. Bed"**: Incorporada como la pestaña inicial del flujo de trabajo.
+- [x] **Selector de Superficie**: Opciones para Glass Bed (100x100), Petri Dishes (35, 60, 90mm) y Multiwell Plates (6, 12, 48 wells).
+- [x] **Visualización en Viewport**: Representación gráfica de la superficie seleccionada en el espacio 3D.
+    - [x] **Capa 3D para Multiwell**: Integración del modelo 24-well plate (.STEP -> .STL) como referencia visual traslúcida centrada.
+- [x] **Conversión Dinámica**: Implementado flujo de conversión de modelos STEP de referencia utilizando PrusaSlicer CLI.
+
+---
+
 ## 🛠️ Notas de Seguimiento
-- **Importante**: Todas las configuraciones nuevas deben mantener la lógica de validación preventiva (ej: advertencia si `layer_height` > `nozzle_diameter`).
-- **Coordenadas**: Mantener el offset de -50/-50 en el preview de G-code para asegurar posicionamiento absoluto.
-- **Scaffold mode**: La asignación per-feature de PrusaSlicer es global (no por modelo). Si se necesita per-modelo en el futuro, se requerirá slicing separado + merge de G-code.
+- **Conflict Resolution**: En caso de colisión entre el Scaffold Mapping y el Layer Schedule, el **Schedule tiene prioridad absoluta** sobre el comando de herramienta.
+- **Bed Coordinates**: El origen (0,0,0) del sistema se mantiene en el centro de la cama de cristal por defecto.

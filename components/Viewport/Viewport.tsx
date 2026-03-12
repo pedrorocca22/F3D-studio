@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback } from 'react';
 import { Icon } from '../Icon';
 import { Canvas, useLoader, useThree, ThreeEvent, useFrame } from '@react-three/fiber';
-import { OrbitControls, ContactShadows, useCursor, TransformControls, Environment, Grid } from '@react-three/drei';
+import { OrbitControls, ContactShadows, useCursor, TransformControls, Environment, Grid, Text } from '@react-three/drei';
 import { STLLoader } from 'three-stdlib';
 import * as THREE from 'three';
 import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings, Modifier } from '../../types';
@@ -10,23 +10,9 @@ import { ThreeElements } from '@react-three/fiber';
 import { useGCodeLoader, GCodeScene, ColorMode, LINE_TYPE_COLOR, LINE_TYPE_LABELS, TOOLHEAD_COLOR } from '../GCodePreview/GCodePreview';
 
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      group: any;
-      mesh: any;
-      planeGeometry: any;
-      meshStandardMaterial: any;
-      gridHelper: any;
-      lineSegments: any;
-      edgesGeometry: any;
-      lineBasicMaterial: any;
-      axesHelper: any;
-      meshPhysicalMaterial: any;
-      meshBasicMaterial: any;
-      fog: any;
-      ambientLight: any;
-      directionalLight: any;
-      [elemName: string]: any;
+  namespace React {
+    namespace JSX {
+      interface IntrinsicElements extends ThreeElements {}
     }
   }
 }
@@ -166,72 +152,161 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
   );
 };
 
-import { Text } from '@react-three/drei';
 
-const BuildPlate = () => {
+// Procedural Build Plate Visuals (Parametric)
+const MULTIWELL_SPECS = {
+  '6': { cols: 3, rows: 2, pitch: 39.1, dia: 34.8 },
+  '12': { cols: 4, rows: 3, pitch: 26.1, dia: 22.1 },
+  '24': { cols: 6, rows: 4, pitch: 19.3, dia: 15.62 },
+  '48': { cols: 8, rows: 6, pitch: 13.0, dia: 11.0 },
+};
+
+const BuildPlate = ({ globalSettings }: { globalSettings: GlobalSettings }) => {
+  const bed = globalSettings.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
+  const bedType = bed.type;
+
+  // Determine actual dimensions for labels and grid
+  let width = 100;
+  let depth = 100;
+
+  if (bedType === 'glass_bed') {
+    width = bed.dimensions?.width || 100;
+    depth = bed.dimensions?.height || 100;
+  } else if (bedType === 'multiwell_plate') {
+    width = 127.89;
+    depth = 85.6;
+  } else if (bedType === 'petri_dish') {
+    width = bed.petriDiameter || 60;
+    depth = bed.petriDiameter || 60;
+  }
+
   return (
     <group>
-      {/* Floor Plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-        <planeGeometry args={[BUILD_VOLUME.width, BUILD_VOLUME.depth]} />
-        <meshStandardMaterial
-          color="#f8fafc"
-          transparent
-          opacity={0.8}
-          roughness={0.1}
-          metalness={0.1}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      {/* Grid helper - sized to BUILD_VOLUME or bed? Usually builders like to see the machine limits */}
+      <Grid 
+        infiniteGrid 
+        fadeDistance={400} 
+        fadeStrength={5} 
+        cellSize={10} 
+        sectionSize={50} 
+        sectionColor="#cbd5e1" 
+        sectionThickness={1} 
+        cellColor="#e2e8f0" 
+        cellThickness={0.5} 
+        position={[0, -0.01, 0]} 
+      />
 
-      {/* Print area border — XY plane only, no vertical Z lines */}
-      <lineSegments>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            array={new Float32Array([
-              // 4 edges of the floor rectangle (counter-clockwise)
-              -BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
-               BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
+      {/* 1. GLASS BED */}
+      {bedType === 'glass_bed' && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
+            <planeGeometry args={[width, depth]} />
+            <meshStandardMaterial
+              color="#f8fafc"
+              transparent
+              opacity={0.4}
+              roughness={0.1}
+              metalness={0.1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          <lineSegments rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+            <edgesGeometry args={[new THREE.PlaneGeometry(width, depth)]} />
+            <lineBasicMaterial color="#3b82f6" linewidth={2} />
+          </lineSegments>
+        </>
+      )}
 
-               BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
-               BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+      {/* 2. PETRI DISH */}
+      {bedType === 'petri_dish' && (
+        <group>
+          {/* Base of Petri */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+            <circleGeometry args={[width / 2, 64]} />
+            <meshStandardMaterial 
+              color="#e2e8f0" 
+              transparent 
+              opacity={0.4} 
+              roughness={0} 
+              metalness={0.1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          {/* Rim of Petri */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+            <ringGeometry args={[(width / 2) - 0.5, width / 2, 64]} />
+            <meshBasicMaterial color="#3b82f6" />
+          </mesh>
+          {/* Subtle crosshair for centering */}
+          <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
+             <mesh>
+               <planeGeometry args={[width * 0.1, 0.2]} />
+               <meshBasicMaterial color="#3b82f6" opacity={0.3} transparent />
+             </mesh>
+             <mesh rotation={[0, 0, Math.PI / 2]}>
+               <planeGeometry args={[width * 0.1, 0.2]} />
+               <meshBasicMaterial color="#3b82f6" opacity={0.3} transparent />
+             </mesh>
+          </group>
+        </group>
+      )}
 
-               BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
-              -BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
+      {/* 3. MULTIWELL PLATE */}
+      {bedType === 'multiwell_plate' && (
+        <group>
+          {/* Base Plate Body */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+            <planeGeometry args={[127.89, 85.6]} />
+            <meshStandardMaterial color="#f8fafc" transparent opacity={0.2} />
+          </mesh>
+          <lineSegments rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+            <edgesGeometry args={[new THREE.PlaneGeometry(127.89, 85.6)]} />
+            <lineBasicMaterial color="#3b82f6" opacity={0.5} transparent />
+          </lineSegments>
 
-              -BUILD_VOLUME.width / 2, 0, -BUILD_VOLUME.depth / 2,
-              -BUILD_VOLUME.width / 2, 0,  BUILD_VOLUME.depth / 2,
-            ])}
-            itemSize={3}
-            count={8}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial color="#cbd5e1" linewidth={1} />
-      </lineSegments>
+          {/* Procedural Wells Grid */}
+          {(() => {
+            const format = bed.multiwellFormat?.toString() || '24';
+            const spec = MULTIWELL_SPECS[format as keyof typeof MULTIWELL_SPECS] || MULTIWELL_SPECS['24'];
+            const wells = [];
+            for (let r = 0; r < spec.rows; r++) {
+              for (let c = 0; c < spec.cols; c++) {
+                const x = (c - (spec.cols - 1) / 2) * spec.pitch;
+                const z = (r - (spec.rows - 1) / 2) * spec.pitch;
+                wells.push(
+                  <group key={`${r}-${c}`} position={[x, 0.05, z]}>
+                    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                      <circleGeometry args={[spec.dia / 2, 32]} />
+                      <meshStandardMaterial color="#e2e8f0" transparent opacity={0.5} />
+                    </mesh>
+                    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                      <ringGeometry args={[(spec.dia / 2) - 0.2, spec.dia / 2, 32]} />
+                      <meshBasicMaterial color="#3b82f6" opacity={0.6} transparent />
+                    </mesh>
+                    {/* Well Label */}
+                    <group position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                      <Text fontSize={2} color="#94a3b8" opacity={0.5} transparent>
+                        {String.fromCharCode(65 + r)}{c + 1}
+                      </Text>
+                    </group>
+                  </group>
+                );
+              }
+            }
+            return wells;
+          })()}
+        </group>
+      )}
 
-      {/* Dimensions Text labels on the ground plane (Z=0) */}
-      {/* Width Label (X-axis) */}
-      <group position={[0, 0.1, BUILD_VOLUME.depth / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <Text
-          fontSize={4}
-          color="#94a3b8"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {BUILD_VOLUME.width}mm
+      {/* Dimensions Text labels */}
+      <group position={[0, 0.1, depth / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <Text fontSize={3} color="#94a3b8" anchorX="center" anchorY="middle">
+          {width.toFixed(1)}mm
         </Text>
       </group>
-
-      {/* Depth Label (Z-axis) - Placed on the side */}
-      <group position={[BUILD_VOLUME.width / 2 + 5, 0.1, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 2]}>
-        <Text
-          fontSize={4}
-          color="#94a3b8"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {BUILD_VOLUME.depth}mm
+      <group position={[width / 2 + 5, 0.1, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 2]}>
+        <Text fontSize={3} color="#94a3b8" anchorX="center" anchorY="middle">
+          {depth.toFixed(1)}mm
         </Text>
       </group>
     </group>
@@ -1018,7 +1093,7 @@ export const Viewport: React.FC<ViewportProps> = ({
               </mesh>
             )}
 
-            <BuildPlate />
+            <BuildPlate globalSettings={globalSettings} />
 
             {/* STL Models - hidden when GCode is active */}
             <Suspense fallback={null}>

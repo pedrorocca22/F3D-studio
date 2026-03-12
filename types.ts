@@ -106,6 +106,23 @@ export interface GlobalSettings {
   topSolidLayers?: number;
   bottomSolidLayers?: number;
   fillAngle?: number;
+  printBed?: PrintBedSettings;
+}
+
+// ---------------------------------------------------------------------------
+//  Print Bed Settings
+// ---------------------------------------------------------------------------
+
+export type PrintBedType = 'glass_bed' | 'petri_dish' | 'multiwell_plate';
+
+export interface PrintBedSettings {
+  type: PrintBedType;
+  /** Petri dish diameter in mm (35, 60, 90) */
+  petriDiameter?: 35 | 60 | 90;
+  /** Multiwell plate format (6, 12, 24, 48) */
+  multiwellFormat?: 6 | 12 | 24 | 48;
+  /** Custom dimensions if necessary */
+  dimensions?: { width: number; height: number };
 }
 
 export interface SettingsState {

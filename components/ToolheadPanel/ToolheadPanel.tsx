@@ -32,14 +32,14 @@ const TOOLHEAD_LABELS: Record<ToolheadId, string> = {
     none: 'None',
 };
 
-const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: string; icon: string }[] = [
+export const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: string; icon: string }[] = [
     { key: 'perimeter', label: 'Perimeters (Walls)', icon: 'crop_square' },
     { key: 'infill', label: 'Infill', icon: 'grid_on' },
     { key: 'solidInfill', label: 'Solid Fill (Top/Bottom)', icon: 'layers' },
     { key: 'support', label: 'Supports', icon: 'support' },
 ];
 
-const DEFAULT_SCAFFOLD_TOOLS: ScaffoldToolMapping = {
+export const DEFAULT_SCAFFOLD_TOOLS: ScaffoldToolMapping = {
     perimeter: 'fdm',
     infill: 'fdm',
     solidInfill: 'fdm',
@@ -52,14 +52,14 @@ function generateUUID(): string {
 
 // ---------- Sub-components ----------
 
-const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
+export const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-bold ${TOOLHEAD_COLORS[toolhead]}`}>
         <span className="material-icons-outlined text-xs">{TOOLHEAD_ICONS[toolhead]}</span>
         {TOOLHEAD_LABELS[toolhead]}
     </span>
 );
 
-const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) => void; className?: string }> = ({ value, onChange, className }) => (
+export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) => void; className?: string }> = ({ value, onChange, className }) => (
     <select
         value={value}
         onChange={e => onChange(e.target.value as ToolheadId)}
@@ -72,7 +72,7 @@ const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) =>
 );
 
 
-const LayerActionRow: React.FC<{
+export const LayerActionRow: React.FC<{
     action: LayerAction;
     totalLayers: number;
     onUpdate: (a: LayerAction) => void;
