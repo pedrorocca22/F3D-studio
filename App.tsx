@@ -149,7 +149,8 @@ export default function App() {
       advancedSettings: {
         enabled: false,
         segments: []
-      }
+      },
+      toolhead: 'fdm'
     };
 
     setModels(prev => [...prev, newModel]);

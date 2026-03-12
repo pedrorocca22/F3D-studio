@@ -605,14 +605,34 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 {models.map(m => {
                   const isScaffold = !!m.scaffoldTools;
                   const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
+                  const isSelected = selectedModelId === m.id;
+                  
                   return (
-                    <div key={m.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
-                      <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/50">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate pr-2">{m.name}</span>
+                    <div 
+                      key={m.id} 
+                      onClick={() => onSelectModel(m.id)}
+                      className={`bg-white dark:bg-slate-900 border rounded-xl overflow-hidden transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'border-primary ring-2 ring-primary/20 shadow-md' 
+                          : 'border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-between p-3 ${
+                        isSelected ? 'bg-primary/5' : 'bg-slate-50/50 dark:bg-slate-800/50'
+                      }`}>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-primary' : 'bg-slate-300'}`} />
+                          <span className={`text-xs font-bold truncate pr-2 ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>
+                            {m.name}
+                          </span>
+                        </div>
                         <button
-                          onClick={() => onUpdateModel(m.id, { 
-                            scaffoldTools: isScaffold ? undefined : { ...DEFAULT_SCAFFOLD_TOOLS, perimeter: m.toolhead || 'fdm' } 
-                          })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdateModel(m.id, { 
+                              scaffoldTools: isScaffold ? undefined : { ...DEFAULT_SCAFFOLD_TOOLS, perimeter: m.toolhead || 'fdm' } 
+                            });
+                          }}
                           className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter transition-all ${
                             isScaffold ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
                           }`}
