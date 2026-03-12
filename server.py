@@ -77,19 +77,20 @@ def _extract_number_from_text(text: str) -> float:
 def _write_multimaterial_3mf(models_data, output_path):
     """
     Generates a PrusaSlicer-compatible 3MF file with per-volume extruder assignment.
-    models_data: list of dicts: [{"mesh": m, "toolhead": "fdm"}, ...]
+    models_data: list of dicts: [{"mesh": m, "toolhead": "fdm", "scaffoldTools": {...}}, ...]
     output_path: Path to the .3mf file to write (it's a ZIP archive).
     """
     toolhead_to_extruder = {
         "fdm": 1,
         "syringe": 2,
-        "uv": 3
+        "uv": 3,
+        "none": 1
     }
 
     # ---- Build welded vertex list and per-volume triangle indices ----
     vertices = []
     vertex_map = {}
-    volumes = []  # list of {"triangles": [(i0,i1,i2), ...], "extruder": int}
+    volumes = []  # list of {"triangles": [(i0,i1,i2), ...], "extruder": int, "scaffoldTools": dict}
 
     for m_data in models_data:
         m = m_data["mesh"]
@@ -105,7 +106,12 @@ def _write_multimaterial_3mf(models_data, output_path):
                 idxs.append(vertex_map[vt])
             if idxs[0] != idxs[1] and idxs[1] != idxs[2] and idxs[0] != idxs[2]:
                 tris.append(tuple(idxs))
-        volumes.append({"triangles": tris, "extruder": extruder})
+        
+        vol_info = {"triangles": tris, "extruder": extruder}
+        if "scaffoldTools" in m_data and m_data["scaffoldTools"]:
+            vol_info["scaffoldTools"] = m_data["scaffoldTools"]
+            
+        volumes.append(vol_info)
 
     # ---- 3dmodel.model (OPC 3MF core) ----
     # Each volume becomes a separate <object> so PrusaSlicer can assign extruder per-object.
@@ -186,12 +192,30 @@ def _write_multimaterial_3mf(models_data, output_path):
         obj_id = vol_idx + 1
         config_lines.append(f' <object id="{obj_id}" instances_count="1">')
         config_lines.append(f'  <metadata type="object" key="name" value="Part_{obj_id}"/>')
-        config_lines.append(f'  <metadata type="object" key="extruder" value="{vol["extruder"]}"/>')
-        config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
-        config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
-        config_lines.append(f'   <metadata type="volume" key="extruder" value="{vol["extruder"]}"/>')
-        config_lines.append(f'   <metadata type="volume" key="volume_type" value="ModelPart"/>')
-        config_lines.append(f'  </volume>')
+        
+        if "scaffoldTools" in vol:
+            per_ext = toolhead_to_extruder.get(vol["scaffoldTools"].get("perimeter", "fdm"), 1)
+            inf_ext = toolhead_to_extruder.get(vol["scaffoldTools"].get("infill", "fdm"), 1)
+            sol_ext = toolhead_to_extruder.get(vol["scaffoldTools"].get("solidInfill", "fdm"), 1)
+            sup_ext = toolhead_to_extruder.get(vol["scaffoldTools"].get("support", "fdm"), 1)
+            
+            config_lines.append(f'  <metadata type="object" key="perimeter_extruder" value="{per_ext}"/>')
+            config_lines.append(f'  <metadata type="object" key="infill_extruder" value="{inf_ext}"/>')
+            config_lines.append(f'  <metadata type="object" key="solid_infill_extruder" value="{sol_ext}"/>')
+            config_lines.append(f'  <metadata type="object" key="support_material_extruder" value="{sup_ext}"/>')
+            
+            config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
+            config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
+            config_lines.append(f'   <metadata type="volume" key="volume_type" value="ModelPart"/>')
+            config_lines.append(f'  </volume>')
+        else:
+            config_lines.append(f'  <metadata type="object" key="extruder" value="{vol["extruder"]}"/>')
+            config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
+            config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
+            config_lines.append(f'   <metadata type="volume" key="extruder" value="{vol["extruder"]}"/>')
+            config_lines.append(f'   <metadata type="volume" key="volume_type" value="ModelPart"/>')
+            config_lines.append(f'  </volume>')
+            
         config_lines.append(f' </object>')
 
     slic3r_config = (
@@ -519,7 +543,27 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "min_fan_speed": str(form_params.get("min_fan_speed", "100")),
             "max_fan_speed": str(form_params.get("max_fan_speed", "100")),
             "disable_fan_first_layers": str(form_params.get("disable_fan_first_layers", "1")),
+            "toolchange_gcode": "T[next_extruder]",
         }
+
+        # ── Per-feature extruder assignment (Scaffold mode) ──
+        # If any model carries scaffoldTools, apply PrusaSlicer's per-feature extruder keys.
+        scaffold_tools = None
+        for meta in models_meta:
+            st = meta.get("scaffoldTools")
+            if st:
+                scaffold_tools = st
+                break  # PrusaSlicer applies these globally; use the first scaffold's mapping
+
+        if scaffold_tools:
+            th_to_ext = {"fdm": "1", "syringe": "2", "uv": "3", "none": "1"}
+            overrides_dict["perimeter_extruder"] = th_to_ext.get(scaffold_tools.get("perimeter", "fdm"), "1")
+            overrides_dict["infill_extruder"] = th_to_ext.get(scaffold_tools.get("infill", "fdm"), "1")
+            overrides_dict["solid_infill_extruder"] = th_to_ext.get(scaffold_tools.get("solidInfill", "fdm"), "1")
+            overrides_dict["support_material_extruder"] = th_to_ext.get(scaffold_tools.get("support", "fdm"), "1")
+            print(f"[FDM SLICE] Scaffold tools applied: perimeter={overrides_dict['perimeter_extruder']}, "
+                  f"infill={overrides_dict['infill_extruder']}, solid={overrides_dict['solid_infill_extruder']}, "
+                  f"support={overrides_dict['support_material_extruder']}")
 
         config_lines = []
         applied_overrides = set()
@@ -623,7 +667,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
                         consolidated_data.append({
                             "mesh": m,
-                            "toolhead": meta.get("toolhead", "fdm")
+                            "toolhead": meta.get("toolhead", "fdm"),
+                            "scaffoldTools": meta.get("scaffoldTools")
                         })
                     except Exception as e:
                         print(f"[FDM SLICE] Error processing {f_name}: {e}")

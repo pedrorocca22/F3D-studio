@@ -319,7 +319,8 @@ export default function App() {
     const modelsMetadata = models.map(m => ({
       name: m.file?.name,
       transform: m.transform,
-      toolhead: m.toolhead || 'fdm'
+      toolhead: m.toolhead || 'fdm',
+      scaffoldTools: m.scaffoldTools || null
     }));
     formData.append('models_metadata', JSON.stringify(modelsMetadata));
 

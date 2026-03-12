@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData } from '../../types';
+import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData, ScaffoldToolMapping } from '../../types';
 
 interface ToolheadPanelProps {
     models: ModelData[];
@@ -32,6 +32,20 @@ const TOOLHEAD_LABELS: Record<ToolheadId, string> = {
     none: 'None',
 };
 
+const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: string; icon: string }[] = [
+    { key: 'perimeter', label: 'Perimeters (Walls)', icon: 'crop_square' },
+    { key: 'infill', label: 'Infill', icon: 'grid_on' },
+    { key: 'solidInfill', label: 'Solid Fill (Top/Bottom)', icon: 'layers' },
+    { key: 'support', label: 'Supports', icon: 'support' },
+];
+
+const DEFAULT_SCAFFOLD_TOOLS: ScaffoldToolMapping = {
+    perimeter: 'fdm',
+    infill: 'fdm',
+    solidInfill: 'fdm',
+    support: 'fdm',
+};
+
 function generateUUID(): string {
     return Math.random().toString(36).slice(2, 10);
 }
@@ -43,6 +57,18 @@ const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
         <span className="material-icons-outlined text-xs">{TOOLHEAD_ICONS[toolhead]}</span>
         {TOOLHEAD_LABELS[toolhead]}
     </span>
+);
+
+const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) => void; className?: string }> = ({ value, onChange, className }) => (
+    <select
+        value={value}
+        onChange={e => onChange(e.target.value as ToolheadId)}
+        className={`bg-slate-50 dark:bg-slate-800 border-none text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary font-medium ${className || 'w-28'}`}
+    >
+        <option value="fdm">FDM (T0)</option>
+        <option value="syringe">Syringe (T1)</option>
+        <option value="uv">UV (T2)</option>
+    </select>
 );
 
 
@@ -238,7 +264,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
             {activeTab === 'mapping' && (
                 <div className="space-y-3">
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                        Assign each 3D model to a specific toolhead. BioFFF Studio will combine them into a multi-material print sequence automatically.
+                        Assign toolheads to each scaffold. Use <strong>Scaffold mode</strong> to assign different tools per feature (perimeters, infill, etc.).
                     </p>
 
                     {models.length === 0 ? (
@@ -246,25 +272,85 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                             No models loaded.
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            {models.map(m => (
-                                <div key={m.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg">
-                                    <div className="flex flex-col overflow-hidden mr-2">
-                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate" title={m.name}>
-                                            {m.name}
-                                        </span>
+                        <div className="space-y-3">
+                            {models.map(m => {
+                                const isScaffold = !!m.scaffoldTools;
+                                const scaffoldTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
+
+                                return (
+                                    <div key={m.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                                        {/* Model header */}
+                                        <div className="flex items-center justify-between p-2">
+                                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate mr-2" title={m.name}>
+                                                {m.name}
+                                            </span>
+
+                                            {/* Single / Scaffold toggle */}
+                                            <button
+                                                onClick={() => {
+                                                    if (isScaffold) {
+                                                        // Switch back to single tool
+                                                        onUpdateModel(m.id, { scaffoldTools: undefined });
+                                                    } else {
+                                                        // Activate scaffold mode with defaults based on current toolhead
+                                                        const base = m.toolhead || 'fdm';
+                                                        onUpdateModel(m.id, {
+                                                            scaffoldTools: {
+                                                                perimeter: base,
+                                                                infill: base,
+                                                                solidInfill: base,
+                                                                support: base,
+                                                            }
+                                                        });
+                                                    }
+                                                }}
+                                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide transition-all flex items-center gap-1 ${
+                                                    isScaffold
+                                                        ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                <Icon name={isScaffold ? 'account_tree' : 'linear_scale'} className="text-xs" />
+                                                {isScaffold ? 'Scaffold' : 'Single'}
+                                            </button>
+                                        </div>
+
+                                        {/* Single tool mode */}
+                                        {!isScaffold && (
+                                            <div className="px-2 pb-2">
+                                                <ToolheadSelect
+                                                    value={m.toolhead || 'fdm'}
+                                                    onChange={v => onUpdateModel(m.id, { toolhead: v })}
+                                                    className="w-full"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Scaffold mode — per-feature assignment */}
+                                        {isScaffold && (
+                                            <div className="border-t border-slate-200 dark:border-slate-700 p-2 space-y-1.5 bg-slate-50/50 dark:bg-slate-800/30">
+                                                {SCAFFOLD_FEATURE_META.map(feat => (
+                                                    <div key={feat.key} className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <Icon name={feat.icon} className="text-sm text-slate-400 flex-shrink-0" />
+                                                            <span className="text-[10px] text-slate-600 dark:text-slate-300 font-semibold uppercase truncate">{feat.label}</span>
+                                                        </div>
+                                                        <ToolheadSelect
+                                                            value={scaffoldTools[feat.key]}
+                                                            onChange={v => {
+                                                                onUpdateModel(m.id, {
+                                                                    scaffoldTools: { ...scaffoldTools, [feat.key]: v }
+                                                                });
+                                                            }}
+                                                            className="w-28 flex-shrink-0"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <select
-                                        value={m.toolhead || 'fdm'}
-                                        onChange={e => onUpdateModel(m.id, { toolhead: e.target.value as ToolheadId })}
-                                        className="bg-slate-50 dark:bg-slate-800 border-none text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary w-28 shrink-0 font-medium"
-                                    >
-                                        <option value="fdm">FDM (T0)</option>
-                                        <option value="syringe">Syringe (T1)</option>
-                                        <option value="uv">UV (T2)</option>
-                                    </select>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

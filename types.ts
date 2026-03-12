@@ -152,6 +152,8 @@ export interface ModelData {
   file?: File;
   isCube?: boolean;
   toolhead?: ToolheadId;
+  /** Per-feature toolhead mapping for scaffold mode (optional). */
+  scaffoldTools?: ScaffoldToolMapping;
 }
 
 export interface BackendRangeOverride {
@@ -217,6 +219,18 @@ export interface JobManifest {
  *  - 'none'    : No active toolhead (parking / idle)
  */
 export type ToolheadId = 'fdm' | 'syringe' | 'uv' | 'none';
+
+/**
+ * Per-feature toolhead assignment for scaffold printing.
+ * Allows assigning different toolheads to different structural features
+ * of the same model (e.g., perimeters with FDM, infill with syringe).
+ */
+export interface ScaffoldToolMapping {
+  perimeter: ToolheadId;       // Walls / shells
+  infill: ToolheadId;          // Internal fill pattern
+  solidInfill: ToolheadId;     // Top / bottom solid layers
+  support: ToolheadId;         // Support material
+}
 
 /** Infill pattern types valid for FDM / syringe printing */
 export type InfillPattern =

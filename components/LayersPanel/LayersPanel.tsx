@@ -71,7 +71,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   hasGCode,
   onPrint
 }) => {
-  const [activeTab, setActiveTab] = useState<'environment' | 'toolheads' | 'material' | 'slicing'>('environment');
+  const [activeTab, setActiveTab] = useState<'toolheads' | 'environment' | 'material' | 'slicing'>('toolheads');
   
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     models: true,
@@ -359,8 +359,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         <div className={`mt-2 ${!selectedModel || isAdvancedSliceMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
           <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg mb-4 border border-slate-200 dark:border-slate-800">
             {[
-              { id: 'environment', label: '1. Env', icon: 'public' },
-              { id: 'toolheads', label: '2. Tools', icon: 'my_location' },
+              { id: 'toolheads', label: '1. Tools', icon: 'my_location' },
+              { id: 'environment', label: '2. Env', icon: 'public' },
               { id: 'material', label: '3. Material', icon: 'science' },
               { id: 'slicing', label: '4. Slicing', icon: 'layers' }
             ].map(tab => (

@@ -68,6 +68,28 @@ Visualización y gestión de impresión con múltiples cabezales (toolheads) en 
 
 ---
 
+## 🧬 Fase 6: Multi-Tool Scaffold (En Progreso)
+Asignación de herramientas por feature dentro de un mismo modelo (scaffold), permitiendo combinar distintos cabezales para perímetros, relleno, capas sólidas y soportes.
+
+### Tipos y Modelo de Datos
+- [x] **`ScaffoldToolMapping`**: Nueva interfaz con mapeo `perimeter`, `infill`, `solidInfill`, `support` → `ToolheadId`.
+- [x] **`ModelData.scaffoldTools`**: Campo opcional en el modelo, retrocompatible con el modo single-tool existente.
+
+### Interfaz de Usuario (ToolheadPanel)
+- [x] **Toggle Single / Scaffold**: Botón por modelo para alternar entre asignación única y modo scaffold.
+- [x] **Dropdowns per-feature**: 4 selectores independientes (Perimeters, Infill, Solid Fill, Support) con iconos y colores por herramienta.
+- [x] **Reordenación de tabs**: Tools es ahora la primera pestaña del panel de configuración.
+
+### Backend (server.py)
+- [x] **Per-feature extruder INI keys**: Se escriben `perimeter_extruder`, `infill_extruder`, `solid_infill_extruder`, `support_material_extruder` en el config.ini generado por job.
+- [x] **Mapeo toolhead → extruder**: Reutiliza la tabla `fdm=1, syringe=2, uv=3`.
+
+### Frontend (App.tsx)
+- [x] **Metadata ampliada**: `scaffoldTools` se envía al backend como parte de `models_metadata`.
+
+---
+
 ## 🛠️ Notas de Seguimiento
 - **Importante**: Todas las configuraciones nuevas deben mantener la lógica de validación preventiva (ej: advertencia si `layer_height` > `nozzle_diameter`).
 - **Coordenadas**: Mantener el offset de -50/-50 en el preview de G-code para asegurar posicionamiento absoluto.
+- **Scaffold mode**: La asignación per-feature de PrusaSlicer es global (no por modelo). Si se necesita per-modelo en el futuro, se requerirá slicing separado + merge de G-code.
