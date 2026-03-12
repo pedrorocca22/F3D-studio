@@ -211,7 +211,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
     toolheads, layerActions, totalLayers,
     onUpdateToolheads, onUpdateLayerActions
 }) => {
-    const [activeTab, setActiveTab] = useState<'mapping' | 'schedule' | 'config'>('mapping');
+    const [activeTab, setActiveTab] = useState<'schedule' | 'mapping' | 'config'>('schedule');
     const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
 
     const addLayerAction = () => {
@@ -246,7 +246,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
         <div className="flex flex-col gap-3">
             {/* Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700">
-                {(['mapping', 'schedule', 'config'] as const).map(tab => (
+                {(['schedule', 'mapping', 'config'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -255,7 +255,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                     >
-                        {tab === 'mapping' ? 'STL Mapping' : tab === 'schedule' ? 'Layer Schedule' : 'Hardware'}
+                        {tab === 'schedule' ? 'Layer Schedule' : tab === 'mapping' ? 'STL Mapping' : 'Hardware'}
                     </button>
                 ))}
             </div>

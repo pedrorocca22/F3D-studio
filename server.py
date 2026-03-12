@@ -394,6 +394,64 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
+def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
+    """
+    Apply Priority: Layer Schedule > Scaffold Mapping.
+    If a layer is inside a Schedule range, remove internal tool changes (T0/T1/T2)
+    and force the Schedule's toolhead for that whole layer.
+    """
+    if not layer_actions:
+        return
+
+    # Map layer number -> forced tool command
+    overrides = {}
+    for action in layer_actions:
+        try:
+            lyr_from = int(action.get("layerFrom", 1))
+            lyr_to = int(action.get("layerTo", 1))
+            tool = action.get("toolhead", "fdm")
+            
+            # Map toolhead slug to T-command
+            t_cmd = "T0"
+            if tool == "syringe":
+                t_cmd = "T1"
+            elif tool == "uv":
+                t_cmd = "T2"
+
+            for lyr in range(lyr_from, lyr_to + 1):
+                overrides[lyr] = t_cmd
+        except (ValueError, TypeError):
+            continue
+
+    if not overrides:
+        return
+
+    lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
+    output = []
+    current_layer = 0
+
+    for line in lines:
+        # Detect layer change in PrusaSlicer G-code
+        if ";LAYER_CHANGE" in line:
+            current_layer += 1
+            output.append(line)
+            # If this layer is overridden, inject the tool command now
+            if current_layer in overrides:
+                output.append(f"{overrides[current_layer]} ; Forced by Layer Schedule priority\n")
+            continue
+
+        # If inside an overridden layer, strip any T commands coming from the slicer (Scaffold Mapping)
+        if current_layer in overrides:
+            stripped = line.strip()
+            if re.match(r"^T[0-9]+", stripped):
+                output.append(f"; {stripped} ; Suppressed by Layer Schedule priority\n")
+                continue
+
+        output.append(line)
+
+    gcode_path.write_text("".join(output), encoding="utf-8")
+
+
 # WiFi AP Configuration Routes
 # ----------------------------
 @app.get("/api/wifi/scan")
@@ -500,6 +558,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         infill_pattern = form_params.get("infill_pattern", "gyroid")
         perimeters = form_params.get("perimeters", "3")
         models_meta = json.loads(form_params.get("models_metadata", "[]"))
+        layer_actions_raw = json.loads(form_params.get("layer_actions", "[]"))
 
         bed_center_x, bed_center_y = _get_bed_center(Path(FDM_CONFIG_INI))
 
@@ -696,9 +755,12 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             _set_progress(job_id, 0.0, f"PrusaSlicer FDM failed: {p.stderr[:300]}", status="error")
             return
 
-        # NOTE: PrusaSlicer CLI respects the absolute coordinates of a single consolidated STL.
-        # Adding 'XY compensation' usually results in a double-shift if the STL is already 
         # correctly positioned relative to the bed origin.
+
+        # ── Apply Layer Schedule Priority over Scaffold Mapping ──
+        if layer_actions_raw:
+            _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
+            _sanitize_gcode_with_schedule(gcode_out, layer_actions_raw)
 
 
         # Parse basic stats from G-code comments
@@ -722,7 +784,6 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             pass
 
         # Write job manifest
-        layer_actions_raw = json.loads(form_params.get("layer_actions", "[]"))
         job_manifest = {
             "job_id": job_id,
             "type": "fdm",

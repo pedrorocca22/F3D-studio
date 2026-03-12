@@ -83,9 +83,12 @@ Asignación de herramientas por feature dentro de un mismo modelo (scaffold), pe
 ### Backend (server.py)
 - [x] **Per-feature extruder INI keys**: Se escriben `perimeter_extruder`, `infill_extruder`, `solid_infill_extruder`, `support_material_extruder` en el config.ini generado por job.
 - [x] **Mapeo toolhead → extruder**: Reutiliza la tabla `fdm=1, syringe=2, uv=3`.
+- [x] **G-code Injection**: Forzados comandos `T0`, `T1`, `T2` explícitos vía `toolchange_gcode`.
+- [x] **Conflict Resolution**: Implementada jerarquía de prioridad (**Layer Schedule > Scaffold Mapping**) mediante filtrado post-slice.
 
-### Frontend (App.tsx)
+### Frontend
 - [x] **Metadata ampliada**: `scaffoldTools` se envía al backend como parte de `models_metadata`.
+- [x] **UX Priority**: Reordenadas pestañas: Schedule (Programación) como pestaña principal.
 
 ---
 
