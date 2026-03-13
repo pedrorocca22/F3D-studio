@@ -528,9 +528,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </AccordionSection>
 
               <AccordionSection title="Heating Bed" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
-                <div className="flex items-center gap-4">
+                <div className="grid grid-cols-2 gap-3 items-center">
                   <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (°C):</span>
-                  <NumericInput className="w-24" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
+                  <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
                 </div>
               </AccordionSection>
             </div>
@@ -744,9 +744,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
               <AccordionSection title="Material & Extrusion" isOpen={true} onToggle={() => {}} disableToggle>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">Flow Rate (%):</span>
-                    <NumericInput className="w-20" value={(globalSettings.extrusionMultiplier || 1.0) * 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v / 100 })} />
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Flow Rate (%):</span>
+                    <NumericInput className="w-full" value={(globalSettings.extrusionMultiplier || 1.0) * 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v / 100 })} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -768,13 +768,13 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <AccordionSection title="Layer Settings" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-3 items-center">
                     <span className="text-xs text-slate-600 font-bold">Resolution (μm):</span>
-                    <NumericInput className="w-24" value={globalSettings.layerHeight} onChange={v => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })} step={10} />
+                    <NumericInput className="w-full" value={globalSettings.layerHeight} onChange={v => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })} step={10} />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-3 items-center">
                     <span className="text-xs text-slate-500 font-medium">First Layer (μm):</span>
-                    <NumericInput className="w-24" value={globalSettings.firstLayerHeight || 300} onChange={v => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })} step={10} />
+                    <NumericInput className="w-full" value={globalSettings.firstLayerHeight || 300} onChange={v => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })} step={10} />
                   </div>
                 </div>
               </AccordionSection>
@@ -841,9 +841,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-0.5' : 'left-0.5'}`} />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-3 items-center">
                     <span className="text-xs text-slate-500 font-medium">Brim Width (mm):</span>
-                    <NumericInput className="w-16" value={globalSettings.brimWidth || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} />
+                    <NumericInput className="w-full" value={globalSettings.brimWidth || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} />
                   </div>
                 </div>
               </AccordionSection>
@@ -866,9 +866,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       <NumericInput value={globalSettings.maxFanSpeed || 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, maxFanSpeed: v })} />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-3 items-center">
                     <span className="text-[10px] text-slate-500 font-medium uppercase">Disable for first (layers):</span>
-                    <NumericInput className="w-16" value={globalSettings.disableFanFirstLayers || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} />
+                    <NumericInput className="w-full" value={globalSettings.disableFanFirstLayers || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} />
                   </div>
                 </div>
               </AccordionSection>
