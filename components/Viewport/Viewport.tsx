@@ -103,48 +103,12 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
         </div>
       </div>
 
-      {/* Settings Summary */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-slate-500 flex items-center gap-1.5 font-medium"><Icon name="timer" className="text-[14px] text-slate-400" /> Exposure</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-[11px]">{model.settings.exposureTime}s</span>
-        </div>
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-slate-500 flex items-center gap-1.5 font-medium"><Icon name="flash_on" className="text-[14px] text-slate-400" /> Intensity</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-[11px]">{model.settings.lightIntensity} mW</span>
-        </div>
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-slate-500 flex items-center gap-1.5 font-medium"><Icon name="science" className="text-[14px] text-slate-400" /> Dose</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-[11px]">
-            {(model.settings.exposureMode === 'dose' && model.settings.targetDose
-              ? model.settings.targetDose
-              : model.settings.exposureTime * model.settings.lightIntensity).toFixed(1)} mJ
-          </span>
-        </div>
-      </div>
-
       {/* Advanced Slice Badge */}
       {isAdv ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-lg p-2 mt-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Advanced Slice Active</span>
-          </div>
-
-          <div className="max-h-24 overflow-y-auto custom-scrollbar space-y-1 border-t border-red-100 dark:border-red-900/30 pt-2">
-            {model.advancedSettings.segments.map((seg, i) => {
-              const prevTop = i > 0 ? model.advancedSettings.segments[i - 1].topLimit : adhesionOffset;
-              const color = getSegmentColor(i);
-              return (
-                <div key={seg.id} className="flex justify-between items-center text-[10px] text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }}></div>
-                    <span className="font-mono">S{i + 1}: {prevTop.toFixed(2)}-{seg.topLimit.toFixed(2)}mm</span>
-                  </div>
-                  <span className="font-mono text-slate-500">{seg.exposureTime}s / {seg.lightIntensity}</span>
-                </div>
-              );
-            })}
+            <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Advanced Slice Settings Active</span>
           </div>
         </div>
       ) : null}
