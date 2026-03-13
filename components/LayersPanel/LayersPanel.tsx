@@ -336,36 +336,37 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                      )}
                    </div>
                    
-                   {/* Well Assignment UI (only for multiwell plate) */}
-                   {globalSettings.printBed?.type === 'multiwell_plate' && (
-                     <div className="flex items-baseline gap-2 text-[9px]">
-                       <span className="text-slate-500">Well:</span>
-                       <select
-                         value={model.transform.wellAssignment?.wellId ?? 'none'}
-                         onChange={(e) => {
-                           const wellId = e.target.value;
-                           if (wellId === 'none') {
-                             onUpdateModel(model.id, { 
-                               transform: { 
-                                 ...model.transform, 
-                                 wellAssignment: undefined 
-                               } 
-                             });
-                           } else {
-                           onUpdateModel(model.id, { 
-                             transform: { 
-                               ...model.transform, 
-                               wellAssignment: { 
-                                 format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, 
-                                 wellId 
-                               } 
-                             } 
-                           });
-                           }
-                         }}
-                         className="w-[60px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs outline-none focus:ring-1 focus:ring-primary"
-                       >
-                         <option value="none">None</option>
+                    {/* Well Assignment UI (only for multiwell plate) */}
+                    {globalSettings.printBed?.type === 'multiwell_plate' && (
+                      <div className="flex items-baseline gap-1 text-[9px] ml-1">
+                        <select
+                          value={model.transform.wellAssignment?.wellId ?? 'none'}
+                          onChange={(e) => {
+                            const wellId = e.target.value;
+                            if (wellId === 'none') {
+                              onUpdateModel(model.id, { 
+                                transform: { 
+                                  ...model.transform, 
+                                  wellAssignment: undefined 
+                                } 
+                              });
+                            } else {
+                            // When assigning to a well, reset Z position (height) to 0 so model sits on bed
+                            onUpdateModel(model.id, { 
+                              transform: { 
+                                ...model.transform, 
+                                position: { ...model.transform.position, z: 0 },
+                                wellAssignment: { 
+                                  format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, 
+                                  wellId 
+                                } 
+                              } 
+                            });
+                            }
+                          }}
+                          className="w-[55px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="none">—</option>
                          {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24) 
                            ? (() => {
                                const format = globalSettings.printBed?.multiwellFormat ?? 24;

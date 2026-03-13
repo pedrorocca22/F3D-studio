@@ -493,25 +493,28 @@ interface ModelProps {
   toolheadColor?: string;
 }
 
-const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignment?: { format: 6 | 12 | 24 | 48; wellId: string } }> = ({
-  id,
-  name,
-  url,
-  objectTool,
-  viewMode,
-  isSelected,
-  isVisible,
-  isAdvancedMode,
-  advancedSettings,
-  setIsSelected,
-  transformData,
-  onTransformChange,
-  onUpdateSize,
-  adhesionOffset,
-  isClipping,
-  clippingHeight,
-  toolheadColor = '#94a3b8'
-}) => {
+const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignment?: { format: 6 | 12 | 24 | 48; wellId: string } }> = (props) => {
+  const {
+    id,
+    name,
+    url,
+    objectTool,
+    viewMode,
+    isSelected,
+    isVisible,
+    isAdvancedMode,
+    advancedSettings,
+    setIsSelected,
+    transformData,
+    onTransformChange,
+    onUpdateSize,
+    adhesionOffset,
+    isClipping,
+    clippingHeight,
+    toolheadColor
+  } = props;
+  const globalSettings = props.globalSettings;
+  const wellAssignment = props.wellAssignment;
 
   const result = useLoader(STLLoader, url);
 
@@ -682,14 +685,19 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
          const row = wellId.charCodeAt(0) - 65; // A=0, B=1, etc.
          const col = parseInt(wellId.substring(1)) - 1; // Convert to 0-based index
          
-         // Calculate well center position
-         finalPosition.x = (col - (spec.cols - 1) / 2) * spec.pitch;
-         finalPosition.z = (row - (spec.rows - 1) / 2) * spec.pitch;
-         // Note: Y position (height) is preserved from transformData.position.y
+         // Calculate well center position - same formula as BuildPlate renders
+         const wellX = (col - (spec.cols - 1) / 2) * spec.pitch;
+         const wellDepth = (row - (spec.rows - 1) / 2) * spec.pitch;
+         
+         // Original height (Z in data → Y in Three)
+         const originalHeight = transformData.position.z;
+         
+         // Apply well position: X = column, Z(depth) = row, Y(height) = original
+         finalPosition.x = wellX;
+         finalPosition.z = wellDepth;
+         finalPosition.y = originalHeight;
        }
-
-       // 1. Position Group (Universal Coordinates)
-       posGroupRef.current.position.set(finalPosition.x, finalPosition.z, finalPosition.y);
+        posGroupRef.current.position.set(finalPosition.x, finalPosition.z, finalPosition.y);
 
         // 2. Scale Group (Universal Scaling - Bed Aligned)
         scaleGroupRef.current.scale.set(transformData.scale.x, transformData.scale.z, transformData.scale.y);
