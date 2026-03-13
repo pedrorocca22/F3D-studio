@@ -35,6 +35,14 @@ JOBS_DIR.mkdir(exist_ok=True)
 app = Flask(__name__)
 CORS(app)  # Habilita CORS para todas las rutas
 
+# Multiwell plate specs matching UI
+MULTIWELL_SPECS = {
+    '6': {'cols': 3, 'rows': 2, 'pitch': 39.1},
+    '12': {'cols': 4, 'rows': 3, 'pitch': 26.1},
+    '24': {'cols': 6, 'rows': 4, 'pitch': 19.3},
+    '48': {'cols': 8, 'rows': 6, 'pitch': 13.0},
+}
+
 # Initialize Moonraker client + FDM manager (reads IP from config at first use)
 _moonraker_client: MoonrakerClient | None = None
 _fdm_print_manager: FDMPrintManager | None = None
@@ -708,9 +716,9 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                         if r.get("x"):
                             m.rotate([1, 0, 0], math.radians(r.get("x")))
                         if r.get("y"):
-                            m.rotate([0, 0, 1], math.radians(r.get("y")))
+                            m.rotate([0, 1, 0], math.radians(r.get("y")))
                         if r.get("z"):
-                            m.rotate([0, 1, 0], math.radians(r.get("z")))
+                            m.rotate([0, 0, 1], math.radians(r.get("z")))
 
                         # 4. Snap to Z=0 after rotation to ensure it prints flat
                         min_z = m.z.min()
@@ -718,11 +726,37 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
                         # 5. Translate to bed coordinates
                         # UI X -> Print X
-                        # UI Z (Depth) -> Print Y
-                        # UI Y (Height) -> Print Z
-                        m.x += p.get("x", 0.0) + bed_center_x
-                        m.y += p.get("z", 0.0) + bed_center_y
-                        m.z += p.get("y", 0.0)
+                        # UI Y (Depth) -> Print Y
+                        # UI Z (Height) -> Print Z
+                        final_x = p.get("x", 0.0)
+                        final_y = p.get("y", 0.0)
+                        final_z = p.get("z", 0.0)
+
+                        # Check for well assignment override
+                        wa = p.get("wellAssignment")
+                        if wa:
+                            fmt = str(wa.get("format", "24"))
+                            well_id = wa.get("wellId", "A1")
+                            spec = MULTIWELL_SPECS.get(fmt, MULTIWELL_SPECS['24'])
+                            
+                            try:
+                                row = ord(well_id[0].upper()) - 65
+                                col = int(well_id[1:]) - 1
+                                
+                                # Well coordinates relative to plate center
+                                well_x = (col - (spec['cols'] - 1) / 2.0) * spec['pitch']
+                                well_y = (row - (spec['rows'] - 1) / 2.0) * spec['pitch']
+                                
+                                final_x = well_x
+                                final_y = well_y
+                                # final_z is usually 0 when in a well
+                                print(f"[FDM SLICE] Model assigned to well {well_id}: ({final_x}, {final_y})")
+                            except (ValueError, IndexError) as e:
+                                print(f"[FDM SLICE] Error parsing wellId {well_id}: {e}")
+
+                        m.x += final_x + bed_center_x
+                        m.y += final_y + bed_center_y
+                        m.z += final_z
 
                         consolidated_data.append({
                             "mesh": m,

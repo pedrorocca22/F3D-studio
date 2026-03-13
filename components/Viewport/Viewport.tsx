@@ -692,10 +692,10 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
          // Original height (Z in data → Y in Three)
          const originalHeight = transformData.position.z;
          
-         // Apply well position: X = column, Z(depth) = row, Y(height) = original
+         // Apply well position: X = column, Y(depth) = wellDepth, Z(height) = originalHeight
          finalPosition.x = wellX;
-         finalPosition.z = wellDepth;
-         finalPosition.y = originalHeight;
+         finalPosition.y = wellDepth;
+         finalPosition.z = originalHeight;
        }
         posGroupRef.current.position.set(finalPosition.x, finalPosition.z, finalPosition.y);
 
