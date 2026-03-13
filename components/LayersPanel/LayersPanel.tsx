@@ -527,10 +527,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Heating Bed" isOpen={true} onToggle={() => {}} disableToggle>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">Bed Surface Temp (°C):</span>
-                  <NumericInput className="w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs outline-none focus:ring-1 focus:ring-primary" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
+              <AccordionSection title="Heating Bed" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (°C):</span>
+                  <NumericInput className="w-24" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
                 </div>
               </AccordionSection>
             </div>
@@ -766,7 +766,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           {/* TAB 5: SLICING */}
           {activeTab === 'slicing' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <AccordionSection title="Layer Settings" isOpen={true} onToggle={() => {}} disableToggle>
+              <AccordionSection title="Layer Settings" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-600 font-bold">Resolution (μm):</span>
@@ -775,6 +775,47 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500 font-medium">First Layer (μm):</span>
                     <NumericInput className="w-24" value={globalSettings.firstLayerHeight || 300} onChange={v => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })} step={10} />
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Shell & Infill" isOpen={openSections.fffShell} onToggle={() => toggleSection('fffShell')}>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Perimeters</span>
+                      <NumericInput value={globalSettings.perimeters || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, perimeters: v })} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Fill Density (%)</span>
+                      <NumericInput value={globalSettings.infill || 15} onChange={v => onUpdateGlobalSettings({ ...globalSettings, infill: v })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Top Layers</span>
+                      <NumericInput value={globalSettings.topSolidLayers || 4} onChange={v => onUpdateGlobalSettings({ ...globalSettings, topSolidLayers: v })} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Bottom Layers</span>
+                      <NumericInput value={globalSettings.bottomSolidLayers || 4} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Infill Pattern</span>
+                    <select
+                      value={globalSettings.infillPattern || 'gyroid'}
+                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
+                    >
+                      <option value="rectilinear">Rectilinear</option>
+                      <option value="grid">Grid</option>
+                      <option value="triangles">Triangles</option>
+                      <option value="cubic">Cubic</option>
+                      <option value="line">Line</option>
+                      <option value="honeycomb">Honeycomb</option>
+                      <option value="gyroid">Gyroid</option>
+                    </select>
                   </div>
                 </div>
               </AccordionSection>
@@ -792,7 +833,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Support & Adhesion" isOpen={false} onToggle={() => {}}>
+              <AccordionSection title="Support & Adhesion" isOpen={openSections.fffAdhesion} onToggle={() => toggleSection('fffAdhesion')}>
                 <div className="space-y-3">
                    <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500">Enable Supports:</span>
@@ -803,6 +844,31 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500 font-medium">Brim Width (mm):</span>
                     <NumericInput className="w-16" value={globalSettings.brimWidth || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} />
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Cooling" isOpen={openSections.fffCooling} onToggle={() => toggleSection('fffCooling')}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Always On:</span>
+                    <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, fanAlwaysOn: !globalSettings.fanAlwaysOn })} className={`w-8 h-4 rounded-full relative transition-colors ${globalSettings.fanAlwaysOn ? 'bg-primary' : 'bg-slate-300'}`}>
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.fanAlwaysOn ? 'right-0.5' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Min Speed (%)</span>
+                      <NumericInput value={globalSettings.minFanSpeed || 35} onChange={v => onUpdateGlobalSettings({ ...globalSettings, minFanSpeed: v })} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Max Speed (%)</span>
+                      <NumericInput value={globalSettings.maxFanSpeed || 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, maxFanSpeed: v })} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 font-medium uppercase">Disable for first (layers):</span>
+                    <NumericInput className="w-16" value={globalSettings.disableFanFirstLayers || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} />
                   </div>
                 </div>
               </AccordionSection>

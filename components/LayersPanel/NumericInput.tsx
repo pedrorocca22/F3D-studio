@@ -62,13 +62,13 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     <div className={`flex items-center border border-slate-200 dark:border-slate-700 rounded overflow-hidden bg-white dark:bg-slate-900 ${className}`}>
       <button
         onClick={decrement}
-        className="flex-shrink-0 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-700 text-slate-500 transition-colors"
+        className="flex-shrink-0 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 border-r border-slate-200 dark:border-slate-700 text-slate-500 transition-all active:scale-90"
       >
         -
       </button>
       <div className="relative flex-1 min-w-[3rem]">
         <input
-          className="w-full text-center text-xs bg-transparent border-none focus:ring-0 p-1 text-slate-700 dark:text-slate-200 appearance-none"
+          className="w-full text-center text-xs bg-transparent border-none focus:ring-0 p-1 text-slate-700 dark:text-slate-200 appearance-none font-bold"
           type="text"
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
@@ -83,7 +83,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
       </div>
       <button
         onClick={increment}
-        className="flex-shrink-0 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 border-l border-slate-200 dark:border-slate-700 text-slate-500 transition-colors"
+        className="flex-shrink-0 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 border-l border-slate-200 dark:border-slate-700 text-slate-500 transition-all active:scale-90"
       >
         +
       </button>
