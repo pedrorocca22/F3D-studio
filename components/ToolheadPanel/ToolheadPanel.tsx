@@ -167,29 +167,8 @@ export const LayerActionRow: React.FC<{
                 </div>
             )}
 
-            {/* Syringe-specific settings */}
-            {action.toolhead === 'syringe' && (
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-700">
-                    <div>
-                        <label className="text-xs text-slate-500 uppercase font-semibold">Pressurize Steps</label>
-                        <input
-                            type="number" min={0} step={5}
-                            value={action.syringeSettings?.pressurizationSteps ?? 0}
-                            onChange={e => onUpdate({ ...action, syringeSettings: { ...action.syringeSettings!, pressurizationSteps: +e.target.value } })}
-                            className="w-full mt-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs text-slate-500 uppercase font-semibold">Retract Steps</label>
-                        <input
-                            type="number" min={0} step={5}
-                            value={action.syringeSettings?.retractionSteps ?? 0}
-                            onChange={e => onUpdate({ ...action, syringeSettings: { ...action.syringeSettings!, retractionSteps: +e.target.value } })}
-                            className="w-full mt-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
-                        />
-                    </div>
-                </div>
-            )}
+             {/* Syringe-specific settings */}
+             {action.toolhead === 'syringe' && null}
 
             {/* Label */}
             <input

@@ -367,8 +367,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     ? 'bg-white dark:bg-slate-700 text-primary shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
                     : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
               >
-                <Icon name={tab.icon} className="text-sm" />
                 <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
               </button>
             ))}
           </div>

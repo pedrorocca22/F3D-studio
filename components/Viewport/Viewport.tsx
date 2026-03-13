@@ -1010,13 +1010,13 @@ export const Viewport: React.FC<ViewportProps> = ({
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
-  // Dynamic max height calculation — use real model Z height
+  // Dynamic max height calculation — use max Z height of ALL models on bed
   const sliderMaxHeight = useMemo(() => {
-    if (!selectedModel?.size) return BUILD_VOLUME.height;
-    const modelHeight = selectedModel.size.z || 0;
+    if (models.length === 0) return BUILD_VOLUME.height;
+    const maxModelHeight = Math.max(...models.map(m => (m.size?.z || 0) * (m.transform?.scale?.z || 1)), 0);
     // Add 5% padding, but never exceed build volume
-    return Math.min(Math.max(modelHeight * 1.05, 0.5), BUILD_VOLUME.height);
-  }, [selectedModel]);
+    return Math.min(Math.max(maxModelHeight * 1.05, 1), BUILD_VOLUME.height);
+  }, [models]);
 
   const handleUpdateSegmentSlider = (index: number, newTop: number) => {
     if (!selectedModel) return;
@@ -1465,7 +1465,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                     <input
                       type="range"
                       min="0"
-                      max="150"
+                      max={sliderMaxHeight}
                       step="0.1"
                       value={clippingHeight}
                       onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
@@ -1473,7 +1473,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                     />
                     <div className="flex justify-between text-[9px] text-slate-400 mt-1 font-mono">
                       <span>0mm</span>
-                      <span>150mm</span>
+                      <span>{sliderMaxHeight.toFixed(0)}mm</span>
                     </div>
                   </div>
                 )}
