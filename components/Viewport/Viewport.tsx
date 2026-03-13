@@ -493,7 +493,7 @@ interface ModelProps {
   toolheadColor?: string;
 }
 
-const Model: React.FC<ModelProps> = ({
+const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignment?: { format: 6 | 12 | 24 | 48; wellId: string } }> = ({
   id,
   name,
   url,
@@ -667,10 +667,29 @@ const Model: React.FC<ModelProps> = ({
     if (meshRef.current && posGroupRef.current && scaleGroupRef.current && rotGroupRef.current) {
       const isDragging = transformControlsRef.current?.dragging;
       if (!isDragging) {
-        // Hierarchy: PosGroup (Universal Position) -> ScaleGroup (Universal Scale) -> RotGroup (Local Rotation) -> Mesh
+       // Hierarchy: PosGroup (Universal Position) -> ScaleGroup (Universal Scale) -> RotGroup (Local Rotation) -> Mesh
 
-        // 1. Position Group (Universal Coordinates)
-        posGroupRef.current.position.set(transformData.position.x, transformData.position.z, transformData.position.y);
+       const bed = globalSettings.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
+       const bedType = bed.type;
+
+       // Check for well assignment in multiwell plate
+       let finalPosition = { ...transformData.position };
+       if (bedType === 'multiwell_plate' && wellAssignment) {
+         const { format, wellId } = wellAssignment;
+         const spec = MULTIWELL_SPECS[format.toString()] || MULTIWELL_SPECS['24'];
+         
+         // Parse wellId (e.g., "A1", "B3") to row and column indices
+         const row = wellId.charCodeAt(0) - 65; // A=0, B=1, etc.
+         const col = parseInt(wellId.substring(1)) - 1; // Convert to 0-based index
+         
+         // Calculate well center position
+         finalPosition.x = (col - (spec.cols - 1) / 2) * spec.pitch;
+         finalPosition.z = (row - (spec.rows - 1) / 2) * spec.pitch;
+         // Note: Y position (height) is preserved from transformData.position.y
+       }
+
+       // 1. Position Group (Universal Coordinates)
+       posGroupRef.current.position.set(finalPosition.x, finalPosition.z, finalPosition.y);
 
         // 2. Scale Group (Universal Scaling - Bed Aligned)
         scaleGroupRef.current.scale.set(transformData.scale.x, transformData.scale.z, transformData.scale.y);
@@ -1061,34 +1080,36 @@ export const Viewport: React.FC<ViewportProps> = ({
 
             {/* STL Models - hidden when GCode is active */}
             <Suspense fallback={null}>
-              {!isGCodeMode && models.map(model => {
-                const adhesionOffset = (globalSettings.adhesion?.enabled)
-                  ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
-                  : 0;
-
-                return (
-                  <Model
-                    key={model.id}
-                    id={model.id}
-                    name={model.name}
-                    url={model.url}
-                    objectTool={objectTool}
-                    viewMode={viewMode}
-                    isSelected={model.id === selectedModelId}
-                    isVisible={!isAdvancedSliceMode || model.id === selectedModelId}
-                    isAdvancedMode={isAdvancedSliceMode && model.id === selectedModelId}
-                    advancedSettings={model.advancedSettings}
-                    setIsSelected={(val) => val ? onSelectModel(model.id) : null}
-                    transformData={model.transform}
-                    onTransformChange={(newData) => onTransformChange(model.id, newData)}
-                    onUpdateSize={(size) => onUpdateModelSize(model.id, size)}
-                    adhesionOffset={adhesionOffset}
-                    isClipping={isClipping}
-                    clippingHeight={clippingHeight}
-                    toolheadColor={TOOLHEAD_COLORS[model.toolhead || 'none'] || TOOLHEAD_COLORS.none}
-                  />
-                );
-              })}
+               {!isGCodeMode && models.map(model => {
+                 const adhesionOffset = (globalSettings.adhesion?.enabled)
+                   ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
+                   : 0;
+ 
+                 return (
+                   <Model
+                     key={model.id}
+                     id={model.id}
+                     name={model.name}
+                     url={model.url}
+                     objectTool={objectTool}
+                     viewMode={viewMode}
+                     isSelected={model.id === selectedModelId}
+                     isVisible={!isAdvancedSliceMode || model.id === selectedModelId}
+                     isAdvancedMode={isAdvancedSliceMode && model.id === selectedModelId}
+                     advancedSettings={model.advancedSettings}
+                     setIsSelected={(val) => val ? onSelectModel(model.id) : null}
+                     transformData={model.transform}
+                     onTransformChange={(newData) => onTransformChange(model.id, newData)}
+                     onUpdateSize={(size) => onUpdateModelSize(model.id, size)}
+                     adhesionOffset={adhesionOffset}
+                     isClipping={isClipping}
+                     clippingHeight={clippingHeight}
+                     toolheadColor={TOOLHEAD_COLORS[model.toolhead || 'none'] || TOOLHEAD_COLORS.none}
+                     globalSettings={globalSettings}
+                     wellAssignment={model.transform.wellAssignment}
+                   />
+                 );
+               })}
             </Suspense>
 
             {/* GCode Toolpath - renders in same canvas when active */}

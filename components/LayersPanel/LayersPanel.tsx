@@ -8,6 +8,14 @@ import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
 import { ToolheadBadge, ToolheadSelect, LayerActionRow, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
 import { TOOLHEAD_COLORS } from '../Viewport/Viewport';
 
+// Multiwell plate specifications
+const MULTIWELL_SPECS = {
+  '6': { cols: 3, rows: 2, pitch: 39.1, dia: 34.8 },
+  '12': { cols: 4, rows: 3, pitch: 26.1, dia: 22.1 },
+  '24': { cols: 6, rows: 4, pitch: 19.3, dia: 15.62 },
+  '48': { cols: 8, rows: 6, pitch: 13.0, dia: 11.0 },
+};
+
 const TOOLHEAD_LABELS: Record<string, string> = {
   fdm: 'FDM',
   syringe: 'SYR',
@@ -297,49 +305,99 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           onToggle={() => toggleSection('models')}
         >
           <div className="space-y-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-            {models.map(model => {
-              const thId = model.toolhead || 'none';
-              const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
-              const thLabel = TOOLHEAD_LABELS[thId] || '';
-              return (
-              <div
-                key={model.id}
-                onClick={() => onSelectModel(model.id)}
-                className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
-                  ? 'border-primary bg-primary text-white shadow-sm'
-                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-                  }`}
-              >
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <div
-                    className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors"
-                    style={{ backgroundColor: selectedModelId === model.id ? 'rgba(255,255,255,0.2)' : thColor + '22' }}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: thColor }} />
-                  </div>
-                  <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
-                  {thLabel && (
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${selectedModelId === model.id ? 'bg-white/20 text-white' : ''}`}
-                      style={selectedModelId !== model.id ? { backgroundColor: thColor + '22', color: thColor } : {}}
-                    >
-                      {thLabel}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
-                  className={`p-1 rounded transition-all focus:opacity-100 ${selectedModelId === model.id
-                    ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
-                    : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
-                    }`}
-                  title="Remove model"
-                >
-                  <Icon name="close" className="text-sm" />
-                </button>
-              </div>
-              );
-            })}
+             {models.map(model => {
+               const thId = model.toolhead || 'none';
+               const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
+               const thLabel = TOOLHEAD_LABELS[thId] || '';
+               return (
+                 <div
+                   key={model.id}
+                   onClick={() => onSelectModel(model.id)}
+                   className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
+                     ? 'border-primary bg-primary text-white shadow-sm'
+                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}
+                   `}
+                 >
+                   <div className="flex items-center gap-2 overflow-hidden">
+                     <div
+                       className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                       style={{ backgroundColor: selectedModelId === model.id ? 'rgba(255,255,255,0.2)' : thColor + '22' }}
+                     >
+                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: thColor }} />
+                     </div>
+                     <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
+                     {thLabel && (
+                       <span
+                         className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${selectedModelId === model.id ? 'bg-white/20 text-white' : ''}`}
+                         style={selectedModelId !== model.id ? { backgroundColor: thColor + '22', color: thColor } : {}}
+                       >
+                         {thLabel}
+                       </span>
+                     )}
+                   </div>
+                   
+                   {/* Well Assignment UI (only for multiwell plate) */}
+                   {globalSettings.printBed?.type === 'multiwell_plate' && (
+                     <div className="flex items-baseline gap-2 text-[9px]">
+                       <span className="text-slate-500">Well:</span>
+                       <select
+                         value={model.transform.wellAssignment?.wellId ?? 'none'}
+                         onChange={(e) => {
+                           const wellId = e.target.value;
+                           if (wellId === 'none') {
+                             onUpdateModel(model.id, { 
+                               transform: { 
+                                 ...model.transform, 
+                                 wellAssignment: undefined 
+                               } 
+                             });
+                           } else {
+                           onUpdateModel(model.id, { 
+                             transform: { 
+                               ...model.transform, 
+                               wellAssignment: { 
+                                 format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, 
+                                 wellId 
+                               } 
+                             } 
+                           });
+                           }
+                         }}
+                         className="w-[60px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-1 text-xs outline-none focus:ring-1 focus:ring-primary"
+                       >
+                         <option value="none">None</option>
+                         {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24) 
+                           ? (() => {
+                               const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                               const spec = MULTIWELL_SPECS[format as keyof typeof MULTIWELL_SPECS];
+                               const wells = [];
+                               for (let r = 0; r < spec.rows; r++) {
+                                 for (let c = 0; c < spec.cols; c++) {
+                                   const wellId = String.fromCharCode(65 + r) + (c + 1);
+                                   wells.push(<option key={wellId}>{wellId}</option>);
+                                 }
+                               }
+                               return wells;
+                             })()
+                           : []
+                         }
+                       </select>
+                     </div>
+                   )}
+                   
+                   <button
+                     onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
+                     className={`p-1 rounded transition-all focus:opacity-100 ${selectedModelId === model.id
+                       ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
+                       : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                     }`}
+                     title="Remove model"
+                   >
+                     <Icon name="close" className="text-sm" />
+                   </button>
+                 </div>
+               );
+             })}
             {models.length === 0 && (
               <div className="text-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
                 <span className="text-slate-400 text-sm block mb-1">No models loaded</span>

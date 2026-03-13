@@ -155,6 +155,11 @@ export interface TransformData {
   rotation: { x: number; y: number; z: number };
   scale: { x: number; y: number; z: number };
   position: { x: number; y: number; z: number };
+  /** Optional assignment to a specific well in a multiwell plate. */
+  wellAssignment?: {
+    format: 6 | 12 | 24 | 48;
+    wellId: string; // e.g., "A1", "B3", "H6"
+  };
 }
 
 export interface ModelData {
@@ -171,6 +176,11 @@ export interface ModelData {
   toolhead?: ToolheadId;
   /** Per-feature toolhead mapping for scaffold mode (optional). */
   scaffoldTools?: ScaffoldToolMapping;
+  /** Optional assignment to a specific well in a multiwell plate. */
+  wellAssignment?: {
+    format: 6 | 12 | 24 | 48;
+    wellId: string; // e.g., "A1", "B3", "H6"
+  };
 }
 
 export interface BackendRangeOverride {
