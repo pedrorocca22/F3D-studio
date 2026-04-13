@@ -413,7 +413,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId
   } = props;
 
-  const [activeTab, setActiveTab] = useState<'printbed' | 'schedule' | 'mapping' | 'hardware' | 'slicing'>('printbed');
+  const [activeStep, setActiveStep] = useState<number>(1);
   const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
   
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -600,10 +600,33 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   return (
     <aside className="w-[500px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
 
+      {/* ── STEPPER WIZARD HEADER ── */}
+      <div className="flex bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
+        {[
+          { id: 1, label: 'Environment', icon: 'handyman' },
+          { id: 2, label: 'Models', icon: '3d_rotation' },
+          { id: 3, label: 'Mapping', icon: 'biotech' },
+          { id: 4, label: 'Profile', icon: 'tune' },
+          { id: 5, label: 'Slicer', icon: 'layers' }
+        ].map(step => (
+           <button 
+             key={step.id}
+             onClick={() => setActiveStep(step.id)} 
+             className={`flex-1 py-3 px-1 text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                 activeStep === step.id 
+                 ? 'bg-white dark:bg-slate-900 border-b-2 border-primary text-primary shadow-sm' 
+                 : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50 border-b-2 border-transparent'}`}
+           >
+             <Icon name={step.icon} className="text-lg mb-1" />
+             <span>{step.label}</span>
+           </button>
+        ))}
+      </div>
+
       <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 pb-4">
 
-
-
+        {(activeStep === 2 || activeStep === 3) && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
         {/* Upload Button */}
         <div className="mb-2 space-y-2">
           <input
@@ -748,33 +771,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             )}
           </div>
         </AccordionSection>
-
-        {/* Bioprinting Workflow Tabs */}
-        <div className={`mt-2 ${!selectedModel || isAdvancedSliceMode ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-lg mb-4 border border-slate-200 dark:border-slate-800">
-            {[
-              { id: 'printbed', label: '1. Bed', icon: 'grid_view' },
-              { id: 'schedule', label: '2. Schedule', icon: 'event_note' },
-              { id: 'mapping', label: '3. Mapping', icon: 'account_tree' },
-              { id: 'hardware', label: '4. Hardware', icon: 'handyman' },
-              { id: 'slicing', label: '5. Slicing', icon: 'layers' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-1.5 px-1 text-[9px] sm:text-[10px] font-bold rounded-md flex items-center justify-center gap-1 transition-all
-                  ${activeTab === tab.id 
-                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm ring-1 ring-black/5 dark:ring-white/10' 
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
-              >
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* TAB 1: PRINT BED */}
-          {activeTab === 'printbed' && (
+      </div>
+    )}
+        {/* TAB 1: PRINT BED */}
+        {activeStep === 1 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <AccordionSection title="Surface Configuration" isOpen={true} onToggle={() => {}} disableToggle>
                 <div className="space-y-4">
@@ -937,7 +937,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           )}
 
           {/* TAB 2: SCHEDULE */}
-          {activeTab === 'schedule' && (
+          {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
                 <p className="text-[10px] text-primary leading-relaxed font-bold">
@@ -999,7 +999,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           )}
 
           {/* TAB 3: MAPPING */}
-          {activeTab === 'mapping' && (
+          {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <div className="space-y-3">
                 {models.map(m => {
@@ -1112,7 +1112,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           )}
 
           {/* TAB 4: HARDWARE */}
-          {activeTab === 'hardware' && (
+          {activeStep === 1 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <AccordionSection title="Toolhead Hardware" isOpen={true} onToggle={() => {}} disableToggle>
                 <div className="space-y-3">
@@ -1202,7 +1202,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           )}
 
           {/* TAB 5: SLICING */}
-          {activeTab === 'slicing' && (
+          {activeStep === 4 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <AccordionSection title="Layer Settings" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
                 <div className="space-y-3">
@@ -1333,52 +1333,77 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             </div>
           )}
 
-        </div>
+        {/* STEP 5: PREVIEW & SLICE */}
+        {activeStep === 5 && (
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-10">
+                <Icon name="verified" className="text-6xl text-primary opacity-20" />
+                <h3 className="text-lg font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">Ready to slice</h3>
+                <p className="text-xs text-slate-500 max-w-sm">All parameters are configured. Generate the G-Code to preview the exact physical trajectory, verify Pore Injection bounds, and send instructions to the printer.</p>
+            </div>
+        )}
+
       </div>
 
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 bg-surface-light dark:bg-surface-dark">
-        <button
-          onClick={() => {
-            if (hasGCode && onPrint) {
-              onPrint();
-            } else if (!isSlicing) {
-              onSlice();
-            }
-          }}
-          className={`w-full py-3 px-4 text-sm font-bold rounded transition-all shadow-lg uppercase tracking-wide flex items-center justify-center gap-2 overflow-hidden relative ${hasGCode
-            ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30'
-            : isSlicing
-              ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-wait'
-              : 'bg-primary hover:bg-blue-600 text-white shadow-primary/30'
-            }`}
-        >
-          {/* Progress fill animation */}
-          {isSlicing && (
-            <div
-              className="absolute left-0 top-0 h-full bg-primary/20 transition-all duration-300"
-              style={{ width: `${Math.round(slicePercent * 100)}%` }}
-            />
-          )}
+      {/* STEPPER WIZARD FOOTER */}
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between z-10 flex-shrink-0">
+          <button 
+             disabled={activeStep === 1}
+             onClick={() => setActiveStep(s => s - 1)}
+             className="px-4 py-2 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-lg font-bold text-xs hover:border-slate-300 dark:hover:border-slate-600 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+          >
+              ← Back
+          </button>
+          
+          {activeStep < 5 ? (
+              <button 
+                 onClick={() => setActiveStep(s => s + 1)}
+                 className="px-6 py-2 bg-primary hover:bg-blue-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-primary/30 transition-colors uppercase tracking-wide flex items-center gap-2"
+              >
+                  Next Step <Icon name="arrow_forward" className="text-sm" />
+              </button>
+          ) : (
+              <button
+                onClick={() => {
+                  if (hasGCode && onPrint) {
+                    onPrint();
+                  } else if (!isSlicing) {
+                    onSlice();
+                  }
+                }}
+                className={`flex-1 ml-4 py-2 px-4 text-xs font-bold rounded-lg transition-all shadow-md uppercase tracking-wide flex items-center justify-center gap-2 overflow-hidden relative ${hasGCode
+                  ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30'
+                  : isSlicing
+                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-wait'
+                    : 'bg-primary hover:bg-blue-600 text-white shadow-primary/30'
+                  }`}
+              >
+                {isSlicing && (
+                  <div
+                    className="absolute left-0 top-0 h-full bg-black/10 transition-all duration-300"
+                    style={{ width: `${Math.round(slicePercent * 100)}%` }}
+                  />
+                )}
 
-          <Icon
-            name={hasGCode ? 'play_arrow' : isSlicing ? 'hourglass_empty' : 'layers'}
-            className={`text-lg relative z-10 ${isSlicing ? 'animate-spin' : ''}`}
-          />
-          <span className="relative z-10 flex flex-col items-center">
-            <span className="leading-none">
-              {hasGCode
-                ? 'PRINT MODEL'
-                : isSlicing
-                  ? `SLICING... ${Math.round(slicePercent * 100)}%`
-                  : 'SLICE MODEL'}
-            </span>
-            {isSlicing && sliceMessage && (
-              <span className="text-[10px] font-normal opacity-70 mt-0.5 animate-pulse uppercase tracking-tighter">
-                {sliceMessage}
-              </span>
-            )}
-          </span>
-        </button>
+                <Icon
+                  name={hasGCode ? 'play_arrow' : isSlicing ? 'hourglass_empty' : 'layers'}
+                  className={`text-lg relative z-10 ${isSlicing ? 'animate-spin' : ''}`}
+                />
+                <span className="relative z-10 flex flex-col items-center">
+                  <span className="leading-none">
+                    {hasGCode
+                      ? 'PRINT MODEL'
+                      : isSlicing
+                        ? `SLICING... ${Math.round(slicePercent * 100)}%`
+                        : 'GENERATE G-CODE'}
+                  </span>
+                  {isSlicing && sliceMessage && (
+                    <span className="text-[9px] font-normal opacity-70 mt-0.5 animate-pulse uppercase tracking-tighter">
+                      {sliceMessage}
+                    </span>
+                  )}
+                </span>
+              </button>
+          )}
       </div>
     </aside>
   );
