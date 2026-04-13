@@ -965,6 +965,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
   const isGCodeMode = !!gcodeJob;
 
+
   // When a new parsed result arrives, reset to last layer  
   useEffect(() => {
     if (gcodeParsed) setGcodeLayer(gcodeParsed.layerCount);
@@ -1026,6 +1027,7 @@ export const Viewport: React.FC<ViewportProps> = ({
     const modes: ViewMode[] = ['solid', 'transparent'];
     setViewMode(modes[(modes.indexOf(viewMode) + 1) % modes.length]);
   };
+
 
   const handleEmptyStateClick = () => fileInputRef.current?.click();
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1136,6 +1138,7 @@ export const Viewport: React.FC<ViewportProps> = ({
             <CameraManager viewTrigger={viewTrigger} focusTarget={focusTarget} />
           </Canvas>
 
+
           {isAdvancedSliceMode && !isGCodeMode && selectedModel && (
             <SliceSlider
               segments={selectedModel.advancedSettings.segments}
@@ -1190,9 +1193,21 @@ export const Viewport: React.FC<ViewportProps> = ({
                     onChange={e => setGcodeLayer(+e.target.value)}
                     className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-600 rounded-full cursor-pointer appearance-none"
                   />
-                  <span className="text-xs font-mono text-primary font-bold w-14 text-right shrink-0">
-                    {gcodeLayer}/{gcodeParsed.layerCount}
+                  <input
+                    type="number"
+                    min={0}
+                    max={gcodeParsed.layerCount}
+                    value={gcodeLayer}
+                    onChange={e => {
+                      const val = Math.max(0, Math.min(gcodeParsed.layerCount, parseInt(e.target.value) || 0));
+                      setGcodeLayer(val);
+                    }}
+                    className="w-14 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-center text-xs font-mono text-primary font-bold focus:ring-1 focus:ring-primary/50 outline-none"
+                  />
+                  <span className="text-xs font-mono text-slate-400 font-bold w-8 shrink-0">
+                    /{gcodeParsed.layerCount}
                   </span>
+
 
                   <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
 

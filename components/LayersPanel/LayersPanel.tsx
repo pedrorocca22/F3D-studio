@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from '../../types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, PoreInjectionParams } from '../../types';
+
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
 import { ToolheadBadge, ToolheadSelect, LayerActionRow, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
@@ -58,9 +59,349 @@ interface LayersPanelProps {
   sliceMessage?: string;
   hasGCode?: boolean;
   onPrint?: () => void;
+  jobId?: string | null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PoreGridEditor — interactive top-view cell selector for pore injection
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_PORE_PARAMS: PoreInjectionParams = {
+  volumeUl: 0.5,
+  zOffsetMm: 0.3,
+  feedRateMmMin: 120,
+  selectedCells: [],
+  layerRanges: [],
+  cellPitchMm: 2.67,
+};
+
+interface PoreGridEditorProps {
+  model: ModelData;
+  globalSettings: GlobalSettings;
+  onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
+}
+
+const PoreGridEditor: React.FC<PoreGridEditorProps> = ({ model, globalSettings, onUpdateModel }) => {
+  const params: PoreInjectionParams = model.poreParams ?? DEFAULT_PORE_PARAMS;
+
+  // ── Grid dimensions ──────────────────────────────────────────────────────
+  const modelW = (model.size?.x ?? 10) * (model.transform.scale.x ?? 1);
+  const modelD = (model.size?.y ?? 10) * (model.transform.scale.y ?? 1);
+  const infill = globalSettings.infill ?? 15;
+  const nozzleDia = globalSettings.nozzleDiameter ?? 0.4;
+
+  // In FDM, extrusion width is typically larger than nozzle diameter (PS default ~ 1.125x)
+  const extWidth = nozzleDia * 1.125;
+  const perms = globalSettings.perimeters ?? 2; // Default perimeters
+
+  // PrusaSlicer "Grid" infill perfectly distances lines at 2*extWidth/density because it prints in both directions.
+  const cellPitch = infill > 0 ? (2 * extWidth) / (infill / 100) : 5;
+
+  // Subtract perimeter walls (perms * 2 sides)
+  const wallThickness = extWidth * perms * 2;
+  const activeW = Math.max(cellPitch, modelW - wallThickness);
+  const activeD = Math.max(cellPitch, modelD - wallThickness);
+
+  // Since PS centers crossings at origin (0,0), lines form at k * pitch.
+  // Cells count = number of lines + 1.
+  const calcCells = (availableWidth: number) => {
+    const halfW = availableWidth / 2;
+    // Reduce halfW slightly to avoid boundary collisions turning into lines
+    const linesOneSide = Math.floor((halfW - 0.05) / cellPitch);
+    if (linesOneSide < 0) return 1;
+    return 1 + (2 * linesOneSide) + 1; // cells = total lines + 1
+  };
+
+  const MAX_CELLS = 24;
+  const cols = Math.max(1, Math.min(MAX_CELLS, calcCells(activeW)));
+  const rows = Math.max(1, Math.min(MAX_CELLS, calcCells(activeD)));
+
+  // ── SVG display ──────────────────────────────────────────────────────────
+  const DISPLAY_W = 220;
+  const DISPLAY_H = Math.round(DISPLAY_W * (modelD / modelW));
+  const clampedH = Math.max(60, Math.min(DISPLAY_H, 200));
+  const cellW = DISPLAY_W / cols;
+  const cellH = clampedH / rows;
+
+  // ── Cell state helpers ───────────────────────────────────────────────────
+  const isSelected = (col: number, row: number) =>
+    params.selectedCells.some(([c, r]) => c === col && r === row);
+
+  const toggleCell = (col: number, row: number) => {
+    let next: [number, number][];
+    if (isSelected(col, row)) {
+      next = params.selectedCells.filter(([c, r]) => !(c === col && r === row));
+    } else {
+      next = [...params.selectedCells, [col, row]];
+    }
+    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: next, cellPitchMm: cellPitch } });
+  };
+
+  const selectAll = () => {
+    const all: [number, number][] = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) all.push([c, r]);
+    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: all, cellPitchMm: cellPitch } });
+  };
+
+  const clearAll = () =>
+    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: [], cellPitchMm: cellPitch } });
+
+  const invertAll = () => {
+    const next: [number, number][] = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (!isSelected(c, r)) next.push([c, r]);
+    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: next, cellPitchMm: cellPitch } });
+  };
+
+  // ── Drag-select state ─────────────────────────────────────────────────────
+  const isDragging = React.useRef(false);
+  const dragMode = React.useRef<'add' | 'remove'>('add');
+
+  const getCell = (svgEl: SVGSVGElement, e: React.MouseEvent | MouseEvent): [number, number] => {
+    const rect = svgEl.getBoundingClientRect();
+    // Scale screen pixels to SVG internal viewBox space
+    const scaleX = DISPLAY_W / rect.width;
+    const scaleY = clampedH / rect.height;
+
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    
+    return [
+      Math.min(cols - 1, Math.max(0, Math.floor(x / cellW))),
+      Math.min(rows - 1, Math.max(0, Math.floor(y / cellH))),
+    ];
+  };
+
+  const svgRef = React.useRef<SVGSVGElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const [col, row] = getCell(svgRef.current, e);
+    dragMode.current = isSelected(col, row) ? 'remove' : 'add';
+    isDragging.current = true;
+    toggleCell(col, row);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!isDragging.current || !svgRef.current) return;
+    const [col, row] = getCell(svgRef.current, e);
+    const sel = isSelected(col, row);
+    if (dragMode.current === 'add' && !sel) toggleCell(col, row);
+    if (dragMode.current === 'remove' && sel) toggleCell(col, row);
+  };
+
+  const stopDrag = () => { isDragging.current = false; };
+
+  // ── Layer range helpers ───────────────────────────────────────────────────
+  const addLayerRange = () => {
+    const last = params.layerRanges[params.layerRanges.length - 1];
+    const from = last ? last.to + 1 : 1;
+    onUpdateModel(model.id, {
+      poreParams: {
+        ...params,
+        layerRanges: [...params.layerRanges, { id: Math.random().toString(36).slice(2, 8), from, to: from + 10 }],
+      },
+    });
+  };
+
+  const removeLayerRange = (id: string) =>
+    onUpdateModel(model.id, {
+      poreParams: { ...params, layerRanges: params.layerRanges.filter(r => r.id !== id) },
+    });
+
+  const updateLayerRange = (id: string, field: 'from' | 'to', value: number) =>
+    onUpdateModel(model.id, {
+      poreParams: {
+        ...params,
+        layerRanges: params.layerRanges.map(r => r.id === id ? { ...r, [field]: value } : r),
+      },
+    });
+
+  // ── Update a deposition param ─────────────────────────────────────────────
+  const setParam = (key: keyof PoreInjectionParams, value: any) =>
+    onUpdateModel(model.id, { poreParams: { ...params, [key]: value } });
+
+  const selectedCount = params.selectedCells.length;
+  const totalCells = cols * rows;
+  const injectAll = selectedCount === 0;
+
+  return (
+    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+
+      {/* ── Grid header ─────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-tight">
+            Injection Map ({cols}×{rows} cells · {cellPitch.toFixed(2)}mm pitch)
+          </p>
+          <p className="text-[8px] text-slate-400">
+            {injectAll
+              ? `All ${totalCells} cells active`
+              : `${selectedCount} / ${totalCells} cells selected`}
+          </p>
+        </div>
+        <div className="flex gap-1">
+          <button onClick={selectAll} title="Select all" className="text-[8px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold hover:bg-amber-200 transition-colors">ALL</button>
+          <button onClick={invertAll} title="Invert" className="text-[8px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition-colors">INV</button>
+          <button onClick={clearAll} title="Clear selection" className="text-[8px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition-colors">CLR</button>
+        </div>
+      </div>
+
+      {/* ── SVG Grid ─────────────────────────────────────────────────── */}
+      <div className="border border-amber-200 dark:border-amber-700/40 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/60 select-none">
+        <svg
+          ref={svgRef}
+          width="100%"
+          viewBox={`0 0 ${DISPLAY_W} ${clampedH}`}
+          className="cursor-crosshair"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={stopDrag}
+          onMouseLeave={stopDrag}
+          style={{ display: 'block' }}
+        >
+          {/* Background */}
+          <rect x="0" y="0" width={DISPLAY_W} height={clampedH} fill="#f8fafc" />
+
+          {/* Scaffold wall lines (horizontal) */}
+          {Array.from({ length: rows + 1 }, (_, r) => (
+            <line key={`h${r}`} x1="0" y1={r * cellH} x2={DISPLAY_W} y2={r * cellH} stroke="#94a3b8" strokeWidth="0.8" />
+          ))}
+          {/* Scaffold wall lines (vertical) */}
+          {Array.from({ length: cols + 1 }, (_, c) => (
+            <line key={`v${c}`} x1={c * cellW} y1="0" x2={c * cellW} y2={clampedH} stroke="#94a3b8" strokeWidth="0.8" />
+          ))}
+
+          {/* Cells */}
+          {Array.from({ length: rows }, (_, row) =>
+            Array.from({ length: cols }, (_, col) => {
+              const sel = isSelected(col, row);
+              const injectHere = injectAll || sel;
+              return (
+                <rect
+                  key={`${col}-${row}`}
+                  x={col * cellW + 1}
+                  y={row * cellH + 1}
+                  width={cellW - 2}
+                  height={cellH - 2}
+                  fill={sel ? '#f59e0b' : (injectAll ? '#fde68a33' : '#e2e8f0')}
+                  opacity={sel ? 0.85 : 1}
+                  rx="1"
+                />
+              );
+            })
+          )}
+
+          {/* Injection dots on selected cells */}
+          {params.selectedCells.map(([col, row]) => (
+            <circle
+              key={`dot-${col}-${row}`}
+              cx={col * cellW + cellW / 2}
+              cy={row * cellH + cellH / 2}
+              r={Math.min(cellW, cellH) * 0.18}
+              fill="#d97706"
+              opacity={0.9}
+            />
+          ))}
+
+          {/* "ALL" mode indicator dots */}
+          {injectAll && Array.from({ length: rows }, (_, row) =>
+            Array.from({ length: cols }, (_, col) => (
+              <circle
+                key={`adot-${col}-${row}`}
+                cx={col * cellW + cellW / 2}
+                cy={row * cellH + cellH / 2}
+                r={Math.min(cellW, cellH) * 0.12}
+                fill="#f59e0b"
+                opacity={0.45}
+              />
+            ))
+          )}
+        </svg>
+      </div>
+
+      <p className="text-[8px] text-slate-400 text-center -mt-1">
+        {injectAll
+          ? 'All cells will be injected · Click cells to restrict selection'
+          : 'Click or drag to select injection cells · Empty = inject all'}
+      </p>
+
+      {/* ── Layer Ranges ─────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
+            Layer Ranges
+          </span>
+          <button
+            onClick={addLayerRange}
+            className="text-[8px] px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold hover:bg-amber-200 transition-colors flex items-center gap-0.5"
+          >
+            <Icon name="add" className="text-[10px]" /> Add range
+          </button>
+        </div>
+
+        {params.layerRanges.length === 0 ? (
+          <p className="text-[8px] text-slate-400 italic">
+            No ranges defined → injection active on all layers
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {params.layerRanges.map(range => (
+              <div key={range.id} className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200/60 dark:border-amber-700/30 rounded px-2 py-1">
+                <span className="text-[8px] text-amber-700 dark:text-amber-400 font-black w-8">From</span>
+                <NumericInput
+                  value={range.from}
+                  onChange={v => updateLayerRange(range.id, 'from', Math.max(1, Math.round(v)))}
+                  step={1} min={1}
+                />
+                <span className="text-[8px] text-amber-700 dark:text-amber-400 font-black w-4">to</span>
+                <NumericInput
+                  value={range.to}
+                  onChange={v => updateLayerRange(range.id, 'to', Math.max(range.from, Math.round(v)))}
+                  step={1} min={range.from}
+                />
+                <button
+                  onClick={() => removeLayerRange(range.id)}
+                  className="ml-auto text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <Icon name="close" className="text-[11px]" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Deposition Parameters ─────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="space-y-0.5">
+          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Vol (µL)</span>
+          <NumericInput value={params.volumeUl} onChange={v => setParam('volumeUl', v)} step={0.1} min={0.01} />
+        </div>
+        <div className="space-y-0.5">
+          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Z Lift (mm)</span>
+          <NumericInput value={params.zOffsetMm} onChange={v => setParam('zOffsetMm', v)} step={0.1} min={0} />
+        </div>
+        <div className="space-y-0.5">
+          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Feed (mm/min)</span>
+          <NumericInput value={params.feedRateMmMin} onChange={v => setParam('feedRateMmMin', v)} step={10} min={1} />
+        </div>
+      </div>
+
+      {/* Info note */}
+      <div className="flex items-start gap-1.5 pt-1 border-t border-amber-200/60 dark:border-amber-700/30">
+        <Icon name="info" className="text-[11px] text-amber-500 mt-0.5 flex-shrink-0" />
+        <span className="text-[8px] text-amber-600/80 dark:text-amber-400/70 leading-tight">
+          Infill is automatically forced to <strong>Grid</strong> mode. Grid is computed from {infill}% + nozzle ⌀ ({nozzleDia}mm).
+          Peripheral cells may be partial depending on object boundaries.
+        </span>
+      </div>
+    </div>
+  );
+};
+
 export const LayersPanel: React.FC<LayersPanelProps> = ({
+
   // ... props
   ...props
 }) => {
@@ -69,7 +410,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     onDeleteModel, onUpdateModel, onTransformChange, onUpdateSettings, onUpdateAdvancedSettings,
     onApplySettingsToAll, isAdvancedSliceMode, setIsAdvancedSliceMode, onSlice, onFileUpload,
     toolheads, layerActions, totalLayers, onUpdateToolheads, onUpdateLayerActions,
-    isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint
+    isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId
   } = props;
 
   const [activeTab, setActiveTab] = useState<'printbed' | 'schedule' | 'mapping' | 'hardware' | 'slicing'>('printbed');
@@ -366,11 +707,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           }}
                           className="w-[55px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
                         >
-                          <option value="none">—</option>
+                          <option value="none">â€”</option>
                          {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24) 
                            ? (() => {
                                const format = globalSettings.printBed?.multiwellFormat ?? 24;
-                               const spec = MULTIWELL_SPECS[format as keyof typeof MULTIWELL_SPECS];
+                               const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                                const wells = [];
                                for (let r = 0; r < spec.rows; r++) {
                                  for (let c = 0; c < spec.cols; c++) {
@@ -588,7 +929,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
               <AccordionSection title="Heating Bed" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
                 <div className="grid grid-cols-2 gap-3 items-center">
-                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (°C):</span>
+                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (Â°C):</span>
                   <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
                 </div>
               </AccordionSection>
@@ -724,6 +1065,44 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             ))}
                           </div>
                         )}
+
+                        {isScaffold && (
+                          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                            {/* Header + toggle */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Icon name="biotech" className="text-[14px] text-primary" />
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-tighter leading-none">Pore Injection (T1)</span>
+                                  <span className="text-[8px] text-slate-400 font-medium">Deposit hydrogel into scaffold voids</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUpdateModel(m.id, { poreDepositionEnabled: !m.poreDepositionEnabled });
+                                }}
+                                className={`w-7 h-3.5 rounded-full relative transition-colors flex-shrink-0 ${m.poreDepositionEnabled ? 'bg-primary shadow-sm shadow-primary/40' : 'bg-slate-300 dark:bg-slate-700'}`}
+                              >
+                                <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${m.poreDepositionEnabled ? 'right-0.5' : 'left-0.5'}`} />
+                              </button>
+                            </div>
+
+                            {/* Expanded params — the full grid editor */}
+                            {m.poreDepositionEnabled && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40 rounded-lg p-3"
+                              >
+                                <PoreGridEditor
+                                  model={m}
+                                  globalSettings={globalSettings}
+                                  onUpdateModel={onUpdateModel}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -754,7 +1133,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             }} step={0.05} />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Temp (°C)</label>
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Temp (Â°C)</label>
                             <NumericInput value={(th as FDMToolheadConfig).defaultTemperature} onChange={v => {
                               onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
                               onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
@@ -828,11 +1207,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               <AccordionSection title="Layer Settings" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-600 font-bold">Resolution (μm):</span>
+                    <span className="text-xs text-slate-600 font-bold">Resolution (Î¼m):</span>
                     <NumericInput className="w-full" value={globalSettings.layerHeight} onChange={v => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })} step={10} />
                   </div>
                   <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-500 font-medium">First Layer (μm):</span>
+                    <span className="text-xs text-slate-500 font-medium">First Layer (Î¼m):</span>
                     <NumericInput className="w-full" value={globalSettings.firstLayerHeight || 300} onChange={v => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })} step={10} />
                   </div>
                 </div>
@@ -860,21 +1239,30 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       <NumericInput value={globalSettings.bottomSolidLayers || 4} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })} />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Infill Pattern</span>
-                    <select
-                      value={globalSettings.infillPattern || 'gyroid'}
-                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
-                    >
-                      <option value="rectilinear">Rectilinear</option>
-                      <option value="grid">Grid</option>
-                      <option value="triangles">Triangles</option>
-                      <option value="cubic">Cubic</option>
-                      <option value="line">Line</option>
-                      <option value="honeycomb">Honeycomb</option>
-                      <option value="gyroid">Gyroid</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Infill Pattern</span>
+                      <select
+                        value={globalSettings.infillPattern || 'grid'}
+                        onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
+                      >
+                        <option value="rectilinear">Rectilinear</option>
+                        <option value="grid">Grid</option>
+                        <option value="triangles">Triangles</option>
+                        <option value="cubic">Cubic</option>
+                        <option value="line">Line</option>
+                        <option value="honeycomb">Honeycomb</option>
+                        <option value="gyroid">Gyroid</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold">Fill Angle (°)</span>
+                      <NumericInput 
+                        value={globalSettings.fillAngle ?? 0} 
+                        onChange={v => onUpdateGlobalSettings({ ...globalSettings, fillAngle: v })} 
+                      />
+                    </div>
                   </div>
                 </div>
               </AccordionSection>
@@ -931,6 +1319,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   </div>
                 </div>
               </AccordionSection>
+
+
 
               <div className="pt-2">
                 <button 

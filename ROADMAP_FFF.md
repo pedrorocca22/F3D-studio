@@ -104,6 +104,8 @@ Configuración de la base sobre la cual se deposita el material, adaptando el si
 
 ---
 
+---
+
 ## 🛠️ Notas de Seguimiento
 - **Conflict Resolution**: En caso de colisión entre el Scaffold Mapping y el Layer Schedule, el **Schedule tiene prioridad absoluta** sobre el comando de herramienta.
 - **Bed Coordinates**: El origen (0,0,0) del sistema se mantiene en el centro de la cama de cristal por defecto.

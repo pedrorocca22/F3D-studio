@@ -109,6 +109,8 @@ export interface GlobalSettings {
   printBed?: PrintBedSettings;
 }
 
+
+
 // ---------------------------------------------------------------------------
 //  Print Bed Settings
 // ---------------------------------------------------------------------------
@@ -162,6 +164,31 @@ export interface TransformData {
   };
 }
 
+/** Parameters for syringe-based hydrogel injection into scaffold void pores. */
+export interface PoreInjectionParams {
+  /** Volume of hydrogel to deposit per pore in µL */
+  volumeUl: number;
+  /** Z-axis lift (mm) before depositing to avoid nozzle drag */
+  zOffsetMm: number;
+  /** Syringe actuator feed rate in mm/min */
+  feedRateMmMin: number;
+  /**
+   * Selected cells in the pore grid as [col, row] pairs.
+   * Empty array = inject in ALL available pores.
+   */
+  selectedCells: [number, number][];
+  /**
+   * Layer ranges (inclusive) where injection is active.
+   * Empty array = inject in ALL layers.
+   */
+  layerRanges: { id: string; from: number; to: number }[];
+  /**
+   * Cell pitch in mm, auto-computed from infill % + nozzle diameter.
+   * Stored here so the backend can map G-code XY coords → cell indices.
+   */
+  cellPitchMm: number;
+}
+
 export interface ModelData {
   id: string;
   name: string;
@@ -176,6 +203,10 @@ export interface ModelData {
   toolhead?: ToolheadId;
   /** Per-feature toolhead mapping for scaffold mode (optional). */
   scaffoldTools?: ScaffoldToolMapping;
+  /** Whether T1 syringe should deposit hydrogel into infill void pores. */
+  poreDepositionEnabled?: boolean;
+  /** Parameters for pore injection (only relevant when poreDepositionEnabled=true). */
+  poreParams?: PoreInjectionParams;
   /** Optional assignment to a specific well in a multiwell plate. */
   wellAssignment?: {
     format: 6 | 12 | 24 | 48;

@@ -28,6 +28,7 @@ export default function App() {
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isWifiOpen, setIsWifiOpen] = useState(false);
 
+
   // Slicing State
   const [isSlicing, setIsSlicing] = useState(false);
   const [sliceProgress, setSliceProgress] = useState('');
@@ -44,7 +45,7 @@ export default function App() {
     nozzleTemperature: 210,
     bedTemperature: 60,
     infill: 15,
-    infillPattern: 'gyroid',
+    infillPattern: 'grid',
     perimeters: 3,
     supportsEnabled: false,
     nozzleDiameter: 0.4,
@@ -69,7 +70,7 @@ export default function App() {
     brimWidth: 0,
     topSolidLayers: 3,
     bottomSolidLayers: 3,
-    fillAngle: 45,
+    fillAngle: 0,
     printBed: {
       type: 'glass_bed',
       dimensions: { width: 100, height: 100 }
@@ -150,7 +151,16 @@ export default function App() {
         enabled: false,
         segments: []
       },
-      toolhead: 'fdm'
+      toolhead: 'fdm',
+      poreDepositionEnabled: false,
+      poreParams: {
+        volumeUl: 0.5,
+        zOffsetMm: 0.3,
+        feedRateMmMin: 120,
+        selectedCells: [],
+        layerRanges: [],
+        cellPitchMm: 2.67,
+      },
     };
 
     setModels(prev => [...prev, newModel]);
@@ -302,8 +312,56 @@ export default function App() {
       alert("Please add a model before slicing.");
       return;
     }
+
+    // Multiwell size validation
+    if (globalSettings.printBed?.type === 'multiwell_plate') {
+      const MULTIWELL_SPECS_LOCAL: Record<string, { cols: number; rows: number; pitch: number; dia: number }> = {
+        '6':  { cols: 3, rows: 2, pitch: 39.1, dia: 34.8 },
+        '12': { cols: 4, rows: 3, pitch: 26.1, dia: 22.1 },
+        '24': { cols: 6, rows: 4, pitch: 19.3, dia: 15.62 },
+        '48': { cols: 8, rows: 6, pitch: 13.0, dia: 11.0 },
+      };
+
+      const overflowingModels: string[] = [];
+
+      for (const model of models) {
+        if (!model.transform.wellAssignment || !model.size) continue;
+
+        const fmt = String(model.transform.wellAssignment.format);
+        const spec = MULTIWELL_SPECS_LOCAL[fmt];
+        if (!spec) continue;
+
+        // Model footprint considering X/Y scale
+        const sx = model.transform.scale.x ?? 1;
+        const sy = model.transform.scale.y ?? 1;
+        const modelW = model.size.x * sx;
+        const modelD = model.size.y * sy;
+
+        // The model diagonal must fit within the well diameter
+        const modelDiagonal = Math.sqrt(modelW * modelW + modelD * modelD);
+
+        if (modelDiagonal > spec.dia) {
+          overflowingModels.push(
+            `"${model.name}" (${modelW.toFixed(1)} × ${modelD.toFixed(1)} mm) → Well ${
+              model.transform.wellAssignment.wellId
+            } (ø${spec.dia} mm, plate ${fmt}-well)`
+          );
+        }
+      }
+
+      if (overflowingModels.length > 0) {
+        alert(
+          `⚠️ The following models do not fit inside their assigned well and cannot be sliced:\n\n` +
+          overflowingModels.map(m => `• ${m}`).join('\n') +
+          `\n\nPlease reduce the model scale or choose a plate format with larger wells.`
+        );
+        return;
+      }
+    }
+
     executeSlice();
   };
+
 
   const executeSlice = async () => {
 
@@ -321,11 +379,17 @@ export default function App() {
     const formData = new FormData();
 
     // Attach each model's STL and its metadata (transform, toolhead)
+    const cellPitchMm = (globalSettings.infill && globalSettings.infill > 0 && globalSettings.nozzleDiameter)
+      ? (globalSettings.nozzleDiameter / (globalSettings.infill / 100))
+      : 2.67;
+
     const modelsMetadata = models.map(m => ({
       name: m.file?.name,
       transform: m.transform,
       toolhead: m.toolhead || 'fdm',
-      scaffoldTools: m.scaffoldTools || null
+      scaffoldTools: m.scaffoldTools || null,
+      poreDepositionEnabled: m.poreDepositionEnabled ?? false,
+      poreParams: m.poreParams ? { ...m.poreParams, cellPitchMm } : null,
     }));
     formData.append('models_metadata', JSON.stringify(modelsMetadata));
 
@@ -371,6 +435,8 @@ export default function App() {
 
     // Toolhead layer-schedule
     formData.append('layer_actions', JSON.stringify(layerActions));
+
+
 
 
     try {
@@ -429,22 +495,24 @@ export default function App() {
 
       console.log("[executeSlice] Slicing workflow complete.");
       setIsSlicing(false);
-      setLastSliceHash(JSON.stringify({ models: models.map(m => m.file?.name) }));
+      setSliceProgress('');
 
-      // Open G-code preview automatically
       if (jobId) {
         setGcodePreviewJob({ jobId, layerCount, nozzleDiameter: globalSettings.nozzleDiameter });
       }
+      return { jobId, layerCount };
 
     } catch (error) {
       console.error("[executeSlice] Caught error:", error);
       const msg = (error as Error).message;
-      setSliceError(msg.includes('Failed to fetch')
-        ? 'Cannot reach server.\nMake sure server.py is running on port 8000.'
-        : msg);
-      setIsSlicing(false); // Ensure overlay stays open for errors
+      setSliceProgress('');
+      setIsSlicing(false);
+      alert(`Slice error: ${msg}`);
+      return null;
     }
   };
+
+
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -614,6 +682,8 @@ export default function App() {
         <CalibrationTool onClose={() => setIsCalibrationOpen(false)} />
       )}
 
+
+
       <div className="flex flex-1 overflow-hidden relative">
         <LayersPanel
           models={models}
@@ -642,6 +712,7 @@ export default function App() {
           sliceMessage={sliceProgress}
           hasGCode={!!gcodePreviewJob}
           onPrint={() => console.log("Printing job:", gcodePreviewJob?.jobId)}
+          jobId={currentJobId}
         />
 
         <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
