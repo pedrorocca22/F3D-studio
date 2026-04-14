@@ -614,7 +614,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               onClick={() => setActiveStep(step.id)} 
               className={`flex-1 py-3 px-1 text-[10px] font-bold flex items-center justify-center transition-all ${
                   activeStep === step.id 
-                  ? 'bg-white dark:bg-slate-900 border-b-2 border-primary text-primary shadow-sm' 
+                  ? 'bg-white dark:bg-slate-900 border-b-2 border-action text-action shadow-sm' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50 border-b-2 border-transparent'}`}
             >
               <span>{step.label}</span>
@@ -638,7 +638,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           />
           <button
             onClick={handleUploadClick}
-            className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg shadow-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2 bg-action hover:bg-action-dark text-white text-xs font-bold rounded-lg shadow-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors"
           >
             <Icon name="upload_file" className="text-sm" />
             Upload Model
@@ -677,7 +677,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                    key={model.id}
                    onClick={() => onSelectModel(model.id)}
                    className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
-                     ? 'border-primary bg-primary text-white shadow-sm'
+                      ? 'border-action bg-action text-white shadow-sm'
                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}
                    `}
                  >
@@ -787,18 +787,18 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         })}
                         className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'glass_bed'
-                            ? 'border-primary bg-primary/5 text-primary'
+                            ? 'border-transparent bg-action/5 text-action'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
-                      >
-                        <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'glass_bed' ? 'bg-primary/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                       >
+                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'glass_bed' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
                           <Icon name="crop_square" className="text-lg" />
                         </div>
                         <div>
                           <p className="text-xs font-bold">Glass Bed</p>
                           <p className="text-[10px] opacity-70 text-slate-500">Square 100x100mm surface</p>
                         </div>
-                        {globalSettings.printBed?.type === 'glass_bed' && <Icon name="check_circle" className="ml-auto text-sm" />}
+
                       </button>
 
                       <button
@@ -808,18 +808,18 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         })}
                         className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'petri_dish'
-                            ? 'border-primary bg-primary/5 text-primary'
+                            ? 'border-transparent bg-action/5 text-action'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
-                      >
-                        <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'petri_dish' ? 'bg-primary/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                       >
+                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'petri_dish' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
                           <Icon name="circle" className="text-lg" />
                         </div>
                         <div>
                           <p className="text-xs font-bold">Petri Dish</p>
                           <p className="text-[10px] opacity-70 text-slate-500">Circular bio-container</p>
                         </div>
-                        {globalSettings.printBed?.type === 'petri_dish' && <Icon name="check_circle" className="ml-auto text-sm" />}
+
                       </button>
 
                       <button
@@ -829,18 +829,18 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         })}
                         className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'multiwell_plate'
-                            ? 'border-primary bg-primary/5 text-primary'
+                            ? 'border-transparent bg-action/5 text-action'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
-                      >
-                        <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'multiwell_plate' ? 'bg-primary/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                       >
+                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'multiwell_plate' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
                           <Icon name="apps" className="text-lg" />
                         </div>
                         <div>
                           <p className="text-xs font-bold">Multiwell Plate</p>
                           <p className="text-[10px] opacity-70 text-slate-500">Cell culture grid</p>
                         </div>
-                        {globalSettings.printBed?.type === 'multiwell_plate' && <Icon name="check_circle" className="ml-auto text-sm" />}
+
                       </button>
                     </div>
                   </div>
@@ -888,14 +888,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             })}
                             className={`flex-1 py-1 px-2 rounded border text-xs font-bold transition-all ${
                               globalSettings.printBed?.petriDiameter === size
-                                ? 'bg-primary text-white border-primary shadow-sm'
+                                ? 'bg-action text-white border-action shadow-sm'
                                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                            }`}
-                          >
-                            {size}mm
-                          </button>
-                        ))}
-                      </div>
+                             }`}
+                           >
+                             {size}mm
+                           </button>
+                         ))}
+                       </div>
                     </div>
                   )}
 
@@ -913,7 +913,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             })}
                             className={`flex-1 py-1 px-2 rounded border text-xs font-bold transition-all ${
                               globalSettings.printBed?.multiwellFormat === format
-                                ? 'bg-primary text-white border-primary shadow-sm'
+                                ? 'bg-action text-white border-action shadow-sm'
                                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                             }`}
                           >
@@ -938,8 +938,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           {/* TAB 2: SCHEDULE */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
-                <p className="text-[10px] text-primary leading-relaxed font-bold">
+              <div className="p-3 bg-action/5 rounded-lg border border-action/10">
+                <p className="text-[10px] text-action leading-relaxed font-bold">
                   The Schedule rules override any model-specific mapping. 
                 </p>
               </div>
@@ -989,7 +989,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       color: '#0d9488',
                     }]);
                   }}
-                  className="flex-center gap-1 px-4 py-1.5 bg-primary text-white text-[10px] font-black rounded uppercase"
+                  className="flex-center gap-1 px-4 py-1.5 bg-action text-white text-[10px] font-black rounded uppercase"
                 >
                   <Icon name="add" className="text-sm" /> Add Segment
                 </button>
@@ -1012,12 +1012,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       onClick={() => onSelectModel(m.id)}
                       className={`bg-white dark:bg-slate-900 border rounded-xl overflow-hidden transition-all cursor-pointer ${
                         isSelected 
-                          ? 'border-primary ring-2 ring-primary/20 shadow-md' 
+                          ? 'border-action ring-2 ring-action/20 shadow-md' 
                           : 'border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100'
                       }`}
                     >
                       <div className={`flex items-center justify-between p-3 ${
-                        isSelected ? 'bg-primary/5' : 'bg-slate-50/50 dark:bg-slate-800/50'
+                        isSelected ? 'bg-action/5' : 'bg-slate-50/50 dark:bg-slate-800/50'
                       }`}>
                         <div className="flex items-center gap-2 overflow-hidden">
                           <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-primary' : 'bg-slate-300'}`} />
