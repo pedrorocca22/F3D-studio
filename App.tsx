@@ -726,7 +726,7 @@ export default function App() {
             onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
             onCloneModel={handleCloneModel}
             onArrayModels={handleArrayModels}
-            onFileUpload={handleFileUpload}
+
             isAdvancedSliceMode={isAdvancedSliceMode}
             globalSettings={globalSettings}
             gcodeJob={gcodePreviewJob ? {

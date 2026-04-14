@@ -27,7 +27,7 @@ interface ViewportProps {
   onUpdateModifiers?: (modifiers: Modifier[]) => void;
   onCloneModel: (id: string) => void;
   onArrayModels: (spacing: number) => void;
-  onFileUpload?: (file: File) => void;
+
   isAdvancedSliceMode?: boolean;
   globalSettings: GlobalSettings;
   // GCode integration
@@ -950,7 +950,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   onUpdateAdvancedSettings,
   onCloneModel,
   onArrayModels,
-  onFileUpload,
+
   isAdvancedSliceMode,
   globalSettings,
   gcodeJob = null,
@@ -981,7 +981,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const [zoomTrigger, setZoomTrigger] = useState(0);
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   // Clipping State
   const [isClipping, setIsClipping] = useState(false);
@@ -1029,13 +1029,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   };
 
 
-  const handleEmptyStateClick = () => fileInputRef.current?.click();
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0 && onFileUpload) {
-      Array.from(e.target.files).forEach(f => onFileUpload(f));
-      e.target.value = '';
-    }
-  };
+
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -1150,15 +1144,7 @@ export const Viewport: React.FC<ViewportProps> = ({
             />
           )}
 
-          {!isGCodeMode && models.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div onClick={handleEmptyStateClick} className="text-center bg-white/80 dark:bg-slate-900/80 p-8 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 backdrop-blur-sm pointer-events-auto cursor-pointer hover:border-primary hover:bg-blue-50/50 dark:hover:bg-slate-800 transition-all group max-w-md w-full mx-4">
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".stl" multiple className="hidden" />
-                <span className="text-primary text-lg font-medium block mb-1">No model loaded</span>
-                <span className="text-sm font-normal text-slate-500 block">Click "Upload Model" or drag & drop a file (STL) here</span>
-              </div>
-            </div>
-          )}
+
 
           {/* ── GCode exit button (top-right corner) */}
           {isGCodeMode && onExitGCode && (

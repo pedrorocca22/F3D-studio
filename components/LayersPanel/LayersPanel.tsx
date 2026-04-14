@@ -603,23 +603,22 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       {/* ── STEPPER WIZARD HEADER ── */}
       <div className="flex bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
         {[
-          { id: 1, label: 'Environment', icon: 'handyman' },
-          { id: 2, label: 'Models', icon: '3d_rotation' },
-          { id: 3, label: 'Mapping', icon: 'biotech' },
-          { id: 4, label: 'Profile', icon: 'tune' },
-          { id: 5, label: 'Slicer', icon: 'layers' }
+          { id: 1, label: 'Environment' },
+          { id: 2, label: 'Models' },
+          { id: 3, label: 'Mapping' },
+          { id: 4, label: 'Profile' },
+          { id: 5, label: 'Slicer' }
         ].map(step => (
            <button 
-             key={step.id}
-             onClick={() => setActiveStep(step.id)} 
-             className={`flex-1 py-3 px-1 text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                 activeStep === step.id 
-                 ? 'bg-white dark:bg-slate-900 border-b-2 border-primary text-primary shadow-sm' 
-                 : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50 border-b-2 border-transparent'}`}
-           >
-             <Icon name={step.icon} className="text-lg mb-1" />
-             <span>{step.label}</span>
-           </button>
+              key={step.id}
+              onClick={() => setActiveStep(step.id)} 
+              className={`flex-1 py-3 px-1 text-[10px] font-bold flex items-center justify-center transition-all ${
+                  activeStep === step.id 
+                  ? 'bg-white dark:bg-slate-900 border-b-2 border-primary text-primary shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50 border-b-2 border-transparent'}`}
+            >
+              <span>{step.label}</span>
+            </button>
         ))}
       </div>
 
