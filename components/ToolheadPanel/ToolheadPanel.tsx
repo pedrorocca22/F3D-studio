@@ -53,9 +53,9 @@ function generateUUID(): string {
 // ---------- Sub-components ----------
 
 export const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-xs font-bold ${TOOLHEAD_COLORS[toolhead]}`}>
-        <span className="material-icons-outlined text-xs">{TOOLHEAD_ICONS[toolhead]}</span>
-        {TOOLHEAD_LABELS[toolhead]}
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-white text-[9px] font-medium ${TOOLHEAD_COLORS[toolhead]}`}>
+        <span className="material-icons-outlined text-[10px]">{TOOLHEAD_ICONS[toolhead]}</span>
+        {TOOLHEAD_LABELS[toolhead].split(' ')[0]}
     </span>
 );
 

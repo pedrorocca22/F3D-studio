@@ -27,6 +27,7 @@ export default function App() {
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
   const [isWifiOpen, setIsWifiOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState<number>(1);
 
 
   // Slicing State
@@ -677,6 +678,8 @@ export default function App() {
         onLoadProject={handleLoadProject}
         onOpenCalibration={() => setIsCalibrationOpen(true)}
         onOpenWifi={() => setIsWifiOpen(true)}
+        activeStep={activeStep}
+        setActiveStep={setActiveStep}
       />
       {isCalibrationOpen && (
         <CalibrationTool onClose={() => setIsCalibrationOpen(false)} />
@@ -686,6 +689,8 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden relative">
         <LayersPanel
+          activeStep={activeStep}
+          setActiveStep={setActiveStep}
           models={models}
           globalSettings={globalSettings}
           onUpdateGlobalSettings={setGlobalSettings}
@@ -743,10 +748,10 @@ export default function App() {
           )}
 
           {isDragging && (
-            <div className="absolute inset-4 z-50 rounded-xl border-4 border-dashed border-primary bg-blue-50/90 dark:bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center text-primary animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
-              <Icon name="upload_file" className="text-8xl mb-4" />
-              <span className="text-3xl font-bold">Drop STL file here</span>
-              <span className="text-lg text-slate-500 dark:text-slate-400 mt-2">to add it to the scene</span>
+            <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
+              <Icon name="upload_file" className="text-4xl mb-2 opacity-50" />
+              <span className="text-sm font-medium">Drop STL file here</span>
+              <span className="text-xs text-slate-400 mt-1">to add to the scene</span>
             </div>
           )}
         </main>

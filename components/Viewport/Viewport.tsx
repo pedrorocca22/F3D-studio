@@ -75,40 +75,40 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
   const isAdv = !!model.advancedSettings.enabled;
 
   return (
-    <div className="w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col gap-3">
+    <div className="w-full bg-slate-50/30 dark:bg-slate-800/10 border border-slate-200/60 dark:border-slate-800/40 rounded-md p-1.5 flex flex-col gap-1.5">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-700/50">
-        <div className="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-primary shrink-0 border border-blue-100 dark:border-blue-900/30">
-          <Icon name="inventory_2" className="text-lg" />
+      <div className="flex items-center gap-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800/40">
+        <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-primary/70 shrink-0">
+          <Icon name="inventory_2" className="text-[10px]" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm truncate text-slate-800 dark:text-slate-100 leading-tight" title={model.name}>{model.name}</h3>
-          <p className="text-[10px] text-slate-400 font-mono">ID: {model.id.slice(0, 6)}</p>
+          <h3 className="font-medium text-[10px] truncate text-slate-700 dark:text-slate-200 leading-tight" title={model.name}>{model.name}</h3>
+          <p className="text-[8px] text-slate-400 font-mono">ID: {model.id.slice(0, 6)}</p>
         </div>
       </div>
 
       {/* Dimensions */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="bg-white dark:bg-slate-900 rounded p-1.5 border border-slate-100 dark:border-slate-700/50">
-          <span className="block text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Size X</span>
-          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.x?.toFixed(1) || '-'}</span>
+      <div className="grid grid-cols-3 gap-1 text-center">
+        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
+          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">X</span>
+          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.x?.toFixed(1) || '-'}</span>
         </div>
-        <div className="bg-white dark:bg-slate-900 rounded p-1.5 border border-slate-100 dark:border-slate-700/50">
-          <span className="block text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Size Y</span>
-          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.y?.toFixed(1) || '-'}</span>
+        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
+          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">Y</span>
+          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.y?.toFixed(1) || '-'}</span>
         </div>
-        <div className="bg-white dark:bg-slate-900 rounded p-1.5 border border-slate-100 dark:border-slate-700/50">
-          <span className="block text-[9px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Size Z</span>
-          <span className="block text-xs font-bold text-slate-700 dark:text-slate-200">{model.size?.z?.toFixed(1) || '-'}</span>
+        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
+          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">Z</span>
+          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.z?.toFixed(1) || '-'}</span>
         </div>
       </div>
 
       {/* Advanced Slice Badge */}
       {isAdv ? (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-lg p-2 mt-1">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Advanced Slice Settings Active</span>
+        <div className="bg-red-50/30 dark:bg-red-900/10 border border-red-200/30 dark:border-red-900/20 rounded p-1">
+          <div className="flex items-center gap-1">
+            <div className="w-1 h-1 rounded-full bg-red-400"></div>
+            <span className="text-[7px] font-medium text-red-500/80 dark:text-red-400 uppercase tracking-wide">Advanced Slice</span>
           </div>
         </div>
       ) : null}
@@ -1056,7 +1056,7 @@ export const Viewport: React.FC<ViewportProps> = ({
       {/* Main Viewport Area */}
       <div className="flex-1 relative h-full">
         {/* Render Canvas */}
-        <div className="absolute inset-4 z-0 rounded-xl overflow-hidden shadow-inner bg-slate-100/50 dark:bg-slate-800/20 transition-all">
+        <div className="absolute inset-3 z-0 rounded-lg overflow-hidden bg-slate-100/30 dark:bg-slate-800/10 transition-all">
           <Canvas
             shadows
             camera={{ position: [100, 100, 150], fov: 45, near: 0.01, far: 2000 }}
@@ -1151,33 +1151,33 @@ export const Viewport: React.FC<ViewportProps> = ({
             <button
               onClick={onExitGCode}
               title="Exit toolpath preview"
-              className="absolute top-8 right-8 z-30 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-lg text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all duration-200 text-[11px] font-bold uppercase tracking-wider animate-in fade-in duration-300"
+              className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200/60 dark:hover:border-red-900/30 hover:bg-red-50/80 dark:hover:bg-red-900/10 transition-all btn-transition text-[9px] font-medium uppercase tracking-wide"
             >
-              <Icon name="close" className="text-base" />
-              Exit Preview
+              <Icon name="close" className="text-sm" />
+              Exit
             </button>
           )}
 
           {/* ── GCode Layer Controls Bar ─────────────────────────────── */}
           {isGCodeMode && (
-            <div className="absolute bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-lg px-5 py-2.5 flex items-center gap-5 animate-in slide-in-from-bottom-2 duration-300">
+            <div className="absolute bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-t border-slate-200/60 dark:border-slate-700/60 px-4 py-2 flex items-center gap-4">
               {/* Loading state */}
               {gcodeLoading && (
-                <div className="flex items-center gap-3 flex-1 text-slate-500 dark:text-slate-400">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest">Loading toolpaths...</span>
+                <div className="flex items-center gap-2 flex-1 text-slate-500 dark:text-slate-400">
+                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[9px] font-medium uppercase tracking-wide">Loading toolpaths...</span>
                 </div>
               )}
               {!gcodeLoading && gcodeParsed && (
                 <>
                   {/* Layer Slider */}
-                  <Icon name="layers" className="text-slate-400 text-base shrink-0" />
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider shrink-0">Layer</span>
+                  <Icon name="layers" className="text-slate-400 text-[13px] shrink-0" />
+                  <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wide shrink-0">Layer</span>
                   <input
                     type="range" min={0} max={gcodeParsed.layerCount} step={1}
                     value={gcodeLayer}
                     onChange={e => setGcodeLayer(+e.target.value)}
-                    className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-600 rounded-full cursor-pointer appearance-none"
+                    className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-600 rounded-full cursor-pointer appearance-none"
                   />
                   <input
                     type="number"
@@ -1188,51 +1188,50 @@ export const Viewport: React.FC<ViewportProps> = ({
                       const val = Math.max(0, Math.min(gcodeParsed.layerCount, parseInt(e.target.value) || 0));
                       setGcodeLayer(val);
                     }}
-                    className="w-14 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-center text-xs font-mono text-primary font-bold focus:ring-1 focus:ring-primary/50 outline-none"
+                    className="w-12 px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-600/60 rounded-md text-center text-[10px] font-mono text-primary focus:ring-1 focus:ring-primary/30 outline-none"
                   />
-                  <span className="text-xs font-mono text-slate-400 font-bold w-8 shrink-0">
+                  <span className="text-[10px] font-mono text-slate-400 w-6 shrink-0">
                     /{gcodeParsed.layerCount}
                   </span>
 
 
-                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+                  <div className="h-4 w-px bg-slate-200/60 dark:bg-slate-600/60 shrink-0" />
 
                   {/* Nozzle */}
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
-                    <span className="font-bold uppercase">⌀</span>
+                  <div className="flex items-center gap-1.5 text-[9px] text-slate-500 shrink-0">
+                    <span className="font-medium uppercase">⌀</span>
                     <input
                       type="number" min="0.1" max="2.0" step="0.05"
                       value={gcodeNozzle}
                       onChange={e => setGcodeNozzle(parseFloat(e.target.value) || 0.4)}
-                      className="w-12 px-1 py-0.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary/50 outline-none"
+                      className="w-10 px-0.5 py-0.5 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/60 rounded-md text-center text-[10px] font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary/30 outline-none"
                     />
-                    <span className="font-bold uppercase text-slate-400">mm</span>
+                    <span className="font-medium uppercase text-slate-400">mm</span>
                   </div>
 
-                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+                  <div className="h-4 w-px bg-slate-200/60 dark:bg-slate-600/60 shrink-0" />
 
                   {/* Travel toggle */}
-                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-slate-500 font-bold uppercase tracking-tight hover:text-primary transition-colors shrink-0">
-                    <input type="checkbox" checked={gcodeShowTravel} onChange={e => setGcodeShowTravel(e.target.checked)} className="accent-primary w-3 h-3 cursor-pointer" />
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[9px] text-slate-500 font-medium uppercase tracking-wide hover:text-primary transition-colors shrink-0">
+                    <input type="checkbox" checked={gcodeShowTravel} onChange={e => setGcodeShowTravel(e.target.checked)} className="accent-primary w-2.5 h-2.5 cursor-pointer" />
                     Travel
                   </label>
 
-                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
+                  <div className="h-4 w-px bg-slate-200/60 dark:bg-slate-600/60 shrink-0" />
 
                   {/* Color mode toggle + legend popover */}
                   <div className="relative group shrink-0">
                     <button
                       onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-tight transition-all ${
+                      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-medium uppercase tracking-wide transition-all ${
                         gcodeColorMode === 'linetype'
-                          ? 'bg-primary/10 border-primary/30 text-primary'
-                          : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-primary/30 hover:text-primary'
+                          ? 'bg-primary/10 border-primary/20 text-primary'
+                          : 'bg-slate-100/50 dark:bg-slate-700/50 border-slate-200/60 dark:border-slate-600/60 text-slate-500 dark:text-slate-400 hover:border-primary/20 hover:text-primary'
                       }`}
                       title="Toggle coloring mode — hover to see legend"
                     >
-                      <Icon name="palette" className="text-sm" />
+                      <Icon name="palette" className="text-[10px]" />
                       {gcodeColorMode === 'toolhead' ? 'By Tool' : 'By Type'}
-                      <Icon name="expand_less" className="text-[10px] opacity-50" />
                     </button>
 
                     {/* Floating legend — appears above the bar on hover */}
@@ -1282,43 +1281,42 @@ export const Viewport: React.FC<ViewportProps> = ({
           )}
         </div>
 
-        {/* Bottom Center - Camera Views - raised clear of GCode layer bar */}
-        <div className={`absolute ${isGCodeMode ? 'bottom-24' : 'bottom-6'} left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-xl z-20 transition-all duration-300`}>
-          <button onClick={() => setView('iso')} className="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 flex items-center justify-center group" title="Isometric View">
-            <Icon name="view_in_ar" className="text-xl group-hover:scale-110 transition-transform" />
+        {/* Bottom Center - Camera Views */}
+        <div className={`absolute ${isGCodeMode ? 'bottom-16' : 'bottom-3'} left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm p-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50 z-20 transition-all duration-300`}>
+          <button onClick={() => setView('iso')} className="w-7 h-7 rounded hover:bg-slate-100/70 dark:hover:bg-slate-700/70 btn-transition text-slate-500 dark:text-slate-400 flex items-center justify-center" title="Isometric View">
+            <Icon name="view_in_ar" className="text-sm" />
           </button>
-          <div className="w-px h-5 bg-slate-300 dark:bg-slate-600 mx-1"></div>
-          <button onClick={() => setView('top')} className="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase flex items-center justify-center border border-transparent hover:border-slate-200" title="Top View">TOP</button>
-          <button onClick={() => setView('front')} className="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase flex items-center justify-center border border-transparent hover:border-slate-200" title="Front View">FNT</button>
-          <button onClick={() => setView('right')} className="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase flex items-center justify-center border border-transparent hover:border-slate-200" title="Right View">RGT</button>
+          <div className="w-px h-3.5 bg-slate-200/60 dark:bg-slate-600/60 mx-0.5"></div>
+          <button onClick={() => setView('top')} className="w-7 h-7 rounded hover:bg-slate-100/70 dark:hover:bg-slate-700/70 btn-transition text-slate-500 dark:text-slate-400 text-[8px] font-medium uppercase flex items-center justify-center" title="Top View">TOP</button>
+          <button onClick={() => setView('front')} className="w-7 h-7 rounded hover:bg-slate-100/70 dark:hover:bg-slate-700/70 btn-transition text-slate-500 dark:text-slate-400 text-[8px] font-medium uppercase flex items-center justify-center" title="Front View">FNT</button>
+          <button onClick={() => setView('right')} className="w-7 h-7 rounded hover:bg-slate-100/70 dark:hover:bg-slate-700/70 btn-transition text-slate-500 dark:text-slate-400 text-[8px] font-medium uppercase flex items-center justify-center" title="Right View">RGT</button>
         </div>
       </div>
 
       {/* Right Sidebar - Inspector */}
-      <div className="w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl z-30 flex flex-col h-full">
-        <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wide">
-              <Icon name="tune" className="text-base text-primary" />
+      <div className="w-64 bg-surface-light dark:bg-surface-dark border-l border-slate-200/60 dark:border-slate-800/60 z-30 flex flex-col h-full panel-transition">
+        <div className="px-2.5 py-2 border-b border-slate-200/60 dark:border-slate-800/40">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <Icon name="tune" className="text-[13px] text-primary/70" />
               Inspector
             </h2>
-            {/* Global View Mode Toggle */}
-            <button onClick={cycleViewMode} className="flex items-center gap-1.5 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700" title="Toggle View Mode">
-              <div className={`w-2 h-2 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-800 border-slate-800 dark:bg-slate-200 dark:border-slate-200' : 'border-slate-400'}`}></div>
-              <span className="text-[9px] font-bold text-slate-500 uppercase">{viewMode}</span>
+            <button onClick={cycleViewMode} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded btn-transition cursor-pointer" title="Toggle View Mode">
+              <div className={`w-1 h-1 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-600 border-slate-600 dark:bg-slate-300 dark:border-slate-300' : 'border-slate-400'}`}></div>
+              <span className="text-[8px] font-medium text-slate-400 uppercase">{viewMode}</span>
             </button>
           </div>
         </div>
 
 
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
 
           {selectedModel ? (
             <>
               {/* Model Info Section */}
               <section>
-                <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1.5 mb-2 text-[9px] font-medium text-slate-400 uppercase tracking-wider">
                   Model Information
                 </div>
                 <ModelInfoPanel
@@ -1330,11 +1328,11 @@ export const Viewport: React.FC<ViewportProps> = ({
               {/* Transform Section */}
               {!isAdvancedSliceMode && (
                 <section>
-                  <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 mb-2 text-[9px] font-medium text-slate-400 uppercase tracking-wider">
                     Transform
                   </div>
 
-                  <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 mb-2">
+                  <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800/50 p-0.5 mb-2">
                     <div className="grid grid-cols-4 gap-0.5">
                       {[
                         { id: 'translate', icon: 'open_with', label: 'Move' },
@@ -1345,38 +1343,38 @@ export const Viewport: React.FC<ViewportProps> = ({
                         <button
                           key={tool.id}
                           onClick={() => setObjectTool(tool.id as ObjectTool)}
-                          className={`flex flex-col items-center justify-center py-1.5 rounded-lg transition-all ${objectTool === tool.id
-                            ? 'bg-white dark:bg-slate-700 shadow-sm text-primary ring-1 ring-slate-200 dark:ring-slate-600'
+                          className={`flex flex-col items-center justify-center py-1.5 rounded btn-transition ${objectTool === tool.id
+                            ? 'bg-white dark:bg-slate-700 text-primary'
                             : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                           title={tool.label}
                         >
-                          <Icon name={tool.icon} className="text-lg mb-0.5" />
+                          <Icon name={tool.icon} className="text-base mb-0.5" />
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* Transform Inputs */}
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+                  <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800/50 p-2">
                     {objectTool === 'modify' ? (
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2">
                         {/* Arrange Section */}
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-2">
-                            <Icon name="grid_view" className="text-sm" /> Arrange Models
+                          <label className="text-[9px] font-medium text-slate-400 uppercase block mb-1 flex items-center gap-1">
+                            <Icon name="grid_view" className="text-xs" /> Arrange Models
                           </label>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="number"
                               value={arraySpacing}
                               onChange={(e) => setArraySpacing(parseFloat(e.target.value) || 0)}
-                              className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary outline-none"
-                              placeholder="Spacing (mm)"
+                              className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-600 dark:text-slate-300 focus:ring-1 focus:ring-primary outline-none"
+                              placeholder="Spacing"
                             />
                             <button
                               onClick={() => onArrayModels(arraySpacing)}
-                              className="h-[30px] px-3 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-all"
+                              className="h-[26px] px-2 bg-slate-100 dark:bg-slate-700 hover:bg-primary/80 hover:text-white text-slate-600 dark:text-slate-300 text-[10px] font-medium rounded btn-transition"
                             >
                               Apply
                             </button>
@@ -1386,36 +1384,36 @@ export const Viewport: React.FC<ViewportProps> = ({
                         <div className="h-px bg-slate-100 dark:bg-slate-700/50"></div>
 
                         {/* Quick Actions */}
-                        <div className="grid grid-cols-1 gap-2">
+                        <div className="grid grid-cols-1 gap-1">
                           <button
                             onClick={() => selectedModelId && onCloneModel(selectedModelId)}
-                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 hover:border-primary/30 hover:bg-primary/5 text-slate-500 dark:text-slate-400 text-[10px] font-medium rounded btn-transition flex items-center justify-center gap-1"
                           >
-                            <Icon name="content_copy" className="text-xs" /> Duplication
+                            <Icon name="content_copy" className="text-xs" /> Duplicate
                           </button>
                           <button
                             onClick={() => selectedModelId && onTransformChange(selectedModelId, { ...selectedModel.transform, position: { x: 0, y: 0, z: 0 } })}
-                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 hover:border-primary/30 hover:bg-primary/5 text-slate-500 dark:text-slate-400 text-[10px] font-medium rounded btn-transition flex items-center justify-center gap-1"
                           >
-                            <Icon name="center_focus_strong" className="text-xs" /> Center to Build Plate
+                            <Icon name="center_focus_strong" className="text-xs" /> Center to Bed
                           </button>
                           <button
                             onClick={() => setObjectTool('orient')}
-                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-1.5 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 hover:border-primary/30 hover:bg-primary/5 text-slate-500 dark:text-slate-400 text-[10px] font-medium rounded btn-transition flex items-center justify-center gap-1"
                           >
-                            <Icon name="vertical_align_bottom" className="text-xs" /> Orient Face to Bed
+                            <Icon name="vertical_align_bottom" className="text-xs" /> Orient to Bed
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1.5">
                         {/* Quick Uniform Toggle for Scale */}
                         {objectTool === 'scale' && (
-                          <div className="flex items-center justify-end mb-1">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                              <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform Scaling</span>
-                              <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
-                                {uniformScale && <Icon name="check" className="text-[10px] text-white font-bold" />}
+                          <div className="flex items-center justify-end mb-0.5">
+                            <label className="flex items-center gap-1.5 cursor-pointer group">
+                              <span className="text-[9px] font-medium text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 select-none">Uniform</span>
+                              <div className={`w-3 h-3 border rounded flex items-center justify-center btn-transition ${uniformScale ? 'bg-primary/80 border-primary/80' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
+                                {uniformScale && <Icon name="check" className="text-[8px] text-white font-bold" />}
                               </div>
                               <input type="checkbox" className="hidden" checked={uniformScale} onChange={(e) => setUniformScale(e.target.checked)} />
                             </label>
@@ -1430,15 +1428,15 @@ export const Viewport: React.FC<ViewportProps> = ({
                               : selectedModel.transform.scale[axis as 'x' | 'y' | 'z'];
 
                           return (
-                            <div key={axis} className="flex items-center gap-2 group">
-                              <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase">
+                            <div key={axis} className="flex items-center gap-1.5 group">
+                              <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[8px] font-medium text-slate-400 uppercase">
                                 {axis}
                               </div>
                               <div className="relative flex-1">
                                 <input
                                   type="number"
                                   step={objectTool === 'rotate' ? 15 : objectTool === 'scale' ? 0.1 : 1}
-                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 pr-6 text-right text-xs font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all appearance-none"
+                                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 pr-5 text-right text-xs font-mono text-slate-600 dark:text-slate-300 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all appearance-none"
                                   value={value !== undefined ? Number(value).toFixed(objectTool === 'scale' ? 2 : 1) : ''}
                                   placeholder="0.0"
                                   onChange={(e) => {
@@ -1459,7 +1457,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                                     onTransformChange(selectedModel.id, newTransform);
                                   }}
                                 />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-medium pointer-events-none select-none bg-transparent">
+                                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 font-medium pointer-events-none select-none bg-transparent">
                                   {objectTool === 'rotate' ? '°' : objectTool === 'scale' ? 'x' : 'mm'}
                                 </span>
                               </div>
@@ -1472,25 +1470,25 @@ export const Viewport: React.FC<ViewportProps> = ({
                 </section>
               )}
 
-              <div className="border-t border-slate-100 dark:border-slate-800 my-4"></div>
+              <div className="border-t border-slate-100 dark:border-slate-800/50 my-3"></div>
 
               {/* Cross Section Analysis */}
               <section>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1 text-[9px] font-medium text-slate-400 uppercase tracking-wider">
                     <Icon name="layers" className="text-xs" /> Cross-Section
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
-                    <div className="w-7 h-4 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                    <div className="w-6 h-3.5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-primary/80"></div>
                   </label>
                 </div>
 
                 {isClipping && (
-                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2 border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
-                    <div className="flex justify-between items-baseline mb-2">
-                      <span className="text-[10px] text-slate-500 font-medium">Cut Height</span>
-                      <span className="font-mono text-primary font-bold text-xs">{clippingHeight.toFixed(1)}mm</span>
+                  <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg p-2 border border-slate-100 dark:border-slate-800/50 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex justify-between items-baseline mb-1.5">
+                      <span className="text-[9px] text-slate-500 font-medium">Cut Height</span>
+                      <span className="font-mono text-primary/80 font-medium text-xs">{clippingHeight.toFixed(1)}mm</span>
                     </div>
                     <input
                       type="range"
@@ -1501,17 +1499,17 @@ export const Viewport: React.FC<ViewportProps> = ({
                       onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
                       className="w-full h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-primary"
                     />
-                    <div className="flex justify-between text-[9px] text-slate-400 mt-1 font-mono">
-                      <span>0mm</span>
-                      <span>{sliderMaxHeight.toFixed(0)}mm</span>
+                    <div className="flex justify-between text-[8px] text-slate-400 mt-1 font-mono">
+                      <span>0</span>
+                      <span>{sliderMaxHeight.toFixed(0)}</span>
                     </div>
                   </div>
                 )}
               </section>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-32 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-              <Icon name="inbox" className="text-3xl mb-1 opacity-50" />
+            <div className="flex flex-col items-center justify-center h-24 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+              <Icon name="inbox" className="text-2xl mb-1 opacity-40" />
               <span className="text-[10px] font-medium">No Model Selected</span>
             </div>
           )}

@@ -9,11 +9,14 @@ interface HeaderProps {
   onOpenCalibration?: () => void;
   onOpenWifi?: () => void;
   onOpenPrinterStatus?: () => void;
+  activeStep: number;
+  setActiveStep: (step: number) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
-  onOpenCalibration, onOpenWifi, onOpenPrinterStatus
+  onOpenCalibration, onOpenWifi, onOpenPrinterStatus,
+  activeStep, setActiveStep
 }) => {
   const [printerState, setPrinterState] = useState<'unknown' | 'ready' | 'printing' | 'error'>('unknown');
 
@@ -53,59 +56,81 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      {/* Top accent gradient line */}
-      <div className="h-1 w-full flex-shrink-0 bg-gradient-to-r from-primary via-teal-400 to-teal-300" />
-
       {/* Main Header */}
-      <header className="h-14 flex-shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex items-center justify-between px-6 z-20 relative shadow-sm">
+      <header className="h-10 flex-shrink-0 bg-surface-light dark:bg-surface-dark border-b border-outline-variant/20 text-slate-700 dark:text-slate-300 flex items-center justify-between px-4 z-20 relative">
         {/* Wordmark */}
         <div className="flex items-center gap-2 select-none">
-          <span className="font-black tracking-tighter text-xl text-slate-800 dark:text-white">
-            bio<span className="text-primary">FDM</span>
-            <span className="font-light text-slate-400 dark:text-slate-500 text-sm ml-1">studio</span>
+          <span className="font-bold tracking-tight text-xs text-slate-800 dark:text-slate-100">
+            Aura<span className="text-primary font-normal">Biotics</span>
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Printer Status chip */}
+        {/* Stepper Center */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+          {[
+            { id: 1, label: 'Environment' },
+            { id: 2, label: 'Models' },
+            { id: 3, label: 'Mapping' },
+            { id: 4, label: 'Profile' },
+            { id: 5, label: 'Slicer' }
+          ].map(step => (
+            <button 
+              key={step.id}
+              onClick={() => setActiveStep(step.id)} 
+              className={`px-3 py-1.5 rounded-sm text-[11px] font-medium transition-all duration-200 ${
+                  activeStep === step.id 
+                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
+              }`}
+            >
+              {step.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {/* Printer Status chip - ultra compact */}
           <button
             onClick={onOpenPrinterStatus}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors"
+            className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200/50 dark:border-slate-700/50 bg-transparent dark:bg-transparent hover:bg-slate-50/50 dark:hover:bg-slate-800/30 text-[9px] font-medium text-slate-500 dark:text-slate-400 transition-all btn-transition"
           >
-            <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
-            {stateLabel[printerState]}
+            <span className={`w-1 h-1 rounded-full ${stateColor[printerState]}`} />
+            <span className="hidden lg:inline">{stateLabel[printerState]}</span>
           </button>
 
-          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+          <div className="h-3 w-px bg-slate-200/60 dark:bg-slate-700/60" />
 
-          <div className="flex items-center gap-2">
-            <button onClick={onLoadProject} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-              <Icon name="folder_open" className="text-sm" /> Load
+          <div className="flex items-center gap-0.5">
+            <button onClick={onLoadProject} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
+              <Icon name="folder_open" className="text-[10px]" />
+              <span className="hidden sm:inline">Load</span>
             </button>
-            <button onClick={onSaveProject} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-              <Icon name="save" className="text-sm" /> Save
+            <button onClick={onSaveProject} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
+              <Icon name="save" className="text-[10px]" />
+              <span className="hidden sm:inline">Save</span>
             </button>
-            <button onClick={onOpenCalibration} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-              <Icon name="science" className="text-sm" /> Calibrate
+            <button onClick={onOpenCalibration} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
+              <Icon name="science" className="text-[10px]" />
+              <span className="hidden md:inline">Calibrate</span>
             </button>
           </div>
 
-          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+          <div className="h-3 w-px bg-slate-200/60 dark:bg-slate-700/60 mx-0.5" />
 
           <button
             onClick={onOpenWifi}
-            className="flex items-center gap-1.5 bg-primary hover:opacity-85 text-white px-4 py-1.5 rounded-md font-bold shadow-sm transition-opacity text-xs tracking-wide"
+            className="flex items-center gap-1 bg-primary/80 hover:bg-primary text-white px-2 py-0.5 rounded text-[9px] font-medium btn-transition"
           >
-            <Icon name="wifi" className="text-sm" />
-            Network
+            <Icon name="wifi" className="text-[10px]" />
+            <span className="hidden sm:inline">Network</span>
           </button>
 
           <button
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="p-1 rounded hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 btn-transition"
             onClick={toggleDarkMode}
             title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
-            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-lg" />
+            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[13px]" />
           </button>
         </div>
       </header>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Icon } from '../Icon';
 
 interface NumericInputProps {
   value: number | string;
@@ -59,16 +60,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   };
 
   return (
-    <div className={`flex items-center border border-slate-200 dark:border-slate-700 rounded overflow-hidden bg-white dark:bg-slate-900 ${className}`}>
+    <div className={`flex items-center rounded-sm overflow-hidden bg-slate-100 dark:bg-slate-800/40 ${className} transition-colors focus-within:bg-slate-200/60 dark:focus-within:bg-slate-800/70`}>
       <button
         onClick={decrement}
-        className="flex-shrink-0 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 border-r border-slate-200 dark:border-slate-700 text-slate-500 transition-all active:scale-90"
+        className="flex-shrink-0 px-1.5 py-0.5 hover:bg-slate-200/60 dark:hover:bg-slate-700/40 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all btn-transition"
       >
-        -
+        <Icon name="remove" className="text-[9px]" />
       </button>
       <div className="relative flex-1 min-w-[3rem]">
         <input
-          className="w-full text-center text-xs bg-transparent border-none focus:ring-0 p-1 text-slate-700 dark:text-slate-200 appearance-none font-bold"
+          className="w-full text-center text-[10px] bg-transparent border-none focus:ring-0 py-0.5 text-slate-700 dark:text-slate-200 appearance-none font-medium outline-none"
           type="text"
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
@@ -76,16 +77,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
           onKeyDown={handleKeyDown}
         />
         {suffix && (
-          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none opacity-50">
+          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none">
             {suffix}
           </span>
         )}
       </div>
       <button
         onClick={increment}
-        className="flex-shrink-0 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 border-l border-slate-200 dark:border-slate-700 text-slate-500 transition-all active:scale-90"
+        className="flex-shrink-0 px-1.5 py-0.5 hover:bg-slate-200/60 dark:hover:bg-slate-700/40 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all btn-transition"
       >
-        +
+        <Icon name="add" className="text-[9px]" />
       </button>
     </div>
   );

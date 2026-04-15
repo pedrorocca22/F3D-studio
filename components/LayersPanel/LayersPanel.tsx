@@ -60,6 +60,8 @@ interface LayersPanelProps {
   hasGCode?: boolean;
   onPrint?: () => void;
   jobId?: string | null;
+  activeStep: number;
+  setActiveStep: (step: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,10 +412,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     onDeleteModel, onUpdateModel, onTransformChange, onUpdateSettings, onUpdateAdvancedSettings,
     onApplySettingsToAll, isAdvancedSliceMode, setIsAdvancedSliceMode, onSlice, onFileUpload,
     toolheads, layerActions, totalLayers, onUpdateToolheads, onUpdateLayerActions,
-    isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId
+    isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId,
+    activeStep, setActiveStep
   } = props;
 
-  const [activeStep, setActiveStep] = useState<number>(1);
   const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
   
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -598,36 +600,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
   const inputClass = "w-32";
   return (
-    <aside className="w-[500px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-surface-light dark:bg-surface-dark flex flex-col z-10">
+    <aside className="w-[320px] flex-shrink-0 bg-surface-light dark:bg-surface-dark flex flex-col z-10 drop-shadow-sm transition-all duration-300">
 
-      {/* ── STEPPER WIZARD HEADER ── */}
-      <div className="flex bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
-        {[
-          { id: 1, label: 'Environment' },
-          { id: 2, label: 'Models' },
-          { id: 3, label: 'Mapping' },
-          { id: 4, label: 'Profile' },
-          { id: 5, label: 'Slicer' }
-        ].map(step => (
-           <button 
-              key={step.id}
-              onClick={() => setActiveStep(step.id)} 
-              className={`flex-1 py-3 px-1 text-[10px] font-bold flex items-center justify-center transition-all ${
-                  activeStep === step.id 
-                  ? 'bg-white dark:bg-slate-900 border-b-2 border-action text-action shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50 dark:hover:bg-slate-800/50 border-b-2 border-transparent'}`}
-            >
-              <span>{step.label}</span>
-            </button>
-        ))}
-      </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
 
         {(activeStep === 2 || activeStep === 3) && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
+          <div className="space-y-2 animate-in fade-in slide-in-from-left-1">
         {/* Upload Button */}
-        <div className="mb-2 space-y-2">
+        <div className="mb-1 space-y-1">
           <input
             type="file"
             ref={fileInputRef}
@@ -638,9 +619,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           />
           <button
             onClick={handleUploadClick}
-            className="w-full py-2 bg-action hover:bg-action-dark text-white text-xs font-bold rounded-lg shadow-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-1.5 bg-primary/90 hover:bg-primary text-white text-[9px] font-medium rounded shadow-none transition-colors btn-transition flex items-center justify-center gap-1.5"
           >
-            <Icon name="upload_file" className="text-sm" />
+            <Icon name="upload_file" className="text-[10px]" />
             Upload Model
           </button>
 

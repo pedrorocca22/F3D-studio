@@ -15,19 +15,32 @@
       theme: {
         extend: {
           colors: {
-            primary: "#6C9BCF",
-            "primary-dark": "#4A7FB5",
-            "primary-light": "#A3C4E8",
-            action: "#2D6A4F",
-            "action-dark": "#1B4332",
-            "action-light": "#40916C",
-            "background-light": "#F0F4F8",
-            "background-dark": "#0F1923",
-            "surface-light": "#ffffff",
-            "surface-dark": "#1A2332",
+            primary: "#2f6098",         /* clinical blue */
+            "primary-dark": "#1f548b",
+            "primary-light": "#bbd6ff",
+            action: "#2f6098",          /* mapped to primary for unity */
+            "action-dark": "#1f548b",
+            "action-light": "#d3e3ff",
+            "background-light": "#f1f4f6", /* surface_container_low */
+            "background-dark": "#0c0f10",  /* inverse_surface */
+            "surface-light": "#ffffff",    /* surface_lowest */
+            "surface-dark": "#181a1b",
+            "border-light": "#abb3b7",     /* outline_variant */
+            "border-dark": "#3c4042",
+            "outline-variant": "#abb3b7", /* subtle tonal borders */
+            "surface-container": "#eaeff1",
+            "surface-container-low": "#f1f4f6",
+            "on-surface": "#2b3437",
+            "on-surface-variant": "#586064",
           },
           fontFamily: {
             sans: ["Inter", "sans-serif"],
+          },
+          fontSize: {
+            'xxs': ['0.625rem', { lineHeight: '0.875rem' }],
+          },
+          spacing: {
+            '18': '4.5rem',
           },
         },
       },
@@ -36,42 +49,75 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     .material-icons-outlined {
       vertical-align: middle;
-      font-size: 20px;
+      font-size: 16px;
       user-select: none;
+      font-weight: 300;
     }
 
-    /* Custom scrollbar for webkit */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
+    /* ── Clinical Editorial scrollbar ── */
+    .custom-scrollbar::-webkit-scrollbar { width: 2px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #abb3b760; border-radius: 1px; }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3c404260; }
+
+    /* ── Transitions ── */
+    .btn-transition { transition: all 0.2s ease-in-out; }
+    .panel-transition { transition: background-color 0.2s ease-in-out, color 0.15s ease-in-out; }
+
+    /* ── Focus reset ── */
+    button:focus { outline: none; }
+
+    /* ── Tonal dividers (no hard lines!) ── */
+    .divider-tonal { border-color: rgba(171, 179, 183, 0.18); }
+    .dark .divider-tonal { border-color: rgba(60, 64, 66, 0.4); }
+
+    /* ── Accordion sections ── */
+    .section-header {
+      letter-spacing: 0.06em;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #586064;
+    }
+    .dark .section-header { color: #8a9399; }
+
+    /* ── Input ghost bottom border ── */
+    .input-ghost {
+      background: #e2e9ec;
+      border: none;
+      border-bottom: 1px solid rgba(171, 179, 183, 0.4);
+      border-radius: 2px 2px 0 0;
+      transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    }
+    .input-ghost:focus {
+      background: #dbe4e7;
+      border-bottom-color: #2f6098;
+      outline: none;
+    }
+    .dark .input-ghost {
+      background: #252829;
+      border-bottom-color: rgba(60, 64, 66, 0.6);
+    }
+    .dark .input-ghost:focus {
+      background: #2e3133;
+      border-bottom-color: #88b6f4;
     }
 
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
+    /* ── Active step pill ── */
+    .step-active {
+      background: #eaeff1;
+      color: #2b3437;
+      font-weight: 500;
     }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 10px;
-    }
-
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #475569;
-    }
-
-    /* Viewport Grid Pattern */
-    .viewport-grid {
-      background-image: linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-      background-size: 40px 40px;
-    }
-
-    .dark .viewport-grid {
-      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    .dark .step-active {
+      background: #252829;
+      color: #e0e3e6;
     }
   </style>
 
