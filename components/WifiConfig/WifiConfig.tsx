@@ -24,10 +24,8 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
         setScanning(true);
         setError(null);
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/wifi/scan');
-            if (!res.ok) {
-                throw new Error('Failed to scan for networks');
-            }
+            const res = await fetch('/api/wifi/scan');
+            if (!res.ok) throw new Error('Failed to scan for networks');
             const data = await res.json();
             setNetworks(data);
         } catch (err: any) {
@@ -43,29 +41,19 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
 
     const handleConnect = async () => {
         if (!selectedSsid) return;
-
         setLoading(true);
         setError(null);
         setSuccess(null);
-
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/wifi/connect', {
+            const res = await fetch('/api/wifi/connect', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ssid: selectedSsid, password })
             });
-
             const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.error || 'Failed to connect');
-            }
-
-            setSuccess(`Successfully connected to ${selectedSsid}! The printer will now join this network.`);
-            setTimeout(() => {
-                onClose();
-            }, 4000);
+            if (!res.ok) throw new Error(data.error || 'Failed to connect');
+            setSuccess(`Successfully connected to ${selectedSsid}.`);
+            setTimeout(() => onClose(), 4000);
         } catch (err: any) {
             setError(err.message || 'Error connecting to network.');
         } finally {
@@ -73,7 +61,6 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
         }
     };
 
-    // Signal strength helper (assume signal is 0-100)
     const getSignalIcon = (signalStr: string) => {
         const signal = parseInt(signalStr, 10);
         if (isNaN(signal)) return 'signal_wifi_4_bar';
@@ -84,123 +71,124 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
     };
 
     return (
-        <div className="absolute inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl w-[450px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white border border-outline-variant/30 w-[440px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                 {/* Header */}
-                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                        <Icon name="wifi" className="text-primary" /> Network Setup
+                <div className="p-4 border-b border-outline-variant/10 flex justify-between items-center bg-slate-50">
+                    <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                        <Icon name="wifi_tethering" className="text-[14px] text-primary" />
+                        Network_Config // Setup
                     </h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
-                        <Icon name="close" className="text-xl" />
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-800 transition-colors">
+                        <Icon name="close" className="text-lg" />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-5 overflow-y-auto max-h-[60vh]">
+                <div className="p-6">
                     {error && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400 text-sm flex gap-2">
-                            <Icon name="error" className="shrink-0 mt-0.5" />
-                            <span>{error}</span>
+                        <div className="mb-6 p-4 bg-red-50 border border-red-100 flex gap-3 items-start">
+                            <Icon name="error_outline" className="text-red-600 text-[16px] mt-0.5" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase text-red-600 tracking-tight">System_Error</span>
+                                <span className="text-[11px] text-red-700 leading-tight">{error}</span>
+                            </div>
                         </div>
                     )}
 
                     {success && (
-                        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-green-700 dark:text-green-400 text-sm flex gap-2">
-                            <Icon name="check_circle" className="shrink-0 mt-0.5" />
-                            <span>{success}</span>
+                        <div className="mb-6 p-4 bg-teal-50 border border-teal-100 flex gap-3 items-start">
+                            <Icon name="check_circle_outline" className="text-teal-600 text-[16px] mt-0.5" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase text-teal-600 tracking-tight">Connection_Established</span>
+                                <span className="text-[11px] text-teal-700 leading-tight">{success}</span>
+                            </div>
                         </div>
                     )}
 
                     {!selectedSsid ? (
-                        // Network List View
                         <>
-                            <div className="flex justify-between items-end mb-3">
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Networks</p>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Available_Nodes</span>
                                 <button
                                     onClick={scanNetworks}
                                     disabled={scanning}
-                                    className="text-xs text-primary hover:text-blue-600 flex items-center gap-1 font-semibold disabled:opacity-50"
+                                    className="text-[10px] font-black uppercase text-primary hover:opacity-70 flex items-center gap-1.5 transition-all disabled:opacity-30"
                                 >
-                                    <Icon name="refresh" className={`text-sm ${scanning ? 'animate-spin' : ''}`} /> Scan
+                                    <Icon name="sync" className={scanning ? 'animate-spin' : ''} />
+                                    Scan
                                 </button>
                             </div>
 
-                            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+                            <div className="border border-outline-variant/10 bg-slate-50 divide-y divide-outline-variant/5 max-h-[300px] overflow-y-auto custom-scrollbar">
                                 {scanning && networks.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-500 text-sm flex flex-col items-center gap-2">
-                                        <Icon name="radar" className="text-2xl animate-pulse text-slate-400" />
-                                        Scanning for networks...
+                                    <div className="p-12 text-center flex flex-col items-center gap-3">
+                                        <div className="w-8 h-8 border-2 border-primary border-t-transparent animate-spin"></div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Scanning_Frequencies</span>
                                     </div>
                                 ) : networks.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-500 text-sm">
-                                        No networks found.
+                                    <div className="p-12 text-center">
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No_Nodes_Found</span>
                                     </div>
                                 ) : (
-                                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto w-full scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
-                                        {networks.map((net, i) => (
-                                            <li key={i}>
-                                                <button
-                                                    onClick={() => setSelectedSsid(net.ssid)}
-                                                    className="w-full text-left p-3 hover:bg-slate-100 dark:hover:bg-slate-700/50 flex justify-between items-center transition-colors group"
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold text-sm text-slate-700 dark:text-slate-200 group-hover:text-primary transition-colors">
-                                                            {net.ssid}
-                                                        </span>
-                                                        {net.security && net.security !== '--' && (
-                                                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                                                                <Icon name="lock" className="text-[10px]" /> Secured
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-slate-400">
-                                                        <span className="text-xs font-mono">{net.signal}%</span>
-                                                        <Icon name={getSignalIcon(net.signal)} className="text-base" />
-                                                    </div>
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    networks.map((net, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setSelectedSsid(net.ssid)}
+                                            className="w-full text-left p-4 hover:bg-white flex justify-between items-center group transition-all"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-black text-slate-700 group-hover:text-primary transition-colors">
+                                                    {net.ssid}
+                                                </span>
+                                                <span className="text-[9px] text-slate-400 uppercase font-bold tracking-tight">
+                                                    {net.security !== '--' ? 'NODE_SECURE' : 'NODE_OPEN'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-[10px] font-mono font-bold text-slate-400">{net.signal}%</span>
+                                                <Icon name={getSignalIcon(net.signal)} className="text-slate-300 group-hover:text-primary/40 transition-colors" />
+                                            </div>
+                                        </button>
+                                    ))
                                 )}
                             </div>
                         </>
                     ) : (
-                        // Password Entry View
-                        <div className="space-y-4 animate-in slide-in-from-right-4 duration-200">
+                        <div className="space-y-6 animate-in slide-in-from-right-2 duration-300">
                             <button
                                 onClick={() => { setSelectedSsid(null); setPassword(''); }}
-                                className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 -mt-2 opacity-80"
+                                className="text-[10px] font-black uppercase text-slate-400 hover:text-slate-800 flex items-center gap-1.5 transition-all"
                             >
-                                <Icon name="arrow_back" className="text-[11px]" /> Back to networks
+                                <Icon name="arrow_back" className="text-[12px]" />
+                                Back_to_Nodes
                             </button>
 
-                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/40 text-center">
-                                <Icon name="wifi_tethering" className="text-3xl text-primary mb-2" />
-                                <h4 className="font-bold text-slate-800 dark:text-slate-100">{selectedSsid}</h4>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Enter password to connect printer</p>
+                            <div className="p-6 bg-slate-50 border border-outline-variant/10 text-center">
+                                <span className="text-[10px] font-black uppercase text-primary tracking-[0.2em] mb-2 block">SELECTED_SSID</span>
+                                <h4 className="text-lg font-black text-slate-800">{selectedSsid}</h4>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Password</label>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Access_Token</label>
                                 <input
                                     type="password"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
-                                    placeholder="Network password"
+                                    placeholder="Enter network passphrase"
                                     autoFocus
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition-all placeholder:text-slate-400"
+                                    className="w-full bg-white border border-outline-variant/20 p-3 text-[12px] font-bold outline-none focus:border-primary transition-all placeholder:opacity-30"
                                 />
                             </div>
 
                             <button
                                 onClick={handleConnect}
                                 disabled={loading}
-                                className="w-full py-3 bg-primary hover:bg-blue-600 text-white font-bold rounded-lg shadow-sm transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="w-full py-4 bg-slate-800 hover:bg-black text-white text-[11px] font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                             >
-                                {loading ? <Icon name="sync" className="animate-spin text-lg" /> : <Icon name="login" className="text-lg" />}
-                                {loading ? 'Connecting...' : 'Connect to Network'}
+                                {loading && <Icon name="sync" className="animate-spin" />}
+                                {loading ? 'Establishing_Handshake' : 'Authorize_Link'}
                             </button>
                         </div>
                     )}

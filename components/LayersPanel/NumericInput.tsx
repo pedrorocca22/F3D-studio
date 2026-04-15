@@ -60,16 +60,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   };
 
   return (
-    <div className={`flex items-center rounded-sm overflow-hidden bg-slate-100 dark:bg-slate-800/40 ${className} transition-colors focus-within:bg-slate-200/60 dark:focus-within:bg-slate-800/70`}>
+    <div className={`flex items-center bg-[#eaeff1] ${className} transition-colors border-b border-outline-variant/20 h-7`}>
       <button
         onClick={decrement}
-        className="flex-shrink-0 px-1.5 py-0.5 hover:bg-slate-200/60 dark:hover:bg-slate-700/40 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all btn-transition"
+        className="px-2 h-full hover:bg-[#dbe4e7] text-slate-400 hover:text-primary transition-all btn-transition flex items-center"
       >
-        <Icon name="remove" className="text-[9px]" />
+        <Icon name="remove" className="text-[10px]" />
       </button>
-      <div className="relative flex-1 min-w-[3rem]">
+      <div className="relative flex-1 min-w-[2rem] h-full flex items-center">
         <input
-          className="w-full text-center text-[10px] bg-transparent border-none focus:ring-0 py-0.5 text-slate-700 dark:text-slate-200 appearance-none font-medium outline-none"
+          className="w-full text-center text-[11px] bg-transparent border-none focus:ring-0 py-0 text-slate-700 font-bold outline-none font-mono"
           type="text"
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
@@ -77,16 +77,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
           onKeyDown={handleKeyDown}
         />
         {suffix && (
-          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-slate-400 pointer-events-none">
+          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
             {suffix}
           </span>
         )}
       </div>
       <button
         onClick={increment}
-        className="flex-shrink-0 px-1.5 py-0.5 hover:bg-slate-200/60 dark:hover:bg-slate-700/40 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all btn-transition"
+        className="px-2 h-full hover:bg-[#dbe4e7] text-slate-400 hover:text-primary transition-all btn-transition flex items-center"
       >
-        <Icon name="add" className="text-[9px]" />
+        <Icon name="add" className="text-[10px]" />
       </button>
     </div>
   );

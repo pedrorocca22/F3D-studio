@@ -58,12 +58,12 @@ const SEGMENT_COLORS = [
 
 const getSegmentColor = (index: number) => SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 
-// Toolhead colors for 3D preview
+// Toolhead colors for 3D preview (Clinical Palette)
 export const TOOLHEAD_COLORS: Record<string, string> = {
-  fdm:     '#3b82f6', // Blue
-  syringe: '#22c55e', // Green
-  uv:      '#a855f7', // Purple
-  none:    '#94a3b8', // Slate gray (default)
+  fdm:     '#2f6098', // Clinical Blue
+  syringe: '#586064', // Clinical Gray
+  uv:      '#b71c1c', // Warning Red
+  none:    '#abb3b7', // Neutral Gray
 };
 
 type CameraMode = 'orbit' | 'pan';
@@ -75,40 +75,40 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
   const isAdv = !!model.advancedSettings.enabled;
 
   return (
-    <div className="w-full bg-slate-50/30 dark:bg-slate-800/10 border border-slate-200/60 dark:border-slate-800/40 rounded-md p-1.5 flex flex-col gap-1.5">
+    <div className="w-full bg-white border border-outline-variant/30 p-2 flex flex-col gap-2">
       {/* Header */}
-      <div className="flex items-center gap-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-800/40">
-        <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-primary/70 shrink-0">
+      <div className="flex items-center gap-2 pb-1.5 border-b border-outline-variant/10">
+        <div className="w-4 h-4 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
           <Icon name="inventory_2" className="text-[10px]" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-[10px] truncate text-slate-700 dark:text-slate-200 leading-tight" title={model.name}>{model.name}</h3>
-          <p className="text-[8px] text-slate-400 font-mono">ID: {model.id.slice(0, 6)}</p>
+          <h3 className="font-black text-[10px] uppercase tracking-widest truncate text-slate-700 leading-none" title={model.name}>{model.name}</h3>
+          <p className="text-[8px] text-slate-400 font-mono mt-0.5">OBJ_REF: {model.id.slice(0, 8).toUpperCase()}</p>
         </div>
       </div>
 
       {/* Dimensions */}
-      <div className="grid grid-cols-3 gap-1 text-center">
-        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
-          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">X</span>
-          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.x?.toFixed(1) || '-'}</span>
+      <div className="grid grid-cols-3 gap-px bg-outline-variant/10 border border-outline-variant/5">
+        <div className="bg-white p-1.5">
+          <span className="block text-[7px] text-slate-400 uppercase font-black tracking-tight mb-0.5">Bound_X</span>
+          <span className="block text-[10px] font-bold text-slate-700 font-mono">{model.size?.x?.toFixed(1) || '-'}</span>
         </div>
-        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
-          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">Y</span>
-          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.y?.toFixed(1) || '-'}</span>
+        <div className="bg-white p-1.5">
+          <span className="block text-[7px] text-slate-400 uppercase font-black tracking-tight mb-0.5">Bound_Y</span>
+          <span className="block text-[10px] font-bold text-slate-700 font-mono">{model.size?.y?.toFixed(1) || '-'}</span>
         </div>
-        <div className="bg-white dark:bg-slate-900/30 rounded p-1 border border-slate-200/60 dark:border-slate-800/40">
-          <span className="block text-[7px] text-slate-400 uppercase tracking-wider font-medium mb-0.5">Z</span>
-          <span className="block text-[10px] font-medium text-slate-700 dark:text-slate-200">{model.size?.z?.toFixed(1) || '-'}</span>
+        <div className="bg-white p-1.5">
+          <span className="block text-[7px] text-slate-400 uppercase font-black tracking-tight mb-0.5">Bound_Z</span>
+          <span className="block text-[10px] font-bold text-slate-700 font-mono">{model.size?.z?.toFixed(1) || '-'}</span>
         </div>
       </div>
 
       {/* Advanced Slice Badge */}
       {isAdv ? (
-        <div className="bg-red-50/30 dark:bg-red-900/10 border border-red-200/30 dark:border-red-900/20 rounded p-1">
-          <div className="flex items-center gap-1">
-            <div className="w-1 h-1 rounded-full bg-red-400"></div>
-            <span className="text-[7px] font-medium text-red-500/80 dark:text-red-400 uppercase tracking-wide">Advanced Slice</span>
+        <div className="bg-red-50 border border-red-100 p-1">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 bg-red-600"></div>
+            <span className="text-[8px] font-black text-red-600 uppercase tracking-widest">MULTI_STAGE_ACTIVE</span>
           </div>
         </div>
       ) : null}
@@ -419,11 +419,11 @@ const SliceSlider: React.FC<SliceSliderProps> = ({ segments, maxHeight, onUpdate
   }, [draggingIndex, segments, maxHeight, onUpdateSegment, adhesionOffset]);
 
   return (
-    <div className="absolute left-12 top-1/2 -translate-y-1/2 h-[80%] flex items-center gap-4 z-30 select-none">
-      <div className="flex flex-col h-full justify-start py-0 text-[10px] text-slate-400 font-mono text-left order-last min-w-[30px] -mt-1.5">
-        <span>{maxHeight.toFixed(1)}mm</span>
+    <div className="absolute left-10 top-1/2 -translate-y-1/2 h-3/4 flex items-center gap-4 z-30 select-none">
+      <div className="flex flex-col h-full justify-start py-0 text-[10px] text-slate-400 font-mono text-left order-last min-w-[30px] -mt-1.5 font-bold">
+        <span>{maxHeight.toFixed(1)}MM</span>
       </div>
-      <div ref={trackRef} className="relative h-full w-1.5 bg-slate-200 dark:bg-slate-700 rounded-full">
+      <div ref={trackRef} className="relative h-full w-1 bg-surface-container">
         {/* Render Segment Bars */}
         {segments.map((segment, i) => {
           const topLimit = segment.topLimit;
@@ -440,12 +440,12 @@ const SliceSlider: React.FC<SliceSliderProps> = ({ segments, maxHeight, onUpdate
           return (
             <div
               key={segment.id}
-              className="absolute w-full rounded-full border-b border-white/20"
+              className="absolute w-full border-b border-white/10"
               style={{
                 bottom: `${bottomPct}%`,
                 height: `${heightPct}%`,
                 backgroundColor: color,
-                opacity: 0.8
+                opacity: 0.9
               }}
             />
           );
@@ -459,11 +459,11 @@ const SliceSlider: React.FC<SliceSliderProps> = ({ segments, maxHeight, onUpdate
           return (
             <div
               key={`handle-${segment.id}`}
-              className="absolute left-1/2 -translate-x-1/2 w-5 h-5 rounded-full shadow-md cursor-ns-resize hover:scale-110 transition-transform flex items-center justify-center z-10 border border-white"
-              style={{ bottom: `${topPct}%`, marginBottom: '-10px', backgroundColor: color }}
+              className="absolute left-1/2 -translate-x-1/2 w-4 h-4 shadow-sm cursor-ns-resize hover:scale-105 transition-transform flex items-center justify-center z-10 border border-white"
+              style={{ bottom: `${topPct}%`, marginBottom: '-8px', backgroundColor: color }}
               onMouseDown={(e) => handleMouseDown(e, i)}
             >
-              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+              <div className="w-1 h-1 bg-white opacity-40"></div>
             </div>
           );
         })}

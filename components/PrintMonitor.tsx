@@ -130,32 +130,22 @@ export const PrintMonitor: React.FC<PrintMonitorProps> = ({
 
     const getStateColor = (): string => {
         switch (status.state) {
-            case 'PRINTING': return '#22c55e';
-            case 'PAUSED': return '#f59e0b';
-            case 'COMPLETED': return '#3b82f6';
-            case 'ERROR': return '#ef4444';
-            default: return '#64748b';
+            case 'PRINTING': return '#2f6098';
+            case 'PAUSED': return '#586064';
+            case 'COMPLETED': return '#1e4620';
+            case 'ERROR': return '#b71c1c';
+            default: return '#abb3b7';
         }
     };
 
     const getStateLabel = (): string => {
         switch (status.state) {
-            case 'PRINTING': return 'PRINTING';
-            case 'PAUSED': return 'PAUSED';
-            case 'COMPLETED': return 'PRINT COMPLETE';
-            case 'ERROR': return 'ERROR';
-            case 'IDLE': return 'IDLE';
+            case 'PRINTING': return 'STATION ACTIVE';
+            case 'PAUSED': return 'STATION PAUSED';
+            case 'COMPLETED': return 'PROCESS COMPLETE';
+            case 'ERROR': return 'HARDWARE ERROR';
+            case 'IDLE': return 'SYSTEM READY';
             default: return status.state;
-        }
-    };
-
-    const getStateIcon = (): string => {
-        switch (status.state) {
-            case 'PRINTING': return 'fiber_manual_record';
-            case 'PAUSED': return 'pause_circle';
-            case 'COMPLETED': return 'check_circle';
-            case 'ERROR': return 'error';
-            default: return 'radio_button_unchecked';
         }
     };
 
@@ -163,190 +153,98 @@ export const PrintMonitor: React.FC<PrintMonitorProps> = ({
     const isError = status.state === 'ERROR';
 
     return (
-        <div className="absolute inset-0 z-[60] bg-[#0d0d0d] flex items-center justify-center">
-            {/* Subtle animated background */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div
-                    className="absolute inset-0 opacity-[0.03]"
-                    style={{
-                        backgroundImage: `radial-gradient(circle at 50% 50%, ${getStateColor()} 0%, transparent 70%)`,
-                        transition: 'background-image 1s ease',
-                    }}
-                />
-            </div>
-
-            <div className="relative w-full max-w-[400px] mx-4">
-                {/* Main Card */}
-                <div className="rounded-lg border border-slate-200/10 bg-slate-900/90 backdrop-blur-md overflow-hidden">
-                    {/* Header */}
-                    <div className="px-4 pt-4 pb-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Icon
-                                    name={getStateIcon()}
-                                    className="text-lg"
-                                    style={{ color: getStateColor() }}
-                                />
-                                <div>
-                                    <h2
-                                        className="text-sm font-semibold tracking-tight"
-                                        style={{ color: getStateColor() }}
-                                    >
-                                        {getStateLabel()}
-                                    </h2>
-                                    <span className="text-[9px] text-slate-500 font-mono">
-                                        JOB #{jobId.substring(0, 8).toUpperCase()}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Percentage Badge */}
-                            <div
-                                className="text-xl font-bold tabular-nums tracking-tight"
-                                style={{ color: getStateColor() }}
-                            >
-                                {Math.round(progress)}
-                                <span className="text-xs text-slate-500 ml-0.5">%</span>
-                            </div>
-                        </div>
+        <div className="absolute inset-0 z-[60] bg-[#f1f4f6]/80 backdrop-blur-sm flex items-center justify-center">
+            <div className="relative w-full max-w-[440px] bg-white border border-outline-variant/30 shadow-2xl p-0">
+                {/* Header Section */}
+                <div className="border-b border-outline-variant/20 p-6 flex justify-between items-start">
+                    <div>
+                        <span className="label-clinical mb-1 block">Production Status</span>
+                        <h2 className="text-xl font-black tracking-tight leading-none" style={{ color: getStateColor() }}>
+                            {getStateLabel()}
+                        </h2>
+                        <span className="text-[10px] text-[#abb3b7] font-mono mt-2 block font-bold">
+                            SESSION_ID // {jobId.substring(0, 12).toUpperCase()}
+                        </span>
                     </div>
-
-                    {/* Progress Bar */}
-                    <div className="px-4 pb-3">
-                        <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden relative">
-                            <div
-                                className="h-full rounded-full transition-all duration-700 ease-out"
-                                style={{
-                                    width: `${Math.max(progress, 0.5)}%`,
-                                    backgroundColor: getStateColor(),
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="px-4 pb-4">
-                        <div className="grid grid-cols-2 gap-2">
-                            {/* Layer Progress */}
-                            <div className="bg-slate-800/40 rounded p-2 border border-slate-700/30">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <Icon name="layers" className="text-[10px] text-slate-500" />
-                                    <span className="text-[8px] text-slate-500 uppercase font-semibold">Layer</span>
-                                </div>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-bold text-slate-200 tabular-nums">{currentLayer}</span>
-                                    <span className="text-[9px] text-slate-500">/ {status.total_layers}</span>
-                                </div>
-                            </div>
-
-                            {/* Current Exposure */}
-                            <div className="bg-slate-800/40 rounded p-2 border border-slate-700/30">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <Icon name="wb_sunny" className="text-[10px] text-slate-500" />
-                                    <span className="text-[8px] text-slate-500 uppercase font-semibold">Exposure</span>
-                                </div>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-bold text-slate-200 tabular-nums">
-                                        {currentLayerData?.exposure_time?.toFixed(1) ?? '—'}
-                                    </span>
-                                    <span className="text-[9px] text-slate-500">s</span>
-                                </div>
-                            </div>
-
-                            {/* Elapsed Time */}
-                            <div className="bg-slate-800/40 rounded p-2 border border-slate-700/30">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <Icon name="timer" className="text-[10px] text-slate-500" />
-                                    <span className="text-[8px] text-slate-500 uppercase font-semibold">Elapsed</span>
-                                </div>
-                                <span className="text-sm font-bold text-slate-200 tabular-nums">
-                                    {formatTime(elapsedSeconds)}
-                                </span>
-                            </div>
-
-                            {/* Remaining Time */}
-                            <div className="bg-slate-800/40 rounded p-2 border border-slate-700/30">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <Icon name="hourglass_bottom" className="text-[10px] text-slate-500" />
-                                    <span className="text-[8px] text-slate-500 uppercase font-semibold">Remaining</span>
-                                </div>
-                                <span className="text-sm font-bold text-slate-200 tabular-nums">
-                                    {currentLayer > 2 ? formatTime(estimatedRemainingSeconds) : '—'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="px-4 py-3 border-t border-slate-700/30 flex items-center gap-2 bg-slate-900/40">
-                        {!isFinished && !isError ? (
-                            <>
-                                {/* Pause / Resume */}
-                                <button
-                                    onClick={handlePauseResume}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-medium transition-all btn-transition"
-                                    style={{
-                                        background: status.state === 'PAUSED' ? '#22c55e20' : '#f59e0b18',
-                                        color: status.state === 'PAUSED' ? '#22c55e' : '#f59e0b',
-                                    }}
-                                >
-                                    <Icon
-                                        name={status.state === 'PAUSED' ? 'play_arrow' : 'pause'}
-                                        className="text-xs"
-                                    />
-                                    {status.state === 'PAUSED' ? 'Resume' : 'Pause'}
-                                </button>
-
-                                {/* Cancel */}
-                                <button
-                                    onClick={handleStop}
-                                    disabled={isStopping}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-medium transition-all btn-transition ml-auto disabled:opacity-50"
-                                    style={{
-                                        background: '#ef444418',
-                                        color: '#ef4444',
-                                    }}
-                                >
-                                    <Icon name="stop" className="text-xs" />
-                                    {isStopping ? 'Stopping...' : 'Cancel Print'}
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                {/* Done / Error state */}
-                                <div className="flex-1 text-center">
-                                    <span
-                                        className="text-[10px] font-semibold"
-                                        style={{ color: isError ? '#ef4444' : '#22c55e' }}
-                                    >
-                                        {isError
-                                            ? 'An error occurred during printing.'
-                                            : `Print completed in ${formatTime(elapsedSeconds)}`}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        onStopped();
-                                        onClose();
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-medium transition-all btn-transition bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
-                                >
-                                    <Icon name="arrow_back" className="text-xs" />
-                                    Back to Preview
-                                </button>
-                            </>
-                        )}
+                    <div className="text-right">
+                        <span className="text-3xl font-black tabular-nums tracking-tighter" style={{ color: getStateColor() }}>
+                            {Math.round(progress)}%
+                        </span>
                     </div>
                 </div>
-            </div>
 
-            {/* Shimmer animation keyframes */}
-            <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-      `}</style>
+                {/* Progress Bar Tonal */}
+                <div className="h-1 bg-surface-container w-full overflow-hidden">
+                    <div
+                        className="h-full transition-all duration-700 ease-out"
+                        style={{
+                            width: `${Math.max(progress, 0.5)}%`,
+                            backgroundColor: getStateColor(),
+                        }}
+                    />
+                </div>
+
+                {/* Data Grid Section */}
+                <div className="p-6 grid grid-cols-2 gap-px bg-outline-variant/20">
+                    <div className="bg-white p-4">
+                        <span className="label-clinical opacity-50 block mb-1">Process Layer</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-lg font-black">{currentLayer}</span>
+                            <span className="text-xs text-[#abb3b7]">/ {status.total_layers}</span>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4">
+                        <span className="label-clinical opacity-50 block mb-1">Active Dose</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-lg font-black">{currentLayerData?.exposure_time?.toFixed(1) ?? '—'}</span>
+                            <span className="text-xs text-[#abb3b7]">S</span>
+                        </div>
+                    </div>
+                    <div className="bg-white p-4">
+                        <span className="label-clinical opacity-50 block mb-1">Temporal Elapsed</span>
+                        <span className="text-lg font-black tabular-nums">{formatTime(elapsedSeconds)}</span>
+                    </div>
+                    <div className="bg-white p-4">
+                        <span className="label-clinical opacity-50 block mb-1">Temporal Est. Rem</span>
+                        <span className="text-lg font-black tabular-nums">
+                            {currentLayer > 2 ? formatTime(estimatedRemainingSeconds) : '—'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Control Footer */}
+                <div className="p-6 pt-2 flex items-center gap-3">
+                    {!isFinished && !isError ? (
+                        <>
+                            <button
+                                onClick={handlePauseResume}
+                                className="flex-1 py-3 border border-outline-variant/30 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                            >
+                                {status.state === 'PAUSED' ? 'Resume Session' : 'Hold Session'}
+                            </button>
+                            <button
+                                onClick={handleStop}
+                                disabled={isStopping}
+                                className="flex-1 py-3 bg-[#b71c1c] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#8e1616] transition-all disabled:opacity-50"
+                            >
+                                {isStopping ? 'Terminating...' : 'Abort Process'}
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={() => {
+                                onStopped();
+                                onClose();
+                            }}
+                            className="w-full py-4 bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all"
+                        >
+                            Back to Workspace
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
+    );
+};
     );
 };

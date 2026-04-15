@@ -228,29 +228,29 @@ const PoreGridEditor: React.FC<PoreGridEditorProps> = ({ model, globalSettings, 
   const injectAll = selectedCount === 0;
 
   return (
-    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+    <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
 
       {/* ── Grid header ─────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-1">
         <div>
-          <p className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-400 tracking-tight">
-            Injection Map ({cols}×{rows} cells · {cellPitch.toFixed(2)}mm pitch)
+          <p className="text-[10px] font-black uppercase text-amber-700 tracking-widest">
+            INJECTION_CORE // {cols}×{rows}
           </p>
-          <p className="text-[8px] text-slate-400">
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
             {injectAll
-              ? `All ${totalCells} cells active`
-              : `${selectedCount} / ${totalCells} cells selected`}
+              ? `DEFAULT_ALL_ACTIVE [${totalCells}]`
+              : `CELL_TARGET_ACTIVE [${selectedCount} / ${totalCells}]`}
           </p>
         </div>
-        <div className="flex gap-1">
-          <button onClick={selectAll} title="Select all" className="text-[8px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold hover:bg-amber-200 transition-colors">ALL</button>
-          <button onClick={invertAll} title="Invert" className="text-[8px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition-colors">INV</button>
-          <button onClick={clearAll} title="Clear selection" className="text-[8px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 transition-colors">CLR</button>
+        <div className="flex gap-px bg-amber-200">
+          <button onClick={selectAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">ALL</button>
+          <button onClick={invertAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">INV</button>
+          <button onClick={clearAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">CLR</button>
         </div>
       </div>
 
       {/* ── SVG Grid ─────────────────────────────────────────────────── */}
-      <div className="border border-amber-200 dark:border-amber-700/40 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/60 select-none">
+      <div className="border border-outline-variant/20 overflow-hidden bg-white select-none">
         <svg
           ref={svgRef}
           width="100%"
@@ -263,16 +263,7 @@ const PoreGridEditor: React.FC<PoreGridEditorProps> = ({ model, globalSettings, 
           style={{ display: 'block' }}
         >
           {/* Background */}
-          <rect x="0" y="0" width={DISPLAY_W} height={clampedH} fill="#f8fafc" />
-
-          {/* Scaffold wall lines (horizontal) */}
-          {Array.from({ length: rows + 1 }, (_, r) => (
-            <line key={`h${r}`} x1="0" y1={r * cellH} x2={DISPLAY_W} y2={r * cellH} stroke="#94a3b8" strokeWidth="0.8" />
-          ))}
-          {/* Scaffold wall lines (vertical) */}
-          {Array.from({ length: cols + 1 }, (_, c) => (
-            <line key={`v${c}`} x1={c * cellW} y1="0" x2={c * cellW} y2={clampedH} stroke="#94a3b8" strokeWidth="0.8" />
-          ))}
+          <rect x="0" y="0" width={DISPLAY_W} height={clampedH} fill="#ffffff" />
 
           {/* Cells */}
           {Array.from({ length: rows }, (_, row) =>
@@ -282,50 +273,51 @@ const PoreGridEditor: React.FC<PoreGridEditorProps> = ({ model, globalSettings, 
               return (
                 <rect
                   key={`${col}-${row}`}
-                  x={col * cellW + 1}
-                  y={row * cellH + 1}
-                  width={cellW - 2}
-                  height={cellH - 2}
-                  fill={sel ? '#f59e0b' : (injectAll ? '#fde68a33' : '#e2e8f0')}
-                  opacity={sel ? 0.85 : 1}
-                  rx="1"
+                  x={col * cellW}
+                  y={row * cellH}
+                  width={cellW}
+                  height={cellH}
+                  fill={sel ? '#fde68a' : (injectAll ? '#fffbeb' : '#ffffff')}
+                  stroke="#eaeff1"
+                  strokeWidth="0.5"
                 />
               );
             })
           )}
 
-          {/* Injection dots on selected cells */}
+          {/* Injection markers on selected cells */}
           {params.selectedCells.map(([col, row]) => (
-            <circle
+            <rect
               key={`dot-${col}-${row}`}
-              cx={col * cellW + cellW / 2}
-              cy={row * cellH + cellH / 2}
-              r={Math.min(cellW, cellH) * 0.18}
-              fill="#d97706"
-              opacity={0.9}
+              x={col * cellW + cellW * 0.25}
+              y={row * cellH + cellH * 0.25}
+              width={cellW * 0.5}
+              height={cellH * 0.5}
+              fill="#f59e0b"
             />
           ))}
 
           {/* "ALL" mode indicator dots */}
           {injectAll && Array.from({ length: rows }, (_, row) =>
             Array.from({ length: cols }, (_, col) => (
-              <circle
+              <rect
                 key={`adot-${col}-${row}`}
-                cx={col * cellW + cellW / 2}
-                cy={row * cellH + cellH / 2}
-                r={Math.min(cellW, cellH) * 0.12}
+                x={col * cellW + cellW * 0.4}
+                y={row * cellH + cellH * 0.4}
+                width={cellW * 0.2}
+                height={cellH * 0.2}
                 fill="#f59e0b"
-                opacity={0.45}
+                opacity={0.2}
               />
             ))
           )}
         </svg>
       </div>
 
-      <p className="text-[8px] text-slate-400 text-center -mt-1">
+      <p className="text-[9px] text-slate-400 font-bold text-center uppercase tracking-tight">
         {injectAll
-          ? 'All cells will be injected · Click cells to restrict selection'
-          : 'Click or drag to select injection cells · Empty = inject all'}
+          ? 'OPERATING_UNRESTRICTED // ALL_NODES_ACTIVE'
+          : 'OPERATING_TARGETED // SELECT_ACTIVE_NODES'}
       </p>
 
       {/* ── Layer Ranges ─────────────────────────────────────────────── */}
@@ -419,14 +411,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
   
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    models: true,
-    fffQuality: true,
+    printBed: true,
+    models: false,
+    fffQuality: false,
     fffShell: false,
     fffSpeeds: false,
     fffAdhesion: false,
     fffMaterial: false,
     fffCooling: false,
-    toolheads: true,
+    toolheads: false,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -452,6 +445,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
     setOpenSections(prev => {
       const isOpen = !prev[key];
+      // Close all others when opening one? No, just toggle.
       return { ...prev, [key]: isOpen };
     });
   };
@@ -600,7 +594,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
   const inputClass = "w-32";
   return (
-    <aside className="w-[320px] flex-shrink-0 bg-surface-light dark:bg-surface-dark flex flex-col z-10 drop-shadow-sm transition-all duration-300">
+    <aside className="w-[300px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
 
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
@@ -619,10 +613,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           />
           <button
             onClick={handleUploadClick}
-            className="w-full py-1.5 bg-primary/90 hover:bg-primary text-white text-[9px] font-medium rounded shadow-none transition-colors btn-transition flex items-center justify-center gap-1.5"
+            className="w-full py-1.5 bg-primary/90 hover:bg-primary text-white text-[9px] font-black uppercase tracking-widest transition-colors btn-transition flex items-center justify-center gap-1.5"
           >
             <Icon name="upload_file" className="text-[10px]" />
-            Upload Model
+            Upload_Model
           </button>
 
           {/* Quick Shapes */}
@@ -744,9 +738,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                );
              })}
             {models.length === 0 && (
-              <div className="text-center p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/20">
-                <span className="text-slate-400 text-sm block mb-1">No models loaded</span>
-                <span className="text-slate-400/60 text-xs">Click Upload Model to start</span>
+              <div className="text-center p-8 bg-slate-50 border border-outline-variant/10">
+                <span className="text-slate-300 text-[9px] font-black uppercase tracking-widest">Models_Null</span>
               </div>
             )}
           </div>
@@ -755,8 +748,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     )}
         {/* TAB 1: PRINT BED */}
         {activeStep === 1 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <AccordionSection title="Surface Configuration" isOpen={true} onToggle={() => {}} disableToggle>
+            <div className="space-y-0 animate-in fade-in slide-in-from-left-1">
+              <AccordionSection title="Surface Configuration" isOpen={openSections.printBed} onToggle={() => toggleSection('printBed')}>
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-[10px] text-slate-400 uppercase font-bold">Bed Type</label>
@@ -766,20 +759,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           ...globalSettings,
                           printBed: { type: 'glass_bed', dimensions: { width: 100, height: 100 } }
                         })}
-                        className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                        className={`w-full py-2 px-3 border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'glass_bed'
-                            ? 'border-transparent bg-action/5 text-action'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-outline-variant/20 hover:border-outline-variant/40'
                         }`}
                        >
-                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'glass_bed' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                          <Icon name="crop_square" className="text-lg" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">Glass Bed</p>
-                          <p className="text-[10px] opacity-70 text-slate-500">Square 100x100mm surface</p>
-                        </div>
-
+                         <Icon name="crop_square" className="text-xs" />
+                         <span className="text-[10px] font-black uppercase tracking-[0.1em]">Glass Bed</span>
                       </button>
 
                       <button
@@ -787,20 +774,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           ...globalSettings,
                           printBed: { type: 'petri_dish', petriDiameter: 60 }
                         })}
-                        className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                        className={`w-full py-2 px-3 border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'petri_dish'
-                            ? 'border-transparent bg-action/5 text-action'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-outline-variant/20 hover:border-outline-variant/40'
                         }`}
                        >
-                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'petri_dish' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                          <Icon name="circle" className="text-lg" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">Petri Dish</p>
-                          <p className="text-[10px] opacity-70 text-slate-500">Circular bio-container</p>
-                        </div>
-
+                         <Icon name="circle" className="text-xs" />
+                         <span className="text-[10px] font-black uppercase tracking-[0.1em]">Petri Dish</span>
                       </button>
 
                       <button
@@ -808,20 +789,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           ...globalSettings,
                           printBed: { type: 'multiwell_plate', multiwellFormat: 12 }
                         })}
-                        className={`w-full py-2 px-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                        className={`w-full py-2 px-3 border text-left flex items-center gap-3 transition-all ${
                           globalSettings.printBed?.type === 'multiwell_plate'
-                            ? 'border-transparent bg-action/5 text-action'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-outline-variant/20 hover:border-outline-variant/40'
                         }`}
                        >
-                         <div className={`p-2 rounded-md ${globalSettings.printBed?.type === 'multiwell_plate' ? 'bg-action/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                          <Icon name="apps" className="text-lg" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">Multiwell Plate</p>
-                          <p className="text-[10px] opacity-70 text-slate-500">Cell culture grid</p>
-                        </div>
-
+                         <Icon name="apps" className="text-xs" />
+                         <span className="text-[10px] font-black uppercase tracking-[0.1em]">Multiwell</span>
                       </button>
                     </div>
                   </div>
@@ -919,11 +894,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           {/* TAB 2: SCHEDULE */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <div className="p-3 bg-action/5 rounded-lg border border-action/10">
-                <p className="text-[10px] text-action leading-relaxed font-bold">
-                  The Schedule rules override any model-specific mapping. 
-                </p>
-              </div>
+              <div className="w-full h-px bg-outline-variant/10" />
 
               {layerActions.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800">
@@ -991,18 +962,18 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     <div 
                       key={m.id} 
                       onClick={() => onSelectModel(m.id)}
-                      className={`bg-white dark:bg-slate-900 border rounded-xl overflow-hidden transition-all cursor-pointer ${
+                      className={`bg-white border transition-all cursor-pointer ${
                         isSelected 
-                          ? 'border-action ring-2 ring-action/20 shadow-md' 
-                          : 'border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100'
+                          ? 'border-primary ring-1 ring-primary/20 shadow-none' 
+                          : 'border-outline-variant/20 opacity-70 hover:opacity-100'
                       }`}
                     >
                       <div className={`flex items-center justify-between p-3 ${
-                        isSelected ? 'bg-action/5' : 'bg-slate-50/50 dark:bg-slate-800/50'
+                        isSelected ? 'bg-primary/5' : 'bg-slate-50'
                       }`}>
                         <div className="flex items-center gap-2 overflow-hidden">
-                          <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-primary' : 'bg-slate-300'}`} />
-                          <span className={`text-xs font-bold truncate pr-2 ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>
+                          <div className={`w-1.5 h-1.5 ${isSelected ? 'bg-primary' : 'bg-slate-300'}`} />
+                          <span className={`text-[10px] font-black uppercase tracking-widest truncate pr-2 ${isSelected ? 'text-primary' : 'text-slate-600'}`}>
                             {m.name}
                           </span>
                         </div>
@@ -1013,11 +984,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                               scaffoldTools: isScaffold ? undefined : { ...DEFAULT_SCAFFOLD_TOOLS, perimeter: m.toolhead || 'fdm' } 
                             });
                           }}
-                          className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter transition-all ${
-                            isScaffold ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                          className={`text-[8px] font-black px-2 py-0.5 border uppercase tracking-widest transition-all ${
+                            isScaffold ? 'bg-primary text-white border-primary' : 'bg-white border-outline-variant/30 text-slate-400'
                           }`}
                         >
-                          {isScaffold ? 'Scaffold MODE' : 'Single Tool'}
+                          {isScaffold ? 'SCAFFOLD_LINKED' : 'SINGLE_TOOL'}
                         </button>
                       </div>
 
@@ -1184,15 +1155,31 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           {/* TAB 5: SLICING */}
           {activeStep === 4 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <AccordionSection title="Layer Settings" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-600 font-bold">Resolution (Î¼m):</span>
-                    <NumericInput className="w-full" value={globalSettings.layerHeight} onChange={v => onUpdateGlobalSettings({ ...globalSettings, layerHeight: v })} step={10} />
+              <AccordionSection title="Z-Axis Configuration" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2 px-1">
+                    <div className="flex justify-between items-center">
+                      <span className="label-clinical">Layer Height</span>
+                      <span className="text-[10px] font-mono font-bold text-primary">{globalSettings.layerHeight} Î¼m</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="50" max="400" step="10"
+                      value={globalSettings.layerHeight} 
+                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, layerHeight: +e.target.value })} 
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-500 font-medium">First Layer (Î¼m):</span>
-                    <NumericInput className="w-full" value={globalSettings.firstLayerHeight || 300} onChange={v => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: v })} step={10} />
+                  <div className="space-y-2 px-1">
+                    <div className="flex justify-between items-center">
+                      <span className="label-clinical">First Layer</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">{globalSettings.firstLayerHeight || 300} Î¼m</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="50" max="500" step="10"
+                      value={globalSettings.firstLayerHeight || 300} 
+                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: +e.target.value })} 
+                    />
                   </div>
                 </div>
               </AccordionSection>
@@ -1247,15 +1234,31 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Speeds" isOpen={openSections.fffSpeeds} onToggle={() => toggleSection('fffSpeeds')}>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Perimeters</span>
-                    <NumericInput value={globalSettings.perimeterSpeed || 45} onChange={v => onUpdateGlobalSettings({ ...globalSettings, perimeterSpeed: v })} />
+              <AccordionSection title="Motion Dynamics" isOpen={openSections.fffSpeeds} onToggle={() => toggleSection('fffSpeeds')}>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2 px-1">
+                    <div className="flex justify-between items-center">
+                      <span className="label-clinical">Perimeter Speed</span>
+                      <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.perimeterSpeed || 45} mm/s</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="10" max="150" step="5"
+                      value={globalSettings.perimeterSpeed || 45} 
+                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, perimeterSpeed: +e.target.value })} 
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Infill</span>
-                    <NumericInput value={globalSettings.infillSpeed || 80} onChange={v => onUpdateGlobalSettings({ ...globalSettings, infillSpeed: v })} />
+                  <div className="space-y-2 px-1">
+                    <div className="flex justify-between items-center">
+                      <span className="label-clinical">Infill Speed</span>
+                      <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.infillSpeed || 80} mm/s</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="10" max="200" step="10"
+                      value={globalSettings.infillSpeed || 80} 
+                      onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillSpeed: +e.target.value })} 
+                    />
                   </div>
                 </div>
               </AccordionSection>
@@ -1317,29 +1320,28 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         {activeStep === 5 && (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-10">
                 <Icon name="verified" className="text-6xl text-primary opacity-20" />
-                <h3 className="text-lg font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">Ready to slice</h3>
-                <p className="text-xs text-slate-500 max-w-sm">All parameters are configured. Generate the G-Code to preview the exact physical trajectory, verify Pore Injection bounds, and send instructions to the printer.</p>
+                <h3 className="text-lg font-black text-slate-700 uppercase tracking-wide">Ready</h3>
             </div>
         )}
 
       </div>
 
       {/* STEPPER WIZARD FOOTER */}
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between z-10 flex-shrink-0">
+      <div className="p-4 border-t border-border-light bg-surface-container-low flex items-center justify-between z-10 flex-shrink-0">
           <button 
              disabled={activeStep === 1}
              onClick={() => setActiveStep(s => s - 1)}
-             className="px-4 py-2 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-lg font-bold text-xs hover:border-slate-300 dark:hover:border-slate-600 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+             className="px-4 py-2 bg-white border border-outline-variant/30 font-bold text-xs uppercase tracking-tight disabled:opacity-30 disabled:pointer-events-none transition-colors"
           >
-              ← Back
+              â† BACK
           </button>
           
           {activeStep < 5 ? (
               <button 
                  onClick={() => setActiveStep(s => s + 1)}
-                 className="px-6 py-2 bg-primary hover:bg-blue-600 text-white font-bold text-xs rounded-lg shadow-sm shadow-primary/30 transition-colors uppercase tracking-wide flex items-center gap-2"
+                 className="px-6 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-none transition-colors uppercase tracking-widest flex items-center gap-2"
               >
-                  Next Step <Icon name="arrow_forward" className="text-sm" />
+                  NEXT <Icon name="arrow_forward" className="text-sm" />
               </button>
           ) : (
               <button
@@ -1350,11 +1352,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     onSlice();
                   }
                 }}
-                className={`flex-1 ml-4 py-2 px-4 text-xs font-bold rounded-lg transition-all shadow-md uppercase tracking-wide flex items-center justify-center gap-2 overflow-hidden relative ${hasGCode
-                  ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-600/30'
+                className={`flex-1 ml-4 py-2 px-4 text-xs font-bold transition-all uppercase tracking-widest flex items-center justify-center gap-2 overflow-hidden relative shadow-none ${hasGCode
+                  ? 'bg-[#1e4620] hover:bg-[#153418] text-white'
                   : isSlicing
-                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-wait'
-                    : 'bg-primary hover:bg-blue-600 text-white shadow-primary/30'
+                    ? 'bg-slate-200 text-slate-400 cursor-wait'
+                    : 'bg-primary hover:bg-primary-dark text-white'
                   }`}
               >
                 {isSlicing && (
@@ -1371,16 +1373,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 <span className="relative z-10 flex flex-col items-center">
                   <span className="leading-none">
                     {hasGCode
-                      ? 'PRINT MODEL'
+                      ? 'EXECUTE PRINT'
                       : isSlicing
                         ? `SLICING... ${Math.round(slicePercent * 100)}%`
-                        : 'GENERATE G-CODE'}
+                        : 'GENERATE INSTRUCTIONS'}
                   </span>
-                  {isSlicing && sliceMessage && (
-                    <span className="text-[9px] font-normal opacity-70 mt-0.5 animate-pulse uppercase tracking-tighter">
-                      {sliceMessage}
-                    </span>
-                  )}
                 </span>
               </button>
           )}

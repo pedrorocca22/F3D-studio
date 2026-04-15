@@ -66,21 +66,21 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Stepper Center */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
           {[
             { id: 1, label: 'Environment' },
             { id: 2, label: 'Models' },
             { id: 3, label: 'Mapping' },
-            { id: 4, label: 'Profile' },
-            { id: 5, label: 'Slicer' }
+            { id: 4, label: 'Hardware' },
+            { id: 5, label: 'Instructions' }
           ].map(step => (
             <button 
               key={step.id}
               onClick={() => setActiveStep(step.id)} 
-              className={`px-3 py-1.5 rounded-sm text-[11px] font-medium transition-all duration-200 ${
+              className={`px-4 h-10 text-[10px] font-bold uppercase tracking-widest transition-all duration-200 border-x border-transparent ${
                   activeStep === step.id 
-                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
+                  ? 'bg-surface-container-low text-primary border-outline-variant/20' 
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
               }`}
             >
               {step.label}

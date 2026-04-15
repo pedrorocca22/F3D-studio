@@ -36,16 +36,16 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
   };
 
   return (
-    <div className="mb-0.5 transition-all duration-200">
+    <div className="mb-0 border-b border-outline-variant/10 transition-all duration-200">
       <div
-        className={`px-2 py-1.5 flex items-center justify-between select-none transition-colors btn-transition ${disableToggle ? 'cursor-default' : 'cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/[0.03]'} rounded-sm`}
+        className={`px-3 py-2 flex items-center justify-between select-none transition-colors ${disableToggle ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} bg-white`}
         onClick={disableToggle ? undefined : onToggle}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {!disableToggle && (
             <Icon
-              name="expand_more"
-              className={`text-slate-400 dark:text-slate-600 text-[10px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+              name="keyboard_arrow_right"
+              className={`text-slate-400 text-[12px] transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
             />
           )}
           <span className="section-header">{title}</span>
@@ -61,17 +61,17 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
 
           {toggleSwitch && (
             <div
-              className={`w-6 h-3 rounded-full relative cursor-pointer transition-colors btn-transition ${switchOn ? 'bg-primary/60' : 'bg-slate-200 dark:bg-slate-700'}`}
+              className={`w-4 h-4 border border-outline-variant/30 flex items-center justify-center cursor-pointer transition-colors ${switchOn ? 'bg-primary' : 'bg-slate-100'}`}
               onClick={handleSwitchClick}
             >
-              <div className={`absolute top-0.5 w-2 h-2 bg-white rounded-full shadow-sm transition-all duration-200 ${switchOn ? 'right-0.5' : 'left-0.5'}`}></div>
+              {switchOn && <div className="w-1.5 h-1.5 bg-white"></div>}
             </div>
           )}
         </div>
       </div>
 
       {isOpen && children && (
-        <div className="px-2 py-1.5 space-y-1.5">
+        <div className="px-4 py-3 space-y-3 bg-white">
           {children}
         </div>
       )}
