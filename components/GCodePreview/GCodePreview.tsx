@@ -371,21 +371,88 @@ export function GCodeScene({
 }
 
 // ── useGCodeLoader hook ───────────────────────────────────────────────────────
-export function useGCodeLoader(gcodeUrl: string | null) {
+export interface LayerLines {
+  lines: string[];
+  lineStartIndex: number;
+}
+
+export function useGCodeLoader(gcodeUrl: string | null, currentLayer?: number) {
     const [parsed, setParsed] = useState<ParsedGCode | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [layerLines, setLayerLines] = useState<LayerLines | null>(null);
+    const [gcodeRaw, setGcodeRaw] = useState<string>('');
 
     useEffect(() => {
-        if (!gcodeUrl) { setParsed(null); setLoading(false); setError(null); return; }
+        if (!gcodeUrl) { setParsed(null); setLoading(false); setError(null); setGcodeRaw(''); setLayerLines(null); return; }
         setLoading(true); setError(null); setParsed(null);
         fetch(gcodeUrl)
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
-            .then(raw => { setParsed(parseGCode(raw)); setLoading(false); })
+            .then(raw => { 
+                setGcodeRaw(raw);
+                const result = parseGCode(raw); 
+                setParsed(result); 
+                setLoading(false); 
+            })
             .catch(e => { setError(e.message); setLoading(false); });
     }, [gcodeUrl]);
 
-    return { parsed, loading, error };
+    // Extract lines for the current layer when currentLayer changes
+    useEffect(() => {
+        if (!gcodeRaw || currentLayer === undefined || currentLayer === null) {
+            setLayerLines(null);
+            return;
+        }
+
+        const lines = gcodeRaw.split('\n');
+        let inCurrentLayer = false;
+        let layerStartIndex = -1;
+        let layerLinesArr: string[] = [];
+        
+        let trackedLayer = -1; // -1 because first layer change usually happens at start of layer 0
+
+        // Find layer markers and extract lines for the current layer
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Check for layer change markers commonly used by PrusaSlicer
+            const layerMatch = line.match(/;LAYER:(\d+)/i);
+            const layerChangeMarker = line.includes(';LAYER_CHANGE'); // Match server.py logic
+            
+            if (layerMatch) {
+                trackedLayer = parseInt(layerMatch[1]);
+            } else if (layerChangeMarker) {
+                trackedLayer++; 
+            }
+
+            if (trackedLayer === currentLayer) {
+                if (!inCurrentLayer) {
+                    inCurrentLayer = true;
+                    layerStartIndex = i;
+                    layerLinesArr = [line];
+                } else {
+                    // Collect significant lines (skip empty or just comments to keep it clean)
+                    if (line.trim()) {
+                        layerLinesArr.push(line);
+                    }
+                }
+            } else if (trackedLayer > currentLayer && inCurrentLayer) {
+                // We've moved past our target layer
+                break;
+            }
+        }
+
+        // Fallback: If no markers found or layer empty, but gcode exists, maybe the gcode has no comments
+        // In that case, showing a slice of the file might be better than nothing, 
+        // but for now we trust the markers.
+        
+        setLayerLines({
+            lines: layerLinesArr,
+            lineStartIndex: layerStartIndex
+        });
+    }, [gcodeRaw, currentLayer]);
+
+    return { parsed, loading, error, layerLines, gcodeRaw };
 }
 
 // ── Standalone GCodePreview component (legacy / experiments panel) ────────────

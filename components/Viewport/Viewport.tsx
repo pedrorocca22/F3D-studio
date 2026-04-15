@@ -958,8 +958,8 @@ export const Viewport: React.FC<ViewportProps> = ({
 }) => {
   // ── GCode integration ──────────────────────────────────────────
   const gcodeUrl = gcodeJob?.gcodeUrl ?? null;
-  const { parsed: gcodeParsed, loading: gcodeLoading } = useGCodeLoader(gcodeUrl);
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
+  const { parsed: gcodeParsed, loading: gcodeLoading, layerLines, gcodeRaw } = useGCodeLoader(gcodeUrl, gcodeLayer);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
   const [gcodeNozzle, setGcodeNozzle] = useState(gcodeJob?.nozzleDiameter ?? 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
@@ -976,17 +976,7 @@ export const Viewport: React.FC<ViewportProps> = ({
     setGcodeNozzle(gcodeJob?.nozzleDiameter ?? 0.4);
   }, [gcodeJob]);
 
-  // Fetch gcode content when job changes
-  useEffect(() => {
-    if (gcodeJob?.gcodeUrl) {
-      fetch(gcodeJob.gcodeUrl)
-        .then(res => res.text())
-        .then(text => setGcodeContent(text))
-        .catch(err => console.error('Failed to load gcode:', err));
-    } else {
-      setGcodeContent('');
-    }
-  }, [gcodeJob]);
+
 
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [objectTool, setObjectTool] = useState<ObjectTool>('translate');
@@ -995,7 +985,6 @@ export const Viewport: React.FC<ViewportProps> = ({
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode'>('inspector');
-  const [gcodeContent, setGcodeContent] = useState<string>('');
 
 
   // Clipping State
@@ -1541,19 +1530,67 @@ export const Viewport: React.FC<ViewportProps> = ({
           </div>
         )}
         {inspectorTab === 'gcode' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between pb-2">
               <span className="text-[9px] font-medium text-slate-400 uppercase">Gcode Output</span>
-              <span className="text-[8px] text-slate-400 font-mono">{gcodeContent.split('\n').length} lines</span>
+              <span className="text-[8px] text-slate-400 font-mono">{(gcodeRaw || '').split('\n').length} lines</span>
             </div>
-            {gcodeContent ? (
-              <pre className="text-[8px] font-mono text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 p-2 rounded overflow-x-auto max-h-96 overflow-y-auto">
-                {gcodeContent}
-              </pre>
+            {gcodeRaw ? (
+              <div className="flex-1 flex flex-col min-h-0">
+                {gcodeParsed && layerLines ? (
+                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-100 dark:bg-slate-900 rounded">
+                    <div className="text-[9px] font-bold text-slate-500 px-2 py-1 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-slate-100 dark:bg-slate-900">
+                      Layer {gcodeLayer} ({layerLines.lines.length} G-code lines)
+                    </div>
+                    <div className="p-2 space-y-0.5">
+                      {layerLines.lines.map((line, idx) => {
+                        // Determine color based on line content
+                        let lineColor = 'text-slate-600 dark:text-slate-300';
+                        if (line.includes(';')) {
+                          lineColor = 'text-slate-400 dark:text-slate-500';
+                        } else if (line.startsWith('G0') || line.startsWith('G1')) {
+                          if (line.includes('E') && !line.includes('E0')) {
+                            // Extrusion - check for toolhead color
+                            if (line.includes('T0')) lineColor = 'text-blue-600 dark:text-blue-400';
+                            else if (line.includes('T1')) lineColor = 'text-green-600 dark:text-green-400';
+                            else if (line.includes('T2')) lineColor = 'text-purple-600 dark:text-purple-400';
+                            else lineColor = 'text-amber-600 dark:text-amber-400';
+                          } else if (line.match(/X|Y|Z/) && !line.includes('E')) {
+                            lineColor = 'text-orange-600 dark:text-orange-400';
+                          }
+                        }
+                        
+                        return (
+                          <div key={idx} className={`font-mono text-[8px] ${lineColor} hover:bg-yellow-500/20 cursor-pointer`}>
+                            <span className="text-slate-300 dark:text-slate-600 mr-2 select-none">{idx + 1}</span>
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <pre className="flex-1 text-[8px] font-mono text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 p-2 rounded overflow-y-auto whitespace-pre-wrap break-all">
+                    {gcodeRaw}
+                  </pre>
+                )}
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-24 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
                 <Icon name="inbox" className="text-2xl mb-1 opacity-40" />
                 <span className="text-[10px] font-medium">No Gcode Generated</span>
+              </div>
+            )}
+            {gcodeUrl && (
+              <div className="pt-2">
+                <a
+                  href={gcodeUrl}
+                  download="print.gcode"
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-primary text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-600 transition-all uppercase w-full"
+                >
+                  <Icon name="download" className="text-sm" />
+                  Download Gcode
+                </a>
               </div>
             )}
           </div>
