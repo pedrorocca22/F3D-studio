@@ -603,7 +603,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         {activeStep === 2 && (
           <div className="space-y-2 animate-in fade-in slide-in-from-left-1">
         {/* Upload Button */}
-        <div className="mb-1 space-y-1">
+        <div className="mb-1">
           <input
             type="file"
             ref={fileInputRef}
@@ -614,27 +614,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           />
           <button
             onClick={handleUploadClick}
-            className="w-full py-1.5 bg-primary/90 hover:bg-primary text-white text-[9px] font-black uppercase tracking-widest transition-colors btn-transition flex items-center justify-center gap-1.5"
+            className="w-full py-3 bg-primary/90 hover:bg-primary text-white text-[11px] font-black uppercase tracking-widest transition-colors btn-transition flex items-center justify-center gap-2"
           >
-            <Icon name="upload_file" className="text-[10px]" />
-            Upload_Model
+            <Icon name="upload_file" className="text-base" />
+            LOAD FILES
           </button>
-
-          {/* Quick Shapes */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleAddCube}
-              className="py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors uppercase flex items-center justify-center gap-1"
-            >
-              <Icon name="check_box_outline_blank" className="text-xs" /> Cube
-            </button>
-            <button
-              onClick={handleAddCylinder}
-              className="py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 text-[10px] font-bold rounded shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors uppercase flex items-center justify-center gap-1"
-            >
-              <Icon name="circle" className="text-xs" /> Cylinder
-            </button>
-          </div>
         </div>
 
         {/* Models List */}
