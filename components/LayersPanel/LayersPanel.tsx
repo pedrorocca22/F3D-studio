@@ -420,6 +420,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     fffMaterial: false,
     fffCooling: false,
     toolheads: false,
+    heatingBed: false,
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -599,7 +600,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
 
-        {(activeStep === 2 || activeStep === 3) && (
+        {activeStep === 2 && (
           <div className="space-y-2 animate-in fade-in slide-in-from-left-1">
         {/* Upload Button */}
         <div className="mb-1 space-y-1">
@@ -882,10 +883,97 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Heating Bed" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
+              <AccordionSection title="Heating Bed" isOpen={openSections.heatingBed} onToggle={() => toggleSection('heatingBed')}>
                 <div className="grid grid-cols-2 gap-3 items-center">
-                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (Â°C):</span>
+                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (°C):</span>
                   <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Toolhead" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')}>
+                <div className="space-y-4">
+                  {toolheads.map(th => (
+                    <div key={th.id} className="bg-slate-50 border border-outline-variant/10 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">
+                          {th.id === 'fdm' ? 'FDM head' : th.id === 'syringe' ? 'Hydrogel head' : 'UV head'}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 font-mono italic opacity-50">{th.klipper_tool}</span>
+                      </div>
+                      
+                      {th.id === 'fdm' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Nozzle (mm)</label>
+                            <NumericInput value={(th as FDMToolheadConfig).nozzleDiameter} onChange={v => {
+                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t));
+                              onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v });
+                            }} step={0.05} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Temp (°C)</label>
+                            <NumericInput value={(th as FDMToolheadConfig).defaultTemperature} onChange={v => {
+                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
+                              onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
+                            }} step={5} />
+                          </div>
+                        </div>
+                      )}
+
+                      {th.id === 'syringe' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Needle (mm)</label>
+                            <NumericInput value={(th as SyringeToolheadConfig).nozzleDiameterMm} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Syringe (mL)</label>
+                            <NumericInput value={(th as SyringeToolheadConfig).syringeVolumeMl} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
+                          </div>
+                        </div>
+                      )}
+
+                      {th.id === 'uv' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Wavelength (nm)</label>
+                            <select 
+                              value={(th as UVToolheadConfig).wavelengthNm}
+                              onChange={e => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: +e.target.value as any } : t))}
+                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
+                            >
+                              <option value={365}>365 nm</option>
+                              <option value={385}>385 nm</option>
+                              <option value={405}>405 nm</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-bold">Max Power (mW)</label>
+                            <NumericInput value={(th as UVToolheadConfig).maxPowerMw} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="Material & Extrusion" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Flow Rate (%):</span>
+                    <NumericInput className="w-full" value={(globalSettings.extrusionMultiplier || 1.0) * 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v / 100 })} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract (mm)</span>
+                      <NumericInput value={globalSettings.retractionLength || 1.0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionLength: v })} step={0.1} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract Speed</span>
+                      <NumericInput value={globalSettings.retractionSpeed || 45} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionSpeed: v })} />
+                    </div>
+                  </div>
                 </div>
               </AccordionSection>
             </div>
@@ -1062,97 +1150,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             </div>
           )}
 
-          {/* TAB 4: HARDWARE */}
-          {activeStep === 1 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <AccordionSection title="Toolhead Hardware" isOpen={true} onToggle={() => {}} disableToggle>
-                <div className="space-y-3">
-                  {toolheads.map(th => (
-                    <div key={th.id} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <ToolheadBadge toolhead={th.id} />
-                        <span className="text-[10px] font-bold text-slate-400 font-mono italic">{th.klipper_tool}</span>
-                      </div>
-                      
-                      {th.id === 'fdm' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Nozzle (mm)</label>
-                            <NumericInput value={(th as FDMToolheadConfig).nozzleDiameter} onChange={v => {
-                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t));
-                              onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v });
-                            }} step={0.05} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Temp (Â°C)</label>
-                            <NumericInput value={(th as FDMToolheadConfig).defaultTemperature} onChange={v => {
-                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
-                              onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
-                            }} step={5} />
-                          </div>
-                        </div>
-                      )}
-
-                      {th.id === 'syringe' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Needle (mm)</label>
-                            <NumericInput value={(th as SyringeToolheadConfig).nozzleDiameterMm} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Syringe (mL)</label>
-                            <NumericInput value={(th as SyringeToolheadConfig).syringeVolumeMl} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
-                          </div>
-                        </div>
-                      )}
-
-                      {th.id === 'uv' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Wavelength (nm)</label>
-                            <select 
-                              value={(th as UVToolheadConfig).wavelengthNm}
-                              onChange={e => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: +e.target.value as any } : t))}
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
-                            >
-                              <option value={365}>365 nm</option>
-                              <option value={385}>385 nm</option>
-                              <option value={405}>405 nm</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Max Power (mW)</label>
-                            <NumericInput value={(th as UVToolheadConfig).maxPowerMw} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </AccordionSection>
-
-              <AccordionSection title="Material & Extrusion" isOpen={true} onToggle={() => {}} disableToggle>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Flow Rate (%):</span>
-                    <NumericInput className="w-full" value={(globalSettings.extrusionMultiplier || 1.0) * 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v / 100 })} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract (mm)</span>
-                      <NumericInput value={globalSettings.retractionLength || 1.0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionLength: v })} step={0.1} />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract Speed</span>
-                      <NumericInput value={globalSettings.retractionSpeed || 45} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionSpeed: v })} />
-                    </div>
-                  </div>
-                </div>
-              </AccordionSection>
-            </div>
-          )}
-
-          {/* TAB 5: SLICING */}
+          {/* TAB 4: SLICING CONFIGURATION */}
           {activeStep === 4 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <AccordionSection title="Z-Axis Configuration" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
@@ -1160,7 +1158,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <div className="space-y-2 px-1">
                     <div className="flex justify-between items-center">
                       <span className="label-clinical">Layer Height</span>
-                      <span className="text-[10px] font-mono font-bold text-primary">{globalSettings.layerHeight} Î¼m</span>
+                      <span className="text-[10px] font-mono font-bold text-primary">{globalSettings.layerHeight} µm</span>
                     </div>
                     <input 
                       type="range" 
@@ -1172,7 +1170,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   <div className="space-y-2 px-1">
                     <div className="flex justify-between items-center">
                       <span className="label-clinical">First Layer</span>
-                      <span className="text-[10px] font-mono font-bold text-slate-400">{globalSettings.firstLayerHeight || 300} Î¼m</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">{globalSettings.firstLayerHeight || 300} µm</span>
                     </div>
                     <input 
                       type="range" 
@@ -1331,9 +1329,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           <button 
              disabled={activeStep === 1}
              onClick={() => setActiveStep(s => s - 1)}
-             className="px-4 py-2 bg-white border border-outline-variant/30 font-bold text-xs uppercase tracking-tight disabled:opacity-30 disabled:pointer-events-none transition-colors"
+             className="px-4 py-2 bg-white border border-outline-variant/30 font-bold text-xs uppercase tracking-tight disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-2"
           >
-              â† BACK
+              <Icon name="arrow_back" className="text-sm" /> BACK
           </button>
           
           {activeStep < 5 ? (

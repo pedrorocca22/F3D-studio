@@ -71,7 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
             { id: 1, label: 'Environment' },
             { id: 2, label: 'Models' },
             { id: 3, label: 'Mapping' },
-            { id: 4, label: 'Hardware' },
+            { id: 4, label: 'Slicing' },
             { id: 5, label: 'Instructions' }
           ].map(step => (
             <button 
