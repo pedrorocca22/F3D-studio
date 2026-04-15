@@ -26,17 +26,17 @@ const TOOLHEAD_ICONS: Record<ToolheadId, string> = {
     none: 'block',
 };
 const TOOLHEAD_LABELS: Record<ToolheadId, string> = {
-    fdm: 'FDM ASSEMBLY',
-    syringe: 'HYDROGEL DOSE',
-    uv: 'UV CURING',
+    fdm: 'FDM HEAD',
+    syringe: 'HYDROGEL HEAD',
+    uv: 'UV HEAD',
     none: 'NULL',
 };
 
-export const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: string; icon: string }[] = [
-    { key: 'perimeter', label: 'Perimeters (Walls)', icon: 'crop_square' },
-    { key: 'infill', label: 'Infill', icon: 'grid_on' },
-    { key: 'solidInfill', label: 'Solid Fill (Top/Bottom)', icon: 'layers' },
-    { key: 'support', label: 'Supports', icon: 'support' },
+export const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: string }[] = [
+    { key: 'perimeter', label: 'Perimeters' },
+    { key: 'infill', label: 'Infill' },
+    { key: 'solidInfill', label: 'Solid Fill' },
+    { key: 'support', label: 'Supports' },
 ];
 
 export const DEFAULT_SCAFFOLD_TOOLS: ScaffoldToolMapping = {
@@ -53,8 +53,7 @@ function generateUUID(): string {
 // ---------- Sub-components ----------
 
 export const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-outline-variant/30 text-[9px] font-black uppercase tracking-widest text-slate-600">
-        <Icon name={TOOLHEAD_ICONS[toolhead]} className="text-[10px]" style={{ color: TOOLHEAD_COLORS[toolhead] }} />
+    <span className="inline-flex items-center px-2 py-0.5 border border-slate-300 dark:border-slate-600 text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
         {TOOLHEAD_LABELS[toolhead]}
     </span>
 );
@@ -63,11 +62,11 @@ export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: Toolhea
     <select
         value={value}
         onChange={e => onChange(e.target.value as ToolheadId)}
-        className={`bg-[#eaeff1] border-none text-[10px] font-black uppercase tracking-tight px-2 h-7 outline-none focus:ring-0 appearance-none cursor-pointer hover:bg-slate-200 transition-colors ${className || 'w-28'}`}
+        className={`bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[9px] font-bold uppercase px-1.5 py-1 rounded outline-none focus:ring-1 focus:ring-primary cursor-pointer ${className || 'w-20'}`}
     >
-        <option value="fdm">FDM (T0)</option>
-        <option value="syringe">SYRINGE (T1)</option>
-        <option value="uv">UV (T2)</option>
+        <option value="fdm">FDM</option>
+        <option value="syringe">SYR</option>
+        <option value="uv">UV</option>
     </select>
 );
 
@@ -292,10 +291,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                             <div className="p-3 space-y-2 bg-white">
                                                 {SCAFFOLD_FEATURE_META.map(feat => (
                                                     <div key={feat.key} className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-1.5 min-w-0">
-                                                            <Icon name={feat.icon} className="text-[10px] text-slate-400 flex-shrink-0" />
-                                                            <span className="text-[9px] text-slate-500 font-black uppercase truncate">{feat.label}</span>
-                                                        </div>
+                                                        <span className="text-[9px] text-slate-500 font-bold uppercase truncate">{feat.label}</span>
                                                         <ToolheadSelect
                                                             value={scaffoldTools[feat.key]}
                                                             onChange={v => {
@@ -303,7 +299,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                                                     scaffoldTools: { ...scaffoldTools, [feat.key]: v }
                                                                 });
                                                             }}
-                                                            className="w-32 flex-shrink-0"
+                                                            className="w-20 flex-shrink-0"
                                                         />
                                                     </div>
                                                 ))}
@@ -346,9 +342,9 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                             onChange={e => setNewToolhead(e.target.value as ToolheadId)}
                             className="flex-1 bg-white border-none h-10 px-3 text-[10px] font-black uppercase tracking-widest outline-none"
                         >
-                            <option value="fdm">FDM ASSEMBLY (T0)</option>
-                            <option value="syringe">HYDROGEL DOSE (T1)</option>
-                            <option value="uv">UV CURING (T2)</option>
+                            <option value="fdm">FDM HEAD</option>
+                            <option value="syringe">HYDROGEL HEAD</option>
+                            <option value="uv">UV HEAD</option>
                         </select>
                         <button
                             onClick={addLayerAction}

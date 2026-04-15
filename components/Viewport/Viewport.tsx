@@ -975,12 +975,27 @@ export const Viewport: React.FC<ViewportProps> = ({
   useEffect(() => {
     setGcodeNozzle(gcodeJob?.nozzleDiameter ?? 0.4);
   }, [gcodeJob]);
+
+  // Fetch gcode content when job changes
+  useEffect(() => {
+    if (gcodeJob?.gcodeUrl) {
+      fetch(gcodeJob.gcodeUrl)
+        .then(res => res.text())
+        .then(text => setGcodeContent(text))
+        .catch(err => console.error('Failed to load gcode:', err));
+    } else {
+      setGcodeContent('');
+    }
+  }, [gcodeJob]);
+
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [objectTool, setObjectTool] = useState<ObjectTool>('translate');
   const [viewMode, setViewMode] = useState<ViewMode>('solid');
   const [zoomTrigger, setZoomTrigger] = useState(0);
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode'>('inspector');
+  const [gcodeContent, setGcodeContent] = useState<string>('');
 
 
   // Clipping State
@@ -1297,22 +1312,33 @@ export const Viewport: React.FC<ViewportProps> = ({
       <div className="w-64 bg-surface-light dark:bg-surface-dark border-l border-slate-200/60 dark:border-slate-800/60 z-30 flex flex-col h-full panel-transition">
         <div className="px-2.5 py-2 border-b border-slate-200/60 dark:border-slate-800/40">
           <div className="flex items-center justify-between">
-            <h2 className="text-[10px] font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-              <Icon name="tune" className="text-[13px] text-primary/70" />
-              Inspector
-            </h2>
-            <button onClick={cycleViewMode} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded btn-transition cursor-pointer" title="Toggle View Mode">
-              <div className={`w-1 h-1 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-600 border-slate-600 dark:bg-slate-300 dark:border-slate-300' : 'border-slate-400'}`}></div>
-              <span className="text-[8px] font-medium text-slate-400 uppercase">{viewMode}</span>
-            </button>
+            <div className="flex gap-1">
+              <button 
+                onClick={() => setInspectorTab('inspector')}
+                className={`px-2 py-1 text-[9px] font-medium rounded transition-colors ${inspectorTab === 'inspector' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Inspector
+              </button>
+              <button 
+                onClick={() => setInspectorTab('gcode')}
+                className={`px-2 py-1 text-[9px] font-medium rounded transition-colors ${inspectorTab === 'gcode' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Gcode
+              </button>
+            </div>
+            {inspectorTab === 'inspector' && (
+              <button onClick={cycleViewMode} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded btn-transition cursor-pointer" title="Toggle View Mode">
+                <div className={`w-1 h-1 rounded-full border box-border ${viewMode === 'solid' ? 'bg-slate-600 border-slate-600 dark:bg-slate-300 dark:border-slate-300' : 'border-slate-400'}`}></div>
+                <span className="text-[8px] font-medium text-slate-400 uppercase">{viewMode}</span>
+              </button>
+            )}
           </div>
         </div>
 
 
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
-
-          {selectedModel ? (
+          {inspectorTab === 'inspector' && selectedModel && (
             <>
               {/* Model Info Section */}
               <section>
@@ -1505,15 +1531,34 @@ export const Viewport: React.FC<ViewportProps> = ({
                     </div>
                   </div>
                 )}
-              </section>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-24 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
-              <Icon name="inbox" className="text-2xl mb-1 opacity-40" />
-              <span className="text-[10px] font-medium">No Model Selected</span>
+            </section>
+          </>
+        )}
+        {inspectorTab === 'inspector' && !selectedModel && (
+          <div className="flex flex-col items-center justify-center h-24 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+            <Icon name="inbox" className="text-2xl mb-1 opacity-40" />
+            <span className="text-[10px] font-medium">No Model Selected</span>
+          </div>
+        )}
+        {inspectorTab === 'gcode' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-medium text-slate-400 uppercase">Gcode Output</span>
+              <span className="text-[8px] text-slate-400 font-mono">{gcodeContent.split('\n').length} lines</span>
             </div>
-          )}
-        </div>
+            {gcodeContent ? (
+              <pre className="text-[8px] font-mono text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 p-2 rounded overflow-x-auto max-h-96 overflow-y-auto">
+                {gcodeContent}
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-24 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+                <Icon name="inbox" className="text-2xl mb-1 opacity-40" />
+                <span className="text-[10px] font-medium">No Gcode Generated</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );

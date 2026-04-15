@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, PoreInjectionParams } from '../../types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from '../../types';
 
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
@@ -63,336 +63,6 @@ interface LayersPanelProps {
   activeStep: number;
   setActiveStep: (step: number) => void;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PoreGridEditor — interactive top-view cell selector for pore injection
-// ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_PORE_PARAMS: PoreInjectionParams = {
-  volumeUl: 0.5,
-  zOffsetMm: 0.3,
-  feedRateMmMin: 120,
-  selectedCells: [],
-  layerRanges: [],
-  cellPitchMm: 2.67,
-};
-
-interface PoreGridEditorProps {
-  model: ModelData;
-  globalSettings: GlobalSettings;
-  onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
-}
-
-const PoreGridEditor: React.FC<PoreGridEditorProps> = ({ model, globalSettings, onUpdateModel }) => {
-  const params: PoreInjectionParams = model.poreParams ?? DEFAULT_PORE_PARAMS;
-
-  // ── Grid dimensions ──────────────────────────────────────────────────────
-  const modelW = (model.size?.x ?? 10) * (model.transform.scale.x ?? 1);
-  const modelD = (model.size?.y ?? 10) * (model.transform.scale.y ?? 1);
-  const infill = globalSettings.infill ?? 15;
-  const nozzleDia = globalSettings.nozzleDiameter ?? 0.4;
-
-  // In FDM, extrusion width is typically larger than nozzle diameter (PS default ~ 1.125x)
-  const extWidth = nozzleDia * 1.125;
-  const perms = globalSettings.perimeters ?? 2; // Default perimeters
-
-  // PrusaSlicer "Grid" infill perfectly distances lines at 2*extWidth/density because it prints in both directions.
-  const cellPitch = infill > 0 ? (2 * extWidth) / (infill / 100) : 5;
-
-  // Subtract perimeter walls (perms * 2 sides)
-  const wallThickness = extWidth * perms * 2;
-  const activeW = Math.max(cellPitch, modelW - wallThickness);
-  const activeD = Math.max(cellPitch, modelD - wallThickness);
-
-  // Since PS centers crossings at origin (0,0), lines form at k * pitch.
-  // Cells count = number of lines + 1.
-  const calcCells = (availableWidth: number) => {
-    const halfW = availableWidth / 2;
-    // Reduce halfW slightly to avoid boundary collisions turning into lines
-    const linesOneSide = Math.floor((halfW - 0.05) / cellPitch);
-    if (linesOneSide < 0) return 1;
-    return 1 + (2 * linesOneSide) + 1; // cells = total lines + 1
-  };
-
-  const MAX_CELLS = 24;
-  const cols = Math.max(1, Math.min(MAX_CELLS, calcCells(activeW)));
-  const rows = Math.max(1, Math.min(MAX_CELLS, calcCells(activeD)));
-
-  // ── SVG display ──────────────────────────────────────────────────────────
-  const DISPLAY_W = 220;
-  const DISPLAY_H = Math.round(DISPLAY_W * (modelD / modelW));
-  const clampedH = Math.max(60, Math.min(DISPLAY_H, 200));
-  const cellW = DISPLAY_W / cols;
-  const cellH = clampedH / rows;
-
-  // ── Cell state helpers ───────────────────────────────────────────────────
-  const isSelected = (col: number, row: number) =>
-    params.selectedCells.some(([c, r]) => c === col && r === row);
-
-  const toggleCell = (col: number, row: number) => {
-    let next: [number, number][];
-    if (isSelected(col, row)) {
-      next = params.selectedCells.filter(([c, r]) => !(c === col && r === row));
-    } else {
-      next = [...params.selectedCells, [col, row]];
-    }
-    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: next, cellPitchMm: cellPitch } });
-  };
-
-  const selectAll = () => {
-    const all: [number, number][] = [];
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) all.push([c, r]);
-    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: all, cellPitchMm: cellPitch } });
-  };
-
-  const clearAll = () =>
-    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: [], cellPitchMm: cellPitch } });
-
-  const invertAll = () => {
-    const next: [number, number][] = [];
-    for (let r = 0; r < rows; r++)
-      for (let c = 0; c < cols; c++)
-        if (!isSelected(c, r)) next.push([c, r]);
-    onUpdateModel(model.id, { poreParams: { ...params, selectedCells: next, cellPitchMm: cellPitch } });
-  };
-
-  // ── Drag-select state ─────────────────────────────────────────────────────
-  const isDragging = React.useRef(false);
-  const dragMode = React.useRef<'add' | 'remove'>('add');
-
-  const getCell = (svgEl: SVGSVGElement, e: React.MouseEvent | MouseEvent): [number, number] => {
-    const rect = svgEl.getBoundingClientRect();
-    // Scale screen pixels to SVG internal viewBox space
-    const scaleX = DISPLAY_W / rect.width;
-    const scaleY = clampedH / rect.height;
-
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    
-    return [
-      Math.min(cols - 1, Math.max(0, Math.floor(x / cellW))),
-      Math.min(rows - 1, Math.max(0, Math.floor(y / cellH))),
-    ];
-  };
-
-  const svgRef = React.useRef<SVGSVGElement>(null);
-
-  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const [col, row] = getCell(svgRef.current, e);
-    dragMode.current = isSelected(col, row) ? 'remove' : 'add';
-    isDragging.current = true;
-    toggleCell(col, row);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!isDragging.current || !svgRef.current) return;
-    const [col, row] = getCell(svgRef.current, e);
-    const sel = isSelected(col, row);
-    if (dragMode.current === 'add' && !sel) toggleCell(col, row);
-    if (dragMode.current === 'remove' && sel) toggleCell(col, row);
-  };
-
-  const stopDrag = () => { isDragging.current = false; };
-
-  // ── Layer range helpers ───────────────────────────────────────────────────
-  const addLayerRange = () => {
-    const last = params.layerRanges[params.layerRanges.length - 1];
-    const from = last ? last.to + 1 : 1;
-    onUpdateModel(model.id, {
-      poreParams: {
-        ...params,
-        layerRanges: [...params.layerRanges, { id: Math.random().toString(36).slice(2, 8), from, to: from + 10 }],
-      },
-    });
-  };
-
-  const removeLayerRange = (id: string) =>
-    onUpdateModel(model.id, {
-      poreParams: { ...params, layerRanges: params.layerRanges.filter(r => r.id !== id) },
-    });
-
-  const updateLayerRange = (id: string, field: 'from' | 'to', value: number) =>
-    onUpdateModel(model.id, {
-      poreParams: {
-        ...params,
-        layerRanges: params.layerRanges.map(r => r.id === id ? { ...r, [field]: value } : r),
-      },
-    });
-
-  // ── Update a deposition param ─────────────────────────────────────────────
-  const setParam = (key: keyof PoreInjectionParams, value: any) =>
-    onUpdateModel(model.id, { poreParams: { ...params, [key]: value } });
-
-  const selectedCount = params.selectedCells.length;
-  const totalCells = cols * rows;
-  const injectAll = selectedCount === 0;
-
-  return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
-
-      {/* ── Grid header ─────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-1">
-        <div>
-          <p className="text-[10px] font-black uppercase text-amber-700 tracking-widest">
-            INJECTION_CORE // {cols}×{rows}
-          </p>
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-            {injectAll
-              ? `DEFAULT_ALL_ACTIVE [${totalCells}]`
-              : `CELL_TARGET_ACTIVE [${selectedCount} / ${totalCells}]`}
-          </p>
-        </div>
-        <div className="flex gap-px bg-amber-200">
-          <button onClick={selectAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">ALL</button>
-          <button onClick={invertAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">INV</button>
-          <button onClick={clearAll} className="text-[9px] px-2 py-1 bg-white text-amber-800 font-black hover:bg-amber-50 transition-colors uppercase">CLR</button>
-        </div>
-      </div>
-
-      {/* ── SVG Grid ─────────────────────────────────────────────────── */}
-      <div className="border border-outline-variant/20 overflow-hidden bg-white select-none">
-        <svg
-          ref={svgRef}
-          width="100%"
-          viewBox={`0 0 ${DISPLAY_W} ${clampedH}`}
-          className="cursor-crosshair"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={stopDrag}
-          onMouseLeave={stopDrag}
-          style={{ display: 'block' }}
-        >
-          {/* Background */}
-          <rect x="0" y="0" width={DISPLAY_W} height={clampedH} fill="#ffffff" />
-
-          {/* Cells */}
-          {Array.from({ length: rows }, (_, row) =>
-            Array.from({ length: cols }, (_, col) => {
-              const sel = isSelected(col, row);
-              const injectHere = injectAll || sel;
-              return (
-                <rect
-                  key={`${col}-${row}`}
-                  x={col * cellW}
-                  y={row * cellH}
-                  width={cellW}
-                  height={cellH}
-                  fill={sel ? '#fde68a' : (injectAll ? '#fffbeb' : '#ffffff')}
-                  stroke="#eaeff1"
-                  strokeWidth="0.5"
-                />
-              );
-            })
-          )}
-
-          {/* Injection markers on selected cells */}
-          {params.selectedCells.map(([col, row]) => (
-            <rect
-              key={`dot-${col}-${row}`}
-              x={col * cellW + cellW * 0.25}
-              y={row * cellH + cellH * 0.25}
-              width={cellW * 0.5}
-              height={cellH * 0.5}
-              fill="#f59e0b"
-            />
-          ))}
-
-          {/* "ALL" mode indicator dots */}
-          {injectAll && Array.from({ length: rows }, (_, row) =>
-            Array.from({ length: cols }, (_, col) => (
-              <rect
-                key={`adot-${col}-${row}`}
-                x={col * cellW + cellW * 0.4}
-                y={row * cellH + cellH * 0.4}
-                width={cellW * 0.2}
-                height={cellH * 0.2}
-                fill="#f59e0b"
-                opacity={0.2}
-              />
-            ))
-          )}
-        </svg>
-      </div>
-
-      <p className="text-[9px] text-slate-400 font-bold text-center uppercase tracking-tight">
-        {injectAll
-          ? 'OPERATING_UNRESTRICTED // ALL_NODES_ACTIVE'
-          : 'OPERATING_TARGETED // SELECT_ACTIVE_NODES'}
-      </p>
-
-      {/* ── Layer Ranges ─────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">
-            Layer Ranges
-          </span>
-          <button
-            onClick={addLayerRange}
-            className="text-[8px] px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-bold hover:bg-amber-200 transition-colors flex items-center gap-0.5"
-          >
-            <Icon name="add" className="text-[10px]" /> Add range
-          </button>
-        </div>
-
-        {params.layerRanges.length === 0 ? (
-          <p className="text-[8px] text-slate-400 italic">
-            No ranges defined → injection active on all layers
-          </p>
-        ) : (
-          <div className="space-y-1">
-            {params.layerRanges.map(range => (
-              <div key={range.id} className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200/60 dark:border-amber-700/30 rounded px-2 py-1">
-                <span className="text-[8px] text-amber-700 dark:text-amber-400 font-black w-8">From</span>
-                <NumericInput
-                  value={range.from}
-                  onChange={v => updateLayerRange(range.id, 'from', Math.max(1, Math.round(v)))}
-                  step={1} min={1}
-                />
-                <span className="text-[8px] text-amber-700 dark:text-amber-400 font-black w-4">to</span>
-                <NumericInput
-                  value={range.to}
-                  onChange={v => updateLayerRange(range.id, 'to', Math.max(range.from, Math.round(v)))}
-                  step={1} min={range.from}
-                />
-                <button
-                  onClick={() => removeLayerRange(range.id)}
-                  className="ml-auto text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <Icon name="close" className="text-[11px]" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Deposition Parameters ─────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="space-y-0.5">
-          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Vol (µL)</span>
-          <NumericInput value={params.volumeUl} onChange={v => setParam('volumeUl', v)} step={0.1} min={0.01} />
-        </div>
-        <div className="space-y-0.5">
-          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Z Lift (mm)</span>
-          <NumericInput value={params.zOffsetMm} onChange={v => setParam('zOffsetMm', v)} step={0.1} min={0} />
-        </div>
-        <div className="space-y-0.5">
-          <span className="text-[9px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-tight">Feed (mm/min)</span>
-          <NumericInput value={params.feedRateMmMin} onChange={v => setParam('feedRateMmMin', v)} step={10} min={1} />
-        </div>
-      </div>
-
-      {/* Info note */}
-      <div className="flex items-start gap-1.5 pt-1 border-t border-amber-200/60 dark:border-amber-700/30">
-        <Icon name="info" className="text-[11px] text-amber-500 mt-0.5 flex-shrink-0" />
-        <span className="text-[8px] text-amber-600/80 dark:text-amber-400/70 leading-tight">
-          Infill is automatically forced to <strong>Grid</strong> mode. Grid is computed from {infill}% + nozzle ⌀ ({nozzleDia}mm).
-          Peripheral cells may be partial depending on object boundaries.
-        </span>
-      </div>
-    </div>
-  );
-};
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
 
@@ -997,9 +667,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   onChange={e => setNewToolhead(e.target.value as ToolheadId)}
                   className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-bold"
                 >
-                  <option value="fdm">FDM (T0)</option>
-                  <option value="syringe">Syringe (T1)</option>
-                  <option value="uv">UV Crosslinker (T2)</option>
+                  <option value="fdm">FDM HEAD</option>
+                  <option value="syringe">HYDROGEL HEAD</option>
+                  <option value="uv">UV HEAD</option>
                 </select>
                 <button
                   onClick={() => {
@@ -1013,7 +683,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       color: '#0d9488',
                     }]);
                   }}
-                  className="flex-center gap-1 px-4 py-1.5 bg-action text-white text-[10px] font-black rounded uppercase"
+                  className="flex items-center justify-center gap-1 px-3 py-1.5 bg-action text-white text-[10px] font-bold rounded uppercase whitespace-nowrap"
                 >
                   <Icon name="add" className="text-sm" /> Add Segment
                 </button>
@@ -1075,10 +745,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           <div className="space-y-2">
                             {SCAFFOLD_FEATURE_META.map(feat => (
                               <div key={feat.key} className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Icon name={feat.icon} className="text-xs text-slate-400" />
-                                  <span className="text-[9px] text-slate-500 uppercase font-black">{feat.label}</span>
-                                </div>
+                                <span className="text-[9px] text-slate-500 uppercase font-bold">{feat.label}</span>
                                 <ToolheadSelect
                                   value={scTools[feat.key]}
                                   onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
@@ -1086,44 +753,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 />
                               </div>
                             ))}
-                          </div>
-                        )}
-
-                        {isScaffold && (
-                          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                            {/* Header + toggle */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Icon name="biotech" className="text-[14px] text-primary" />
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-tighter leading-none">Pore Injection (T1)</span>
-                                  <span className="text-[8px] text-slate-400 font-medium">Deposit hydrogel into scaffold voids</span>
-                                </div>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onUpdateModel(m.id, { poreDepositionEnabled: !m.poreDepositionEnabled });
-                                }}
-                                className={`w-7 h-3.5 rounded-full relative transition-colors flex-shrink-0 ${m.poreDepositionEnabled ? 'bg-primary shadow-sm shadow-primary/40' : 'bg-slate-300 dark:bg-slate-700'}`}
-                              >
-                                <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${m.poreDepositionEnabled ? 'right-0.5' : 'left-0.5'}`} />
-                              </button>
-                            </div>
-
-                            {/* Expanded params — the full grid editor */}
-                            {m.poreDepositionEnabled && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40 rounded-lg p-3"
-                              >
-                                <PoreGridEditor
-                                  model={m}
-                                  globalSettings={globalSettings}
-                                  onUpdateModel={onUpdateModel}
-                                />
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1136,7 +765,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
           {/* TAB 4: SLICING CONFIGURATION */}
           {activeStep === 4 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
+            <div className="space-y-3 overflow-y-auto max-h-full pb-20">
               <AccordionSection title="Z-Axis Configuration" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
                 <div className="space-y-4 py-2">
                   <div className="space-y-2 px-1">
@@ -1300,9 +929,90 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
         {/* STEP 5: PREVIEW & SLICE */}
         {activeStep === 5 && (
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-10">
-                <Icon name="verified" className="text-6xl text-primary opacity-20" />
-                <h3 className="text-lg font-black text-slate-700 uppercase tracking-wide">Ready</h3>
+            <div className="space-y-4 overflow-y-auto max-h-full pb-20">
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Global Settings</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
+                        <div className="flex justify-between"><span className="text-slate-400">Layer Height:</span><span className="font-mono">{globalSettings.layerHeight || 0.2}mm</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Infill:</span><span className="font-mono">{globalSettings.infill || 15}%</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Nozzle:</span><span className="font-mono">{globalSettings.nozzleDiameter || 0.4}mm</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Temperature:</span><span className="font-mono">{globalSettings.temperature || 210}°C</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Bed Temp:</span><span className="font-mono">{globalSettings.bedTemperature || 60}°C</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Perimeters:</span><span className="font-mono">{globalSettings.perimeters || 3}</span></div>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Print Bed</h3>
+                    <div className="text-[10px] space-y-1">
+                        <div className="flex justify-between">
+                            <span className="text-slate-400">Type:</span>
+                            <span className="font-mono capitalize">{globalSettings.printBed?.type?.replace('_', ' ') || 'glass_bed'}</span>
+                        </div>
+                        {globalSettings.printBed?.type === 'glass_bed' && (
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Size:</span>
+                                <span className="font-mono">{globalSettings.printBed?.dimensions?.width || 100}x{globalSettings.printBed?.dimensions?.height || 100}mm</span>
+                            </div>
+                        )}
+                        {globalSettings.printBed?.type === 'multiwell_plate' && (
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Format:</span>
+                                <span className="font-mono">{globalSettings.printBed?.multiwellFormat || 24} Wells</span>
+                            </div>
+                        )}
+                        {globalSettings.printBed?.type === 'petri_dish' && (
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Diameter:</span>
+                                <span className="font-mono">{globalSettings.printBed?.petriDiameter || 60}mm</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Models ({models.length})</h3>
+                    {models.map(m => (
+                        <div key={m.id} className="border-b border-slate-100 dark:border-slate-800 py-2 last:border-0">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{m.name}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold uppercase">{m.toolhead || 'fdm'}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-mono">
+                                {(m.size?.x || 0).toFixed(1)}x{(m.size?.y || 0).toFixed(1)}x{(m.size?.z || 0).toFixed(1)}mm
+                                {m.wellAssignment && ` → Well ${m.wellAssignment.wellId}`}
+                            </div>
+                        </div>
+                    ))}
+                    {models.length === 0 && <p className="text-[10px] text-slate-400">No models loaded</p>}
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Layer Schedule ({layerActions.length} actions)</h3>
+                    {layerActions.length > 0 ? (
+                        <div className="space-y-2">
+                            {layerActions.map((action, i) => (
+                                <div key={action.id || i} className="flex items-center justify-between text-[10px]">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-14 font-mono text-slate-500">L{action.layerFrom}-{action.layerTo}</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${action.toolhead === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : action.toolhead === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                                            {action.toolhead}
+                                        </span>
+                                    </div>
+                                    {action.label && <span className="text-slate-400 truncate max-w-[80px]">{action.label}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[10px] text-slate-400">No layer schedule defined</p>
+                    )}
+                </div>
+
+                {layerActions.length > 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+                        <p className="text-[10px] text-slate-500">Total layers: <span className="font-mono font-bold">{Math.max(...layerActions.map(a => a.layerTo), 0)}</span></p>
+                    </div>
+                )}
             </div>
         )}
 
@@ -1325,7 +1035,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               >
                   NEXT <Icon name="arrow_forward" className="text-sm" />
               </button>
-          ) : (
+) : (
               <button
                 onClick={() => {
                   if (hasGCode && onPrint) {
@@ -1338,8 +1048,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   ? 'bg-[#1e4620] hover:bg-[#153418] text-white'
                   : isSlicing
                     ? 'bg-slate-200 text-slate-400 cursor-wait'
-                    : 'bg-primary hover:bg-primary-dark text-white'
-                  }`}
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
               >
                 {isSlicing && (
                   <div
@@ -1348,18 +1058,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   />
                 )}
 
-                <Icon
-                  name={hasGCode ? 'play_arrow' : isSlicing ? 'hourglass_empty' : 'layers'}
-                  className={`text-lg relative z-10 ${isSlicing ? 'animate-spin' : ''}`}
-                />
-                <span className="relative z-10 flex flex-col items-center">
-                  <span className="leading-none">
-                    {hasGCode
-                      ? 'EXECUTE PRINT'
-                      : isSlicing
-                        ? `SLICING... ${Math.round(slicePercent * 100)}%`
-                        : 'GENERATE INSTRUCTIONS'}
-                  </span>
+                <span className="relative z-10">
+                  {hasGCode
+                    ? 'EXECUTE PRINT'
+                    : isSlicing
+                      ? `SLICING... ${Math.round(slicePercent * 100)}%`
+                      : 'BUILD'}
                 </span>
               </button>
           )}

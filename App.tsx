@@ -153,15 +153,6 @@ export default function App() {
         segments: []
       },
       toolhead: 'fdm',
-      poreDepositionEnabled: false,
-      poreParams: {
-        volumeUl: 0.5,
-        zOffsetMm: 0.3,
-        feedRateMmMin: 120,
-        selectedCells: [],
-        layerRanges: [],
-        cellPitchMm: 2.67,
-      },
     };
 
     setModels(prev => [...prev, newModel]);
@@ -380,18 +371,13 @@ export default function App() {
     const formData = new FormData();
 
     // Attach each model's STL and its metadata (transform, toolhead)
-    const cellPitchMm = (globalSettings.infill && globalSettings.infill > 0 && globalSettings.nozzleDiameter)
-      ? (globalSettings.nozzleDiameter / (globalSettings.infill / 100))
-      : 2.67;
-
     const modelsMetadata = models.map(m => ({
       name: m.file?.name,
       transform: m.transform,
       toolhead: m.toolhead || 'fdm',
       scaffoldTools: m.scaffoldTools || null,
-      poreDepositionEnabled: m.poreDepositionEnabled ?? false,
-      poreParams: m.poreParams ? { ...m.poreParams, cellPitchMm } : null,
     }));
+
     formData.append('models_metadata', JSON.stringify(modelsMetadata));
 
     models.forEach(m => { if (m.file) formData.append('files[]', m.file); });

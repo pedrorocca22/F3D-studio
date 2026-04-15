@@ -403,154 +403,6 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
-
-def _inject_pores_in_gcode(gcode_path: Path, pore_models: list):
-    """
-    Post-process G-code to inject syringe (T1) hydrogel depositions into
-    the void pores of a scaffold infill structure.
-
-    ADVANCED DETECTION (PERFECT SQUARES):
-    - With fill_angle=0, the grid infill forms perfectly axis-aligned walls.
-    - Pass 1: We scan all G1 infill extrusions and extract the unique physical 
-      X coordinates (vertical lines) and Y coordinates (horizontal lines).
-    - Pass 2: We inject strictly into the logical [col, row], BUT only if the
-      physical boundaries [V[col], V[col+1]] and [H[row], H[row+1]] represent
-      a "perfect square" (their width/height matches the expected cell Pitch).
-      This prevents injecting into peripheral/irregular partial cells!
-    """
-    if not pore_models:
-        return
-
-    # Master settings
-    master = pore_models[0]
-    volume_ul   = float(master.get("volumeUl",      0.5))
-    z_offset    = float(master.get("zOffsetMm",     0.3))
-    feed_rate   = float(master.get("feedRateMmMin", 120.0))
-    cell_pitch  = float(master.get("cellPitchMm",   2.67))
-    e_amount    = volume_ul * 1.0 # E-axis calibration
-
-    all_selected = set()
-    inject_all_cells = True
-    layer_ranges_raw = master.get("layerRanges", [])
-    layer_ranges = [(int(r["from"]), int(r["to"])) for r in layer_ranges_raw if r]
-    inject_all_layers = len(layer_ranges) == 0
-
-    for pm in pore_models:
-        cells = pm.get("selectedCells", [])
-        if cells:
-            inject_all_cells = False
-            for cell in cells:
-                all_selected.add((int(cell[0]), int(cell[1])))
-
-    lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
-    
-    # ── PASS 1: Detect Physical Grid Lines ──
-    v_lines_set = set()
-    h_lines_set = set()
-    in_infill = False
-    abs_mode = True
-    cx, cy = None, None
-
-    for line in lines:
-        s = line.strip()
-        if s.startswith("G90"): abs_mode = True
-        elif s.startswith("G91"): abs_mode = False
-        if s.startswith(";TYPE:"):
-            in_infill = ("internal infill" in s.lower() or "infill" in s.lower()) and "solid" not in s.lower()
-            
-        if abs_mode and s.startswith(("G0", "G1")):
-            xm = re.search(r"X(-?\d+(?:\.\d+)?)", line)
-            ym = re.search(r"Y(-?\d+(?:\.\d+)?)", line)
-            nx = float(xm.group(1)) if xm else cx
-            ny = float(ym.group(1)) if ym else cy
-            
-            if in_infill and "E" in line and cx is not None and cy is not None:
-                dx, dy = abs(nx - cx), abs(ny - cy)
-                if dx > 0.5 and dy < 0.1: # Horizontal extrusion -> Y is constant
-                    h_lines_set.add(round(cy, 1))
-                elif dy > 0.5 and dx < 0.1: # Vertical extrusion -> X is constant
-                    v_lines_set.add(round(cx, 1))
-
-            cx, cy = nx, ny
-
-    V = sorted(list(v_lines_set))
-    H = sorted(list(h_lines_set))
-
-    # To mathematically match the UI's topological map (which counts peripheral partial cells),
-    # we virtually expand the physical grid by 1 pitch sequence outwards to capture the boundary spaces.
-    if len(V) > 0:
-        V = [V[0] - cell_pitch] + V + [V[-1] + cell_pitch]
-    if len(H) > 0:
-        H = [H[0] - cell_pitch] + H + [H[-1] + cell_pitch]
-
-    def get_cell_center(col: int, row: int):
-        if col < 0 or col + 1 >= len(V): return None
-        if row < 0 or row + 1 >= len(H): return None
-        
-        # Calculate theoretical center of the space bounded by these infill lines
-        # This gracefully handles both perfect inner squares and partial outer cells.
-        # We ensure minimum area to prevent injecting on top of thin perimeter lines.
-        width = V[col+1] - V[col]
-        height = H[row+1] - H[row]
-        
-        if width > 0.5 and height > 0.5:
-            return (V[col] + V[col+1]) / 2.0, (H[row] + H[row+1]) / 2.0
-        return None
-
-    # ── PASS 2: Inject at the end of infill blocks ──
-    output = []
-    in_infill = False
-    current_layer = 0
-    current_z = 0.0
-    injected_total = 0
-
-    for line in lines:
-        s = line.strip()
-        if s.startswith("G90"): abs_mode = True
-        elif s.startswith("G91"): abs_mode = False
-        if abs_mode and "Z" in line and s.startswith(("G0", "G1")):
-            zm = re.search(r"Z(-?\d+(?:\.\d+)?)", line)
-            if zm: current_z = float(zm.group(1))
-            
-        if ";LAYER_CHANGE" in line:
-            current_layer += 1
-            in_infill = False
-
-        is_layer_active = inject_all_layers or any(lo <= current_layer <= hi for lo, hi in layer_ranges)
-
-        if s.startswith(";TYPE:"):
-            section = s[6:].strip().lower()
-            new_infill = section in ("internal infill", "infill") and "solid" not in section
-            
-            # If we are LEAVING an infill section on an active layer, we stop and do all our injections for that layer!
-            if in_infill and not new_infill and is_layer_active:
-                output.append(f"; --- [PoreInject] Batch {current_layer} Start ---\n")
-                
-                for c in range(len(V) - 1):
-                    for r in range(len(H) - 1):
-                        if inject_all_cells or (c, r) in all_selected:
-                            center = get_cell_center(c, r)
-                            if center:
-                                px, py = center
-                                inject_z = current_z + z_offset
-                                output.append(f"T1 ; Activate hydrogel syringe\n")
-                                output.append(f"G0 Z{inject_z:.3f} ; Lift\n")
-                                output.append(f"G0 X{px:.3f} Y{py:.3f} ; Move over center of pore ({c},{r})\n")
-                                output.append(f"G1 E{e_amount:.4f} F{feed_rate:.0f} ; Deposit {volume_ul}\u00b5L\n")
-                                output.append(f"G0 Z{current_z:.3f} ; Lower\n")
-                                output.append(f"T0 ; Return to FDM\n")
-                                injected_total += 1
-                                
-                output.append(f"; --- [PoreInject] Batch End ---\n")
-                
-            in_infill = new_infill
-
-        output.append(line)
-
-    gcode_path.write_text("".join(output), encoding="utf-8")
-    print(f"[PORE INJECT] Done — {injected_total} injections in perfect squares. Pitch={cell_pitch:.2f}mm")
-
-
 def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
 
     """
@@ -730,16 +582,13 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         ret_s = str(form_params.get("retract_speed", "45"))
         ext_m = str(form_params.get("extrusion_multiplier", "1.0"))
 
-        has_pore_injection = any(m.get("poreDepositionEnabled") for m in models_meta)
-        final_infill_pattern = "grid" if has_pore_injection else infill_pattern
-
         overrides_dict = {
             "layer_height": str(layer_height),
             "fill_density": f"{infill}%",
             "temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
             "first_layer_temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
             "bed_temperature": str(bed_temp),
-            "fill_pattern": str(final_infill_pattern),
+            "fill_pattern": str(infill_pattern),
             "perimeters": str(perimeters),
             "nozzle_diameter": f"{noz_d},{noz_d},{noz_d}",
             "first_layer_height": str(form_params.get("first_layer_height", "0.3")),
@@ -748,7 +597,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "skirt_distance": str(form_params.get("skirt_distance", "6")),
             "brim_width": str(form_params.get("brim_width", "0")),
             "bottom_solid_layers": str(form_params.get("bottom_shell", "3")),
-            "fill_angle": "0" if has_pore_injection else str(form_params.get("fill_angle", "45")),
+            "fill_angle": str(form_params.get("fill_angle", "45")),
             "first_layer_speed": str(form_params.get("first_layer_speed", "20")),
             "perimeter_speed": str(form_params.get("perimeter_speed", "45")),
             "external_perimeter_speed": str(form_params.get("external_perimeter_speed", "25")),
@@ -915,8 +764,6 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                             "mesh": m,
                             "toolhead": meta.get("toolhead", "fdm"),
                             "scaffoldTools": meta.get("scaffoldTools"),
-                            "poreDepositionEnabled": meta.get("poreDepositionEnabled", False),
-                            "poreParams": meta.get("poreParams"),
                             "bedMinX": float(m.x.min()),
                             "bedMinY": float(m.y.min()),
                         })
