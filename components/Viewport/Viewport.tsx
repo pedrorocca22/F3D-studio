@@ -959,7 +959,10 @@ export const Viewport: React.FC<ViewportProps> = ({
   // ── GCode integration ──────────────────────────────────────────
   const gcodeUrl = gcodeJob?.gcodeUrl ?? null;
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
-  const { parsed: gcodeParsed, loading: gcodeLoading, layerLines, gcodeRaw } = useGCodeLoader(gcodeUrl, gcodeLayer);
+  const { parsed: gcodeParsed, loading: gcodeLoading, layerLines, gcodeRaw, allLines, layerMap } = useGCodeLoader(gcodeUrl, gcodeLayer);
+  const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode'>('inspector');
+  const gcodeScrollRef = useRef<HTMLDivElement>(null);
+  const activeLineRef = useRef<HTMLDivElement>(null);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
   const [gcodeNozzle, setGcodeNozzle] = useState(gcodeJob?.nozzleDiameter ?? 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
@@ -970,6 +973,13 @@ export const Viewport: React.FC<ViewportProps> = ({
   useEffect(() => {
     if (gcodeParsed) setGcodeLayer(gcodeParsed.layerCount);
   }, [gcodeParsed]);
+
+  // Auto-scroll to current layer in gcode panel
+  useEffect(() => {
+    if (inspectorTab === 'gcode' && activeLineRef.current && gcodeScrollRef.current) {
+      activeLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [gcodeLayer, inspectorTab]);
 
   // Update nozzle when job changes
   useEffect(() => {
@@ -984,7 +994,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const [zoomTrigger, setZoomTrigger] = useState(0);
   const [viewTrigger, setViewTrigger] = useState({ mode: 'iso', t: 0 });
   const [focusTarget, setFocusTarget] = useState<THREE.Vector3 | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode'>('inspector');
+
 
 
   // Clipping State
@@ -1537,17 +1547,25 @@ export const Viewport: React.FC<ViewportProps> = ({
             </div>
             {gcodeRaw ? (
               <div className="flex-1 flex flex-col min-h-0">
-                {gcodeParsed && layerLines ? (
-                  <div className="flex-1 overflow-y-auto min-h-0 bg-slate-100 dark:bg-slate-900 rounded">
-                    <div className="text-[9px] font-bold text-slate-500 px-2 py-1 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-slate-100 dark:bg-slate-900">
-                      Layer {gcodeLayer} ({layerLines.lines.length} G-code lines)
+                {gcodeParsed && allLines.length > 0 ? (
+                  <div 
+                    ref={gcodeScrollRef}
+                    className="flex-1 overflow-y-auto min-h-0 bg-slate-100 dark:bg-slate-900 rounded custom-scrollbar scroll-smooth"
+                  >
+                    <div className="text-[9px] font-bold text-slate-500 px-2 py-1 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-slate-100 dark:bg-slate-900 z-10 flex justify-between">
+                      <span>Full G-code File</span>
+                      <span className="text-primary tracking-tighter">Layer {gcodeLayer}</span>
                     </div>
                     <div className="p-2 space-y-0.5">
-                      {layerLines.lines.map((line, idx) => {
+                      {allLines.map((line, idx) => {
+                        const boundary = layerMap[gcodeLayer];
+                        const isActive = boundary && idx >= boundary.start && idx <= boundary.end;
+                        const isStartOfLayer = boundary && idx === boundary.start;
+
                         // Determine color based on line content
-                        let lineColor = 'text-slate-600 dark:text-slate-300';
+                        let lineColor = 'text-slate-500 dark:text-slate-400';
                         if (line.includes(';')) {
-                          lineColor = 'text-slate-400 dark:text-slate-500';
+                          lineColor = 'text-slate-400 dark:text-slate-500 opacity-60';
                         } else if (line.startsWith('G0') || line.startsWith('G1')) {
                           if (line.includes('E') && !line.includes('E0')) {
                             // Extrusion - check for toolhead color
@@ -1561,8 +1579,14 @@ export const Viewport: React.FC<ViewportProps> = ({
                         }
                         
                         return (
-                          <div key={idx} className={`font-mono text-[8px] ${lineColor} hover:bg-yellow-500/20 cursor-pointer`}>
-                            <span className="text-slate-300 dark:text-slate-600 mr-2 select-none">{idx + 1}</span>
+                          <div 
+                            key={idx} 
+                            ref={isStartOfLayer ? activeLineRef : null}
+                            className={`font-mono text-[8px] ${lineColor} ${isActive ? 'bg-primary/10 dark:bg-primary/20 ring-1 ring-primary/20 rounded-sm -mx-1 px-1 py-px shadow-sm' : ''} hover:bg-yellow-500/10 transition-colors cursor-pointer`}
+                          >
+                            <span className={`inline-block w-8 text-right mr-3 select-none ${isActive ? 'text-primary font-bold' : 'text-slate-300 dark:text-slate-700'}`}>
+                              {idx + 1}
+                            </span>
                             {line}
                           </div>
                         );

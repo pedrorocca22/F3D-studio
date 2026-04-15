@@ -370,10 +370,9 @@ export function GCodeScene({
     );
 }
 
-// ── useGCodeLoader hook ───────────────────────────────────────────────────────
-export interface LayerLines {
-  lines: string[];
-  lineStartIndex: number;
+export interface LayerBoundary {
+  start: number;
+  end: number;
 }
 
 export function useGCodeLoader(gcodeUrl: string | null, currentLayer?: number) {
@@ -382,16 +381,53 @@ export function useGCodeLoader(gcodeUrl: string | null, currentLayer?: number) {
     const [error, setError] = useState<string | null>(null);
     const [layerLines, setLayerLines] = useState<LayerLines | null>(null);
     const [gcodeRaw, setGcodeRaw] = useState<string>('');
+    const [allLines, setAllLines] = useState<string[]>([]);
+    const [layerMap, setLayerMap] = useState<LayerBoundary[]>([]);
 
     useEffect(() => {
-        if (!gcodeUrl) { setParsed(null); setLoading(false); setError(null); setGcodeRaw(''); setLayerLines(null); return; }
+        if (!gcodeUrl) { 
+            setParsed(null); setLoading(false); setError(null); 
+            setGcodeRaw(''); setAllLines([]); setLayerLines(null); setLayerMap([]);
+            return; 
+        }
         setLoading(true); setError(null); setParsed(null);
         fetch(gcodeUrl)
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
             .then(raw => { 
                 setGcodeRaw(raw);
+                const lines = raw.split('\n');
+                setAllLines(lines);
+                
                 const result = parseGCode(raw); 
                 setParsed(result); 
+                
+                // Pre-calculate layer boundaries
+                const boundaries: LayerBoundary[] = [];
+                let currentTrackedLayer = -1;
+                let currentStart = -1;
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const layerMatch = line.match(/;LAYER:(\d+)/i);
+                    const layerChangeMarker = line.includes(';LAYER_CHANGE');
+                    
+                    if (layerMatch || layerChangeMarker) {
+                        // Close previous boundary
+                        if (currentTrackedLayer >= 0 && currentStart !== -1) {
+                            boundaries[currentTrackedLayer] = { start: currentStart, end: i - 1 };
+                        }
+                        
+                        if (layerMatch) currentTrackedLayer = parseInt(layerMatch[1]);
+                        else currentTrackedLayer++;
+                        
+                        currentStart = i;
+                    }
+                }
+                // Close the last one
+                if (currentTrackedLayer >= 0 && currentStart !== -1) {
+                    boundaries[currentTrackedLayer] = { start: currentStart, end: lines.length - 1 };
+                }
+                setLayerMap(boundaries);
                 setLoading(false); 
             })
             .catch(e => { setError(e.message); setLoading(false); });
@@ -399,60 +435,23 @@ export function useGCodeLoader(gcodeUrl: string | null, currentLayer?: number) {
 
     // Extract lines for the current layer when currentLayer changes
     useEffect(() => {
-        if (!gcodeRaw || currentLayer === undefined || currentLayer === null) {
+        if (!allLines.length || currentLayer === undefined || currentLayer === null) {
             setLayerLines(null);
             return;
         }
 
-        const lines = gcodeRaw.split('\n');
-        let inCurrentLayer = false;
-        let layerStartIndex = -1;
-        let layerLinesArr: string[] = [];
-        
-        let trackedLayer = -1; // -1 because first layer change usually happens at start of layer 0
-
-        // Find layer markers and extract lines for the current layer
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // Check for layer change markers commonly used by PrusaSlicer
-            const layerMatch = line.match(/;LAYER:(\d+)/i);
-            const layerChangeMarker = line.includes(';LAYER_CHANGE'); // Match server.py logic
-            
-            if (layerMatch) {
-                trackedLayer = parseInt(layerMatch[1]);
-            } else if (layerChangeMarker) {
-                trackedLayer++; 
-            }
-
-            if (trackedLayer === currentLayer) {
-                if (!inCurrentLayer) {
-                    inCurrentLayer = true;
-                    layerStartIndex = i;
-                    layerLinesArr = [line];
-                } else {
-                    // Collect significant lines (skip empty or just comments to keep it clean)
-                    if (line.trim()) {
-                        layerLinesArr.push(line);
-                    }
-                }
-            } else if (trackedLayer > currentLayer && inCurrentLayer) {
-                // We've moved past our target layer
-                break;
-            }
+        const boundary = layerMap[currentLayer];
+        if (boundary) {
+            setLayerLines({
+                lines: allLines.slice(boundary.start, boundary.end + 1),
+                lineStartIndex: boundary.start
+            });
+        } else {
+            setLayerLines(null);
         }
+    }, [allLines, layerMap, currentLayer]);
 
-        // Fallback: If no markers found or layer empty, but gcode exists, maybe the gcode has no comments
-        // In that case, showing a slice of the file might be better than nothing, 
-        // but for now we trust the markers.
-        
-        setLayerLines({
-            lines: layerLinesArr,
-            lineStartIndex: layerStartIndex
-        });
-    }, [gcodeRaw, currentLayer]);
-
-    return { parsed, loading, error, layerLines, gcodeRaw };
+    return { parsed, loading, error, layerLines, gcodeRaw, allLines, layerMap };
 }
 
 // ── Standalone GCodePreview component (legacy / experiments panel) ────────────
