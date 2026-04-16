@@ -727,6 +727,7 @@ export default function App() {
             onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
             onCloneModel={handleCloneModel}
             onArrayModels={handleArrayModels}
+            onDeleteModel={handleDeleteModel}
 
             isAdvancedSliceMode={isAdvancedSliceMode}
             globalSettings={globalSettings}
