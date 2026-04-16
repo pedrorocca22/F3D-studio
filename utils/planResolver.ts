@@ -23,10 +23,10 @@ export function resolveLayerPlans(
     // 2. Resolve every layer independently first
     const resolvedLayers: ResolvedLayerSettings[] = [];
     for (let L = 0; L <= totalLayers; L++) {
-      // Start with base
+      // Start with base (including model-specific FDM overrides)
       const settings: ResolvedLayerSettings = {
         mapping: { ...baseMapping },
-        fdm: {},
+        fdm: { ...(model.fdmSettings || {}) },
         syringe: {},
       };
 

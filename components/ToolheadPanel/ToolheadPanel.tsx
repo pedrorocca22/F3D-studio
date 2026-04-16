@@ -92,31 +92,39 @@ export const LayerActionRow: React.FC<{
     return (
         <div className="bg-white border border-outline-variant/20 rounded-xl overflow-hidden">
             {/* Top bar: kind selector + model scope + delete */}
-            <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-outline-variant/10">
-                <select
-                    value={action.kind}
-                    onChange={e => onUpdate({ ...action, kind: e.target.value as LayerAction['kind'] })}
-                    className="flex-1 bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-primary"
-                >
-                    <option value="feature_override">FEATURE OVERRIDE</option>
-                    <option value="parameter_override">PARAMETER OVERRIDE</option>
-                    <option value="process_event">PROCESS EVENT</option>
-                </select>
+            <div className="flex flex-col gap-2 p-3 bg-slate-50 border-b border-outline-variant/10">
+                <div className="flex items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                        <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Action Type</label>
+                        <select
+                            value={action.kind}
+                            onChange={e => onUpdate({ ...action, kind: e.target.value as LayerAction['kind'] })}
+                            className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-primary h-8"
+                        >
+                            <option value="feature_override">FEATURE OVERRIDE</option>
+                            <option value="parameter_override">PARAMETER OVERRIDE</option>
+                            <option value="process_event">PROCESS EVENT</option>
+                        </select>
+                    </div>
 
-                <select
-                    value={action.modelId || 'all'}
-                    onChange={e => onUpdate({ ...action, modelId: e.target.value })}
-                    className="w-24 bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary"
-                >
-                    <option value="all">ALL MODELS</option>
-                    {models.map(m => (
-                        <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>
-                    ))}
-                </select>
+                    <button onClick={onDelete} className="mt-4 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0" title="Delete Segment">
+                        <Icon name="delete" className="text-base" />
+                    </button>
+                </div>
 
-                <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Segment">
-                    <Icon name="delete" className="text-sm" />
-                </button>
+                <div className="space-y-1">
+                    <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Model Scope</label>
+                    <select
+                        value={action.modelId || 'all'}
+                        onChange={e => onUpdate({ ...action, modelId: e.target.value })}
+                        className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary h-8"
+                    >
+                        <option value="all">ALL MODELS (GLOBAL)</option>
+                        {models.map(m => (
+                            <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {/* Layer range bar */}
@@ -167,8 +175,8 @@ export const LayerActionRow: React.FC<{
             {(action.kind === 'feature_override' || action.kind === 'parameter_override') && (
                 <div className="px-4 pt-1 space-y-1.5">
                     <label className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Affected Features</label>
-                    <div className="flex flex-wrap gap-1">
-                        {FEATURE_OPTIONS.map(opt => (
+                    <div className="grid grid-cols-2 gap-1.5">
+                        {FEATURE_OPTIONS.map((opt, idx) => (
                             <button
                                 key={opt.label}
                                 onClick={() => {
@@ -176,7 +184,6 @@ export const LayerActionRow: React.FC<{
                                     const next = current.includes(opt.value)
                                         ? current.filter(f => f !== opt.value)
                                         : [...current, opt.value];
-                                    // If All is selected, or if nothing is selected, default to All
                                     if (opt.value === 'all') {
                                         onUpdate({ ...action, targetFeatures: ['all'] });
                                     } else {
@@ -184,7 +191,9 @@ export const LayerActionRow: React.FC<{
                                         onUpdate({ ...action, targetFeatures: filtered.length > 0 ? filtered : ['all'] });
                                     }
                                 }}
-                                className={`text-[8px] font-black px-2 py-1 rounded border uppercase tracking-wider transition-all ${
+                                className={`text-[8px] font-black px-2 py-2 rounded border uppercase tracking-wider transition-all shadow-sm ${
+                                    opt.value === 'all' ? 'col-span-2' : ''
+                                } ${
                                     action.targetFeatures?.includes(opt.value)
                                         ? 'bg-primary text-white border-primary'
                                         : 'bg-white border-outline-variant/30 text-slate-500 hover:border-primary/50'
@@ -278,6 +287,77 @@ export const LayerActionRow: React.FC<{
                                         onChange={e => onUpdate({ 
                                             ...action, 
                                             fdmSettings: { ...action.fdmSettings, fanSpeedPercent: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100/50">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Pattern</label>
+                                    <select
+                                        value={action.fdmSettings?.infillPattern || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, infillPattern: e.target.value as any }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none"
+                                    >
+                                        <option value="">Default</option>
+                                        <option value="rectilinear">Rectilinear</option>
+                                        <option value="grid">Grid</option>
+                                        <option value="gyroid">Gyroid</option>
+                                        <option value="honeycomb">Honeycomb</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Infill (%)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="15"
+                                        value={action.fdmSettings?.infillPercent || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, infillPercent: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Walls</label>
+                                    <input
+                                        type="number"
+                                        value={action.fdmSettings?.wallCount || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, wallCount: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Top L.</label>
+                                    <input
+                                        type="number"
+                                        value={action.fdmSettings?.topSolidLayers || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, topSolidLayers: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Bot L.</label>
+                                    <input
+                                        type="number"
+                                        value={action.fdmSettings?.bottomSolidLayers || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, bottomSolidLayers: +e.target.value }
                                         })}
                                         className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
                                     />

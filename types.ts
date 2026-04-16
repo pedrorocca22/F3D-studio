@@ -182,6 +182,8 @@ export interface ModelData {
     format: 6 | 12 | 24 | 48;
     wellId: string; // e.g., "A1", "B3", "H6"
   };
+  /** Per-model FDM profile overrides. */
+  fdmSettings?: Partial<FDMPrintSettings>;
 }
 
 export interface BackendRangeOverride {
@@ -330,6 +332,7 @@ export interface FDMPrintSettings {
   brimWidthMm: number;
   zHopEnabled: boolean;
   zHopHeightMm: number;
+  fillAngle?: number;
 }
 
 export interface SyringePrintSettings {

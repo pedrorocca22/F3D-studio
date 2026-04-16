@@ -183,7 +183,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
   const inputClass = "w-32";
   return (
-    <aside className="w-[350px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
+    <aside className="w-[420px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
 
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
@@ -862,8 +862,80 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
                             </div>
                           )}
-                        </div>
-                      </div>
+
+                           {/* Base FDM Settings for the model */}
+                           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                             <label className="text-[9px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-2">
+                               <Icon name="settings" className="text-xs" /> BASE FDM PROFILE
+                             </label>
+                             <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Infill (%)</span>
+                                   <div className="h-8">
+                                     <NumericInput 
+                                       value={m.fdmSettings?.infillPercent ?? globalSettings.infill ?? 15} 
+                                       onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, infillPercent: v } })} 
+                                     />
+                                   </div>
+                                </div>
+                                <div className="space-y-1">
+                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Perimeters</span>
+                                   <div className="h-8">
+                                     <NumericInput 
+                                       value={m.fdmSettings?.wallCount ?? globalSettings.perimeters ?? 3} 
+                                       onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, wallCount: v } })} 
+                                     />
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Top Shell</span>
+                                   <div className="h-8">
+                                     <NumericInput 
+                                       value={m.fdmSettings?.topSolidLayers ?? globalSettings.topSolidLayers ?? 3} 
+                                       onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, topSolidLayers: v } })} 
+                                     />
+                                   </div>
+                                </div>
+                                <div className="space-y-1">
+                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Bottom Shell</span>
+                                   <div className="h-8">
+                                     <NumericInput 
+                                       value={m.fdmSettings?.bottomSolidLayers ?? globalSettings.bottomSolidLayers ?? 3} 
+                                       onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, bottomSolidLayers: v } })} 
+                                     />
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-3">
+                               <div className="space-y-1">
+                                 <span className="text-[10px] text-slate-500 uppercase font-bold">Pattern</span>
+                                 <select
+                                   value={m.fdmSettings?.infillPattern ?? globalSettings.infillPattern ?? 'grid'}
+                                   onChange={e => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, infillPattern: e.target.value as any } })}
+                                   className="w-full h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
+                                 >
+                                   <option value="rectilinear">Rectilinear</option>
+                                   <option value="grid">Grid</option>
+                                   <option value="gyroid">Gyroid</option>
+                                   <option value="honeycomb">Honeycomb</option>
+                                   <option value="triangles">Triangles</option>
+                                 </select>
+                               </div>
+                               <div className="space-y-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-bold">Angle (°)</span>
+                                  <div className="h-8">
+                                    <NumericInput 
+                                      value={m.fdmSettings?.fillAngle ?? globalSettings.fillAngle ?? 45} 
+                                      onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, fillAngle: v } })} 
+                                    />
+                                  </div>
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
                     );
                   })}
                 </div>
@@ -903,55 +975,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Shell & Infill" isOpen={openSections.fffShell} onToggle={() => toggleSection('fffShell')}>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Perimeters</span>
-                      <NumericInput value={globalSettings.perimeters || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, perimeters: v })} />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Fill Density (%)</span>
-                      <NumericInput value={globalSettings.infill || 15} onChange={v => onUpdateGlobalSettings({ ...globalSettings, infill: v })} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Top Layers</span>
-                      <NumericInput value={globalSettings.topSolidLayers || 4} onChange={v => onUpdateGlobalSettings({ ...globalSettings, topSolidLayers: v })} />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Bottom Layers</span>
-                      <NumericInput value={globalSettings.bottomSolidLayers || 4} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bottomSolidLayers: v })} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Infill Pattern</span>
-                      <select
-                        value={globalSettings.infillPattern || 'grid'}
-                        onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillPattern: e.target.value as any })}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
-                      >
-                        <option value="rectilinear">Rectilinear</option>
-                        <option value="grid">Grid</option>
-                        <option value="triangles">Triangles</option>
-                        <option value="cubic">Cubic</option>
-                        <option value="line">Line</option>
-                        <option value="honeycomb">Honeycomb</option>
-                        <option value="gyroid">Gyroid</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">Fill Angle (°)</span>
-                      <NumericInput 
-                        value={globalSettings.fillAngle ?? 0} 
-                        onChange={v => onUpdateGlobalSettings({ ...globalSettings, fillAngle: v })} 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </AccordionSection>
+
 
               <AccordionSection title="Motion Dynamics" isOpen={openSections.fffSpeeds} onToggle={() => toggleSection('fffSpeeds')}>
                 <div className="space-y-4 py-2">

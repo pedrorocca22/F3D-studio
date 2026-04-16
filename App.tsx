@@ -154,6 +154,13 @@ export default function App() {
         segments: []
       },
       toolhead: 'fdm',
+      fdmSettings: {
+        infillPercent: globalSettings.infill ?? 15,
+        infillPattern: globalSettings.infillPattern ?? 'grid',
+        wallCount: globalSettings.perimeters ?? 2,
+        topSolidLayers: globalSettings.topSolidLayers ?? 3,
+        bottomSolidLayers: globalSettings.bottomSolidLayers ?? 3,
+      },
     };
 
     setModels(prev => [...prev, newModel]);
@@ -376,7 +383,8 @@ export default function App() {
       name: m.file?.name,
       transform: m.transform,
       toolhead: m.toolhead || 'fdm',
-      scaffoldTools: m.scaffoldTools || null,
+      scaffold_tools: m.scaffoldTools,
+      fdm_settings: m.fdmSettings,
     }));
 
     formData.append('models_metadata', JSON.stringify(modelsMetadata));
