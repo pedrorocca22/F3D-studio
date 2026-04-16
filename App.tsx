@@ -11,6 +11,7 @@ import { Icon } from './components/Icon';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from './types';
 import { generateUUID } from './utils';
 import { resolveLayerPlans } from './utils/planResolver';
+import { HelpWiki, HelpTopic } from './components/HelpWiki/HelpWiki';
 
 // Helper to convert File to ArrayBuffer
 const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
@@ -29,6 +30,7 @@ export default function App() {
 
   const [isWifiOpen, setIsWifiOpen] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(1);
+  const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null);
 
 
   // Slicing State
@@ -707,6 +709,7 @@ export default function App() {
           totalLayers={calculatedTotalLayers}
           onUpdateToolheads={setToolheads}
           onUpdateLayerActions={setLayerActions}
+          onOpenHelp={setHelpTopic}
           // Integrated slicing workflow props
           isSlicing={isSlicing}
           slicePercent={slicePercent}
@@ -753,6 +756,8 @@ export default function App() {
           )}
         </main>
       </div>
+
+      <HelpWiki topic={helpTopic} onClose={() => setHelpTopic(null)} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from '../../types';
+import { HelpTopic } from '../HelpWiki/HelpWiki';
 
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
@@ -62,6 +63,7 @@ interface LayersPanelProps {
   jobId?: string | null;
   activeStep: number;
   setActiveStep: (step: number) => void;
+  onOpenHelp: (topic: HelpTopic) => void;
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -75,7 +77,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     onApplySettingsToAll, isAdvancedSliceMode, setIsAdvancedSliceMode, onSlice, onFileUpload,
     toolheads, layerActions, totalLayers, onUpdateToolheads, onUpdateLayerActions,
     isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId,
-    activeStep, setActiveStep
+    activeStep, setActiveStep, onOpenHelp
   } = props;
 
   const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
@@ -99,6 +101,17 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   const [heating, setHeating] = useState({
     temp: 60
   });
+
+  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+
+  const toggleModelExpand = (id: string) => {
+    setExpandedModels(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -321,7 +334,17 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     )}
         {/* TAB 1: PRINT BED */}
         {activeStep === 1 && (
-            <div className="space-y-0 animate-in fade-in slide-in-from-left-1">
+            <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Machine Setup</span>
+                <button 
+                  onClick={() => onOpenHelp('hardware_mapping')}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
+                  title="Hardware Wiki"
+                >
+                  <Icon name="help_outline" className="text-sm" />
+                </button>
+              </div>
               <AccordionSection title="Surface Configuration" isOpen={openSections.printBed} onToggle={() => toggleSection('printBed')}>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -643,10 +666,22 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
           {/* TAB 2: SCHEDULE */}
           {activeStep === 3 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <div className="w-full h-px bg-outline-variant/10" />
+            <div className="space-y-4 animate-in fade-in slide-in-from-left-2">
+            
+            <section className="bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Process Management
+                </span>
+                <button 
+                  onClick={() => onOpenHelp('layer_actions')}
+                  className="p-1 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
+                  title="Open Layer Wiki"
+                >
+                  <Icon name="help_outline" className="text-sm" />
+                </button>
+              </div>
 
-              {/* Header info */}
               <div className="flex items-center justify-between px-1">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   {layerActions.length} SEGMENT{layerActions.length !== 1 ? 'S' : ''} DEFINED
@@ -746,6 +781,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   </div>
                 </div>
               </div>
+            </section>
             </div>
           )}
 
@@ -798,7 +834,18 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             </div>
                           </div>
                           
-                          {/* Single / Multi-tool toggle */}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleModelExpand(m.id); }}
+                              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+                            >
+                              <Icon 
+                                name={expandedModels.has(m.id) ? "expand_less" : "expand_more"} 
+                                className="text-slate-400 group-hover:text-primary transition-colors" 
+                              />
+                            </button>
+                            
+                            {/* Single / Multi-tool toggle */}
                           <div className="flex gap-1 flex-shrink-0">
                             <button
                               onClick={(e) => {
@@ -835,9 +882,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             </button>
                           </div>
                         </div>
+                      </div>
 
                         {/* Tool assignment */}
-                        <div className="p-4">
+                        {expandedModels.has(m.id) && (
+                        <div className="p-4 animate-in fade-in slide-in-from-top-1 duration-200">
                           {!isScaffold ? (
                             <div className="space-y-2">
                               <label className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Toolhead</label>
@@ -934,8 +983,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                </div>
                              </div>
                            </div>
-                         </div>
-                       </div>
+                        </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -1006,7 +1056,21 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
-              <AccordionSection title="Support & Adhesion" isOpen={openSections.fffAdhesion} onToggle={() => toggleSection('fffAdhesion')}>
+              <AccordionSection 
+                title={
+                  <div className="flex items-center justify-between w-full pr-2">
+                    <span>Adhesion & Shell</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onOpenHelp('adhesion'); }}
+                      className="p-1 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
+                    >
+                      <Icon name="help_outline" className="text-xs" />
+                    </button>
+                  </div>
+                } 
+                isOpen={openSections.fffAdhesion} 
+                onToggle={() => toggleSection('fffAdhesion')}
+              >
                 <div className="space-y-3">
                    <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500">Enable Supports:</span>
