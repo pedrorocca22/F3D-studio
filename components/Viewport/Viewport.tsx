@@ -353,111 +353,6 @@ const CameraManager = ({ viewTrigger, focusTarget }: { viewTrigger: { mode: stri
   return null;
 };
 
-// --- 2D Slice Slider Component ---
-interface SliceSliderProps {
-  segments: SliceSegment[];
-  maxHeight: number;
-  onUpdateSegment: (index: number, newTop: number) => void;
-  adhesionOffset: number;
-}
-
-const SliceSlider: React.FC<SliceSliderProps> = ({ segments, maxHeight, onUpdateSegment, adhesionOffset }) => {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-
-  const handleMouseDown = (e: React.MouseEvent, index: number) => {
-    e.preventDefault();
-    setDraggingIndex(index);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (draggingIndex === null || !trackRef.current) return;
-
-      const rect = trackRef.current.getBoundingClientRect();
-      const offsetY = rect.bottom - e.clientY;
-      const percentage = Math.max(0, Math.min(1, offsetY / rect.height));
-      const value = percentage * maxHeight;
-      const rounded = Math.round(value * 100) / 100;
-
-      // Constrain value between prev segment top and next segment top
-      const prevLimit = draggingIndex > 0 ? segments[draggingIndex - 1].topLimit : adhesionOffset;
-      const nextLimit = draggingIndex < segments.length - 1 ? segments[draggingIndex + 1].topLimit : maxHeight;
-
-      // Allow 0.05mm minimum gap (50um)
-      const constrainedValue = Math.max(prevLimit + 0.05, Math.min(nextLimit - 0.05, rounded));
-
-      onUpdateSegment(draggingIndex, constrainedValue);
-    };
-
-    const handleMouseUp = () => {
-      setDraggingIndex(null);
-    };
-
-    if (draggingIndex !== null) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [draggingIndex, segments, maxHeight, onUpdateSegment, adhesionOffset]);
-
-  return (
-    <div className="absolute left-10 top-1/2 -translate-y-1/2 h-3/4 flex items-center gap-4 z-30 select-none">
-      <div className="flex flex-col h-full justify-start py-0 text-[10px] text-slate-400 font-mono text-left order-last min-w-[30px] -mt-1.5 font-bold">
-        <span>{maxHeight.toFixed(1)}MM</span>
-      </div>
-      <div ref={trackRef} className="relative h-full w-1 bg-surface-container">
-        {/* Render Segment Bars */}
-        {segments.map((segment, i) => {
-          const topLimit = segment.topLimit;
-          const bottomLimit = i > 0 ? segments[i - 1].topLimit : 0;
-
-          const topPct = (topLimit / maxHeight) * 100;
-          const bottomPct = (bottomLimit / maxHeight) * 100;
-          const heightPct = topPct - bottomPct;
-
-          if (heightPct <= 0) return null;
-
-          const color = getSegmentColor(i);
-
-          return (
-            <div
-              key={segment.id}
-              className="absolute w-full border-b border-white/10"
-              style={{
-                bottom: `${bottomPct}%`,
-                height: `${heightPct}%`,
-                backgroundColor: color,
-                opacity: 0.9
-              }}
-            />
-          );
-        })}
-
-        {/* Render Handles for Top Limits */}
-        {segments.map((segment, i) => {
-          const topPct = (segment.topLimit / maxHeight) * 100;
-          const color = getSegmentColor(i);
-
-          return (
-            <div
-              key={`handle-${segment.id}`}
-              className="absolute left-1/2 -translate-x-1/2 w-4 h-4 shadow-sm cursor-ns-resize hover:scale-105 transition-transform flex items-center justify-center z-10 border border-white"
-              style={{ bottom: `${topPct}%`, marginBottom: '-8px', backgroundColor: color }}
-              onMouseDown={(e) => handleMouseDown(e, i)}
-            >
-              <div className="w-1 h-1 bg-white opacity-40"></div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 
 interface ModelProps {
@@ -823,7 +718,7 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
               onPointerOver={() => isVisible && setHover(true)}
               onPointerOut={() => setHover(false)}
               castShadow
-              receiveShadow
+              receiveShadow={false}
             >
               <meshPhysicalMaterial
                 ref={materialRef}
@@ -1127,16 +1022,6 @@ export const Viewport: React.FC<ViewportProps> = ({
           </Canvas>
 
 
-          {isAdvancedSliceMode && !isGCodeMode && selectedModel && (
-            <SliceSlider
-              segments={selectedModel.advancedSettings.segments}
-              maxHeight={sliderMaxHeight}
-              onUpdateSegment={handleUpdateSegmentSlider}
-              adhesionOffset={(globalSettings.adhesion?.enabled)
-                ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
-                : 0}
-            />
-          )}
 
 
 
