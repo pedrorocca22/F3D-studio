@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from './components/Header';
-import { CalibrationTool } from './components/CalibrationTool';
+
 import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import JSZip from 'jszip';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
@@ -26,7 +26,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
-  const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
+
   const [isWifiOpen, setIsWifiOpen] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(1);
 
@@ -667,14 +667,11 @@ export default function App() {
         toggleDarkMode={() => setDarkMode(!darkMode)}
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
-        onOpenCalibration={() => setIsCalibrationOpen(true)}
         onOpenWifi={() => setIsWifiOpen(true)}
         activeStep={activeStep}
         setActiveStep={setActiveStep}
       />
-      {isCalibrationOpen && (
-        <CalibrationTool onClose={() => setIsCalibrationOpen(false)} />
-      )}
+
 
 
 

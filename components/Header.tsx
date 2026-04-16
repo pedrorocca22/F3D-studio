@@ -6,7 +6,7 @@ interface HeaderProps {
   toggleDarkMode: () => void;
   onSaveProject: () => void;
   onLoadProject: () => void;
-  onOpenCalibration?: () => void;
+
   onOpenWifi?: () => void;
   onOpenPrinterStatus?: () => void;
   activeStep: number;
@@ -15,7 +15,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
-  onOpenCalibration, onOpenWifi, onOpenPrinterStatus,
+  onOpenWifi, onOpenPrinterStatus,
   activeStep, setActiveStep
 }) => {
   const [printerState, setPrinterState] = useState<'unknown' | 'ready' | 'printing' | 'error'>('unknown');
@@ -109,10 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Icon name="save" className="text-[10px]" />
               <span className="hidden sm:inline">Save</span>
             </button>
-            <button onClick={onOpenCalibration} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
-              <Icon name="science" className="text-[10px]" />
-              <span className="hidden md:inline">Calibrate</span>
-            </button>
+
           </div>
 
           <div className="h-3 w-px bg-slate-200/60 dark:bg-slate-700/60 mx-0.5" />

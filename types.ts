@@ -110,8 +110,6 @@ export interface GlobalSettings {
   printBed?: PrintBedSettings;
 }
 
-
-
 // ---------------------------------------------------------------------------
 //  Print Bed Settings
 // ---------------------------------------------------------------------------
@@ -241,66 +239,45 @@ export interface JobManifest {
 //  BioFFF New Types — FDM Multi-Toolhead Bio-Printer
 // =============================================================================
 
-/**
- * Identifies a physical toolhead mounted on the printer.
- *  - 'fdm'     : FDM hot-end (filament extrusion)
- *  - 'syringe' : Cold syringe extruder (mechanical plunger — hydrogels, bioinks)
- *  - 'uv'      : UV crosslinking head (LED 365 nm or 405 nm)
- *  - 'none'    : No active toolhead (parking / idle)
- */
 export type ToolheadId = 'fdm' | 'syringe' | 'uv' | 'none';
 
-/**
- * Per-feature toolhead assignment for scaffold printing.
- * Allows assigning different toolheads to different structural features
- * of the same model (e.g., perimeters with FDM, infill with syringe).
- */
 export interface ScaffoldToolMapping {
-  perimeter: ToolheadId;       // Walls / shells
-  infill: ToolheadId;          // Internal fill pattern
-  solidInfill: ToolheadId;     // Top / bottom solid layers
-  support: ToolheadId;         // Support material
+  perimeter: ToolheadId;
+  infill: ToolheadId;
+  solidInfill: ToolheadId;
+  support: ToolheadId;
 }
 
-/** Infill pattern types valid for FDM / syringe printing */
 export type InfillPattern =
   | 'rectilinear' | 'grid' | 'triangles' | 'stars' | 'cubic' | 'line'
   | 'concentric' | 'honeycomb' | '3dhoneycomb' | 'gyroid' | 'hilbertcurve'
   | 'archimedeanchords' | 'octagramspiral' | 'adaptivecubic' | 'supportcubic'
   | 'lightning' | 'none';
 
-/** PrusaSlicer speed profile presets */
 export type PrintQuality = 'draft' | 'standard' | 'quality' | 'ultra';
 
 // ---------------------------------------------------------------------------
 //  Toolhead Configurations
 // ---------------------------------------------------------------------------
 
-/** Base config shared by every toolhead */
 export interface BaseToolheadConfig {
   id: ToolheadId;
   label: string;
-  /** Klipper tool macro name, e.g. "T0", "T1", "T2" */
   klipper_tool: string;
-  /** Whether this toolhead is physically installed */
   installed: boolean;
-  /** Slot index (0, 1, 2) - undefined means not assigned */
   slot?: number;
-  /** Klipper macro to call on activation (in addition to Tn) */
   activation_macro?: string;
-  /** Klipper macro to call on deactivation */
   deactivation_macro?: string;
 }
 
 export interface FDMToolheadConfig extends BaseToolheadConfig {
   id: 'fdm';
-  nozzleDiameter: number;        // mm, e.g. 0.4
-  filamentDiameter: number;      // mm, e.g. 1.75
-  maxTemperature: number;        // °C, hardware limit
-  defaultTemperature: number;    // °C, working temp
-  retractionLength: number;      // mm
-  retractionSpeed: number;       // mm/s
-  // UI settings
+  nozzleDiameter: number;
+  filamentDiameter: number;
+  maxTemperature: number;
+  defaultTemperature: number;
+  retractionLength: number;
+  retractionSpeed: number;
   flowratePercent?: number;
   retractDistance?: number;
   zLiftDistance?: number;
@@ -308,36 +285,23 @@ export interface FDMToolheadConfig extends BaseToolheadConfig {
 
 export interface SyringeToolheadConfig extends BaseToolheadConfig {
   id: 'syringe';
-  /** Syringe volume in mL */
   syringeVolumeMl: number;
-  /** Needle/nozzle inner diameter in mm */
   nozzleDiameterMm: number;
-  /** Volumetric flow rate relationship: µl deposited per mm of travel */
   flowRateUlPerMm: number;
-  /** Steps to pre-pressurize before printing starts */
   pressurizationSteps: number;
-  /** Steps to retract after the print segment ends (anti-drip) */
   retractionSteps: number;
-  /** Whether the syringe uses air pressure (pneumatic) or mechanical plunger */
   actuatorType: 'mechanical' | 'pneumatic';
-  /** Air pressure in kPa (if pneumatic) */
   pressureKPa?: number;
-  // UI settings
   flowrateMmPerSec?: number;
   retractDistance?: number;
 }
 
 export interface UVToolheadConfig extends BaseToolheadConfig {
   id: 'uv';
-  /** LED wavelength in nm */
   wavelengthNm: 365 | 405 | 385;
-  /** Maximum power in mW/cm² */
   maxPowerMw: number;
-  /** Default crosslinking dose target in mJ/cm² */
   defaultDose: number;
-  /** Default exposure time per layer in seconds */
   defaultExposureTime: number;
-  /** Whether the head also moves (scanning UV) or is fixed */
   mode: 'fixed' | 'scanning';
 }
 
@@ -347,31 +311,27 @@ export type ToolheadConfig = FDMToolheadConfig | SyringeToolheadConfig | UVToolh
 //  Print Settings
 // ---------------------------------------------------------------------------
 
-/** FDM-specific printing parameters */
 export interface FDMPrintSettings {
-  layerHeightMm: number;         // mm, e.g. 0.2
-  firstLayerHeightMm: number;    // mm, usually 0.3
-  printSpeedMmS: number;         // mm/s general extrusion speed
-  travelSpeedMmS: number;        // mm/s travel (no extrusion)
-  firstLayerSpeedMmS: number;    // mm/s
-  infillPercent: number;         // 0–100
+  layerHeightMm: number;
+  firstLayerHeightMm: number;
+  printSpeedMmS: number;
+  travelSpeedMmS: number;
+  firstLayerSpeedMmS: number;
+  infillPercent: number;
   infillPattern: InfillPattern;
-  wallCount: number;             // perimeter count
+  wallCount: number;
   topSolidLayers: number;
   bottomSolidLayers: number;
-  nozzleTemperature: number;     // °C
-  bedTemperature: number;        // °C
-  fanSpeedPercent: number;       // 0–100
+  nozzleTemperature: number;
+  bedTemperature: number;
+  fanSpeedPercent: number;
   quality: PrintQuality;
-  // Supports / brim
   supportsEnabled: boolean;
   brimWidthMm: number;
-  // Advanced
   zHopEnabled: boolean;
   zHopHeightMm: number;
 }
 
-/** Syringe-specific segment parameters */
 export interface SyringePrintSettings {
   flowRateUlPerMm: number;
   pressureKPa?: number;
@@ -385,45 +345,23 @@ export interface SyringePrintSettings {
   pressurizationSteps: number;
 }
 
-/** UV crosslink parameters per segment */
 export interface UVCrosslinkSettings {
   doseTargetMjCm2: number;
   exposureTimeSec: number;
-  /** If scanning, speed of the head in mm/s */
   scanSpeedMmS?: number;
-  /** Pause motion during exposure */
   pausePrint: boolean;
 }
 
 // ---------------------------------------------------------------------------
-//  Layer Action System (multi-toolhead sequencing)
+//  Resolved Execution Plan
 // ---------------------------------------------------------------------------
 
-/**
- * Defines what toolhead is active and with what parameters
- * for a specific range of layers.
- * 
- * kind:
- *   - 'feature_override': overrides toolhead assignment for specific features (perimeter, infill, etc.)
- *   - 'parameter_override': overrides print parameters (speed, temp, flow, etc.) for existing scaffold mapping
- *   - 'process_event': triggers a process event (UV exposure, pause, macro, etc.)
- */
-/** 
- * Effective configuration for a range of layers and a specific model.
- * All 'all' scopes and conditional overrides are resolved here.
- */
 export interface ResolvedLayerSettings {
-  /** Effective tool mapping per feature for this range */
   mapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId>;
-  /** Resolved parameters for FDM toolheads */
   fdm?: Partial<FDMPrintSettings>;
-  /** Resolved parameters for Syringe toolheads */
   syringe?: Partial<SyringePrintSettings>;
-  /** Resolved parameters for UV events */
   uv?: UVCrosslinkSettings;
-  /** Custom G-code to run before this range */
   preMacro?: string;
-  /** Custom G-code to run after this range */
   postMacro?: string;
 }
 
@@ -441,31 +379,18 @@ export interface ResolvedModelPlan {
 
 export interface LayerAction {
   id: string;
-  /** Layer index from (inclusive) */
   layerFrom: number;
-  /** Layer index to (inclusive) */
   layerTo: number;
-  /** Which model this applies to ('all' for all models, or specific modelId) */
   modelId?: string | 'all';
-  /** Intent of this action */
   kind: 'feature_override' | 'parameter_override' | 'process_event';
-  /** Which features this action affects (for feature_override and parameter_override) */
   targetFeatures?: ('perimeter' | 'infill' | 'solidInfill' | 'support' | 'all')[];
-  /** Toolhead to use for this segment (overrides scaffold mapping) */
   toolOverride?: ToolheadId;
-  /** FDM-specific overrides for this segment */
   fdmSettings?: Partial<FDMPrintSettings>;
-  /** Syringe-specific overrides for this segment */
   syringeSettings?: Partial<SyringePrintSettings>;
-  /** UV crosslinker settings applied after the segment is deposited */
   uvSettings?: UVCrosslinkSettings;
-  /** Klipper macro to run before this segment starts */
   preMacro?: string;
-  /** Klipper macro to run after this segment completes */
   postMacro?: string;
-  /** Color label shown in the layer timeline */
   color?: string;
-  /** Human-readable description */
   label?: string;
 }
 
@@ -474,25 +399,14 @@ export interface LayerAction {
 // ---------------------------------------------------------------------------
 
 export interface FDMGlobalSettings {
-  /** Machine build volume in mm */
   buildVolume: { x: number; y: number; z: number };
-  /** Moonraker API base URL */
   moonrakerUrl: string;
-  /** Installed toolhead configurations */
   toolheads: ToolheadConfig[];
-  /** Default FDM print settings */
   defaultFDM: FDMPrintSettings;
-  /** Layer action sequence (toolhead schedule) */
   layerActions: LayerAction[];
-  /** Whether to pause between toolhead changes for manual confirmation */
   manualToolchangeConfirm: boolean;
-  /** Bed mesh compensation enabled */
   bedMeshEnabled: boolean;
 }
-
-// ---------------------------------------------------------------------------
-//  Job & Experiment Types (FDM)
-// ---------------------------------------------------------------------------
 
 export interface FDMJobManifest {
   job_id: string;
@@ -504,7 +418,6 @@ export interface FDMJobManifest {
   layer_height_mm: number;
   toolhead_actions: LayerAction[];
   created_at: string;
-  /** Status from Moonraker */
   status?: 'idle' | 'printing' | 'paused' | 'complete' | 'error' | 'cancelled';
 }
 
@@ -519,33 +432,4 @@ export interface MoonrakerStatus {
   filament_used?: number;
   extruder_temp?: number;
   bed_temp?: number;
-}
-
-// ---------------------------------------------------------------------------
-//  Calibration Types (FDM)
-// ---------------------------------------------------------------------------
-
-export interface FlowCalibrationPoint {
-  steps: number;
-  measured_volume_ul: number;
-  error_percent: number;
-}
-
-export interface FlowCalibrationProfile {
-  toolhead_id: ToolheadId;
-  syringe_volume_ml: number;
-  points: FlowCalibrationPoint[];
-  calibrated_at: string;
-  notes: string;
-}
-
-export interface UVCalibrationPoint {
-  exposure_time_sec: number;
-  measured_dose_mj_cm2: number;
-}
-
-export interface UVCalibrationProfile {
-  wavelength_nm: number;
-  points: UVCalibrationPoint[];
-  calibrated_at: string;
 }
