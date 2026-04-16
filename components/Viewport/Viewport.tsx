@@ -331,20 +331,6 @@ const CameraManager = ({ viewTrigger, focusTarget }: { viewTrigger: { mode: stri
     isAnimating.current = true;
   }, [viewTrigger, controls]);
 
-  useEffect(() => {
-    if (focusTarget && controls) {
-      const orb = controls as any;
-      const currentPos = camera.position.clone();
-      const currentTarget = orb.target.clone();
-
-      const dir = new THREE.Vector3().subVectors(currentPos, currentTarget).normalize();
-      const newPos = new THREE.Vector3().copy(focusTarget).add(dir.multiplyScalar(150));
-
-      desiredPos.current.copy(newPos);
-      desiredTarget.current.copy(focusTarget);
-      isAnimating.current = true;
-    }
-  }, [focusTarget, camera, controls]);
 
   useFrame((state, delta) => {
     if (!isAnimating.current || !controls) return;
@@ -492,6 +478,7 @@ interface ModelProps {
   isClipping: boolean;
   clippingHeight: number;
   toolheadColor?: string;
+  isDimmed?: boolean;
 }
 
 const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignment?: { format: 6 | 12 | 24 | 48; wellId: string } }> = (props) => {
@@ -512,7 +499,8 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
     adhesionOffset,
     isClipping,
     clippingHeight,
-    toolheadColor
+    toolheadColor,
+    isDimmed
   } = props;
   const globalSettings = props.globalSettings;
   const wellAssignment = props.wellAssignment;
@@ -840,14 +828,14 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
               <meshPhysicalMaterial
                 ref={materialRef}
                 onBeforeCompile={onBeforeCompile}
-                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : toolheadColor)}
-                roughness={0.4}
-                reflectivity={0.5}
-                clearcoat={1.0}
+                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : (isDimmed ? "#94a3b8" : toolheadColor))}
+                roughness={isDimmed ? 1.0 : 0.4}
+                reflectivity={isDimmed ? 0.0 : 0.5}
+                clearcoat={isDimmed ? 0.0 : 1.0}
                 clearcoatRoughness={0.7}
-                specularIntensity={1.0}
+                specularIntensity={isDimmed ? 0.0 : 1.0}
                 metalness={0.1}
-                envMapIntensity={1.0}
+                envMapIntensity={isDimmed ? 0.2 : 1.0}
                 wireframe={false}
                 transparent={viewMode === 'transparent'}
                 opacity={viewMode === 'transparent' ? 0.4 : 1.0}
@@ -1014,20 +1002,8 @@ export const Viewport: React.FC<ViewportProps> = ({
   }, [clippingHeight]);
 
   useEffect(() => {
-    if (isAdvancedSliceMode && selectedModelId) {
-      const model = models.find(m => m.id === selectedModelId);
-      if (model) {
-        const target = new THREE.Vector3(
-          model.transform.position.x,
-          model.transform.position.y + ((model.size?.y || 0) / 2),
-          model.transform.position.z
-        );
-        setFocusTarget(target);
-      }
-    } else {
-      setFocusTarget(null);
-    }
-  }, [isAdvancedSliceMode, selectedModelId, models]);
+    setFocusTarget(null);
+  }, [isAdvancedSliceMode, selectedModelId]);
 
   const onMissed = () => {
     onSelectModel(null);
@@ -1103,6 +1079,9 @@ export const Viewport: React.FC<ViewportProps> = ({
                    ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
                    : 0;
  
+                 const isSelected = model.id === selectedModelId;
+                 const isDimmed = isAdvancedSliceMode && !isSelected;
+
                  return (
                    <Model
                      key={model.id}
@@ -1111,9 +1090,10 @@ export const Viewport: React.FC<ViewportProps> = ({
                      url={model.url}
                      objectTool={objectTool}
                      viewMode={viewMode}
-                     isSelected={model.id === selectedModelId}
-                     isVisible={!isAdvancedSliceMode || model.id === selectedModelId}
-                     isAdvancedMode={isAdvancedSliceMode && model.id === selectedModelId}
+                     isSelected={isSelected}
+                     isVisible={true}
+                     isDimmed={isDimmed}
+                     isAdvancedMode={isAdvancedSliceMode && isSelected}
                      advancedSettings={model.advancedSettings}
                      setIsSelected={(val) => val ? onSelectModel(model.id) : null}
                      transformData={model.transform}
