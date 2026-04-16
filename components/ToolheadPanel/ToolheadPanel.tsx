@@ -74,45 +74,74 @@ export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: Toolhea
 export const LayerActionRow: React.FC<{
     action: LayerAction;
     totalLayers: number;
+    models: ModelData[];
     onUpdate: (a: LayerAction) => void;
     onDelete: () => void;
-}> = ({ action, totalLayers, onUpdate, onDelete }) => {
+}> = ({ action, totalLayers, models, onUpdate, onDelete }) => {
     const pctFrom = totalLayers > 0 ? (action.layerFrom / totalLayers) * 100 : 0;
     const pctTo = totalLayers > 0 ? (action.layerTo / totalLayers) * 100 : 0;
 
+    const FEATURE_OPTIONS: { value: LayerAction['targetFeatures'][0]; label: string }[] = [
+        { value: 'all', label: 'All' },
+        { value: 'perimeter', label: 'Perimeters' },
+        { value: 'infill', label: 'Infill' },
+        { value: 'solidInfill', label: 'Solid Fill' },
+        { value: 'support', label: 'Supports' },
+    ];
+
     return (
-        <div className="bg-surface-container-low border border-outline-variant/20 p-4 space-y-4">
-            {/* Row header */}
-            <div className="flex items-center justify-between">
-                <ToolheadBadge toolhead={action.toolhead} />
-                <button onClick={onDelete} className="text-slate-400 hover:text-red-500 transition-colors">
-                    <Icon name="close" className="text-sm" />
+        <div className="bg-white border border-outline-variant/20 rounded-xl overflow-hidden">
+            {/* Top bar: kind selector + model scope + delete */}
+            <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-outline-variant/10">
+                <select
+                    value={action.kind}
+                    onChange={e => onUpdate({ ...action, kind: e.target.value as LayerAction['kind'] })}
+                    className="flex-1 bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-black uppercase tracking-wider outline-none focus:ring-1 focus:ring-primary"
+                >
+                    <option value="feature_override">FEATURE OVERRIDE</option>
+                    <option value="parameter_override">PARAMETER OVERRIDE</option>
+                    <option value="process_event">PROCESS EVENT</option>
+                </select>
+
+                <select
+                    value={action.modelId || 'all'}
+                    onChange={e => onUpdate({ ...action, modelId: e.target.value })}
+                    className="w-24 bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary"
+                >
+                    <option value="all">ALL MODELS</option>
+                    {models.map(m => (
+                        <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>
+                    ))}
+                </select>
+
+                <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Segment">
+                    <Icon name="delete" className="text-sm" />
                 </button>
             </div>
 
             {/* Layer range bar */}
-            <div>
+            <div className="px-4 pt-3">
                 <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-tight">
-                    <span>L{action.layerFrom}</span>
-                    <span title={action.label} className="truncate max-w-[120px] italic font-medium">{action.label || 'Unnamed Segment'}</span>
-                    <span>L{action.layerTo}</span>
+                    <span className="font-mono">L{action.layerFrom}</span>
+                    <span className="truncate max-w-[120px] italic font-medium text-slate-600">{action.label || 'unnamed'}</span>
+                    <span className="font-mono">L{action.layerTo}</span>
                 </div>
-                <div className="relative h-1 bg-surface-container">
+                <div className="relative h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                        className="absolute h-full"
+                        className="absolute h-full rounded-full"
                         style={{ 
                             left: `${pctFrom}%`, 
                             right: `${100 - pctTo}%`,
-                            backgroundColor: TOOLHEAD_COLORS[action.toolhead] 
+                            backgroundColor: TOOLHEAD_COLORS[action.toolOverride || 'fdm'] 
                         }}
                     />
                 </div>
             </div>
 
             {/* Layer range inputs */}
-            <div className="grid grid-cols-2 gap-px bg-outline-variant/10">
+            <div className="grid grid-cols-2 gap-px bg-slate-100 mx-4 mt-3 rounded overflow-hidden">
                 <div className="bg-white p-2">
-                    <label className="text-[9px] text-slate-400 uppercase font-black tracking-tight block">Bounds Start</label>
+                    <label className="text-[8px] text-slate-400 uppercase font-black tracking-tight block">From</label>
                     <input
                         type="number"
                         min={1}
@@ -123,7 +152,7 @@ export const LayerActionRow: React.FC<{
                     />
                 </div>
                 <div className="bg-white p-2">
-                    <label className="text-[9px] text-slate-400 uppercase font-black tracking-tight block">Bounds End</label>
+                    <label className="text-[8px] text-slate-400 uppercase font-black tracking-tight block">To</label>
                     <input
                         type="number"
                         min={action.layerFrom}
@@ -134,38 +163,263 @@ export const LayerActionRow: React.FC<{
                 </div>
             </div>
 
-            {/* UV-specific settings */}
-            {action.toolhead === 'uv' && (
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-outline-variant/20">
-                    <div className="space-y-1">
-                        <label className="label-clinical">Exposure</label>
-                        <input
-                            type="number" min={0.1} step={0.5}
-                            value={action.uvSettings?.exposureTimeSec ?? 5}
-                            onChange={e => onUpdate({ ...action, uvSettings: { ...action.uvSettings, exposureTimeSec: +e.target.value, pausePrint: action.uvSettings?.pausePrint ?? true, doseTargetMjCm2: action.uvSettings?.doseTargetMjCm2 ?? 0 } })}
-                            className="w-full bg-[#eaeff1] px-2 py-1 text-xs font-bold outline-none"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="label-clinical">Dose Target</label>
-                        <input
-                            type="number" min={0} step={1}
-                            value={action.uvSettings?.doseTargetMjCm2 ?? 0}
-                            onChange={e => onUpdate({ ...action, uvSettings: { ...action.uvSettings!, doseTargetMjCm2: +e.target.value, exposureTimeSec: action.uvSettings?.exposureTimeSec ?? 5, pausePrint: action.uvSettings?.pausePrint ?? true } })}
-                            className="w-full bg-[#eaeff1] px-2 py-1 text-xs font-bold outline-none"
-                        />
+            {/* Common Feature Scope for overrides */}
+            {(action.kind === 'feature_override' || action.kind === 'parameter_override') && (
+                <div className="px-4 pt-1 space-y-1.5">
+                    <label className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Affected Features</label>
+                    <div className="flex flex-wrap gap-1">
+                        {FEATURE_OPTIONS.map(opt => (
+                            <button
+                                key={opt.label}
+                                onClick={() => {
+                                    const current = action.targetFeatures || [];
+                                    const next = current.includes(opt.value)
+                                        ? current.filter(f => f !== opt.value)
+                                        : [...current, opt.value];
+                                    // If All is selected, or if nothing is selected, default to All
+                                    if (opt.value === 'all') {
+                                        onUpdate({ ...action, targetFeatures: ['all'] });
+                                    } else {
+                                        const filtered = next.filter(f => f !== 'all');
+                                        onUpdate({ ...action, targetFeatures: filtered.length > 0 ? filtered : ['all'] });
+                                    }
+                                }}
+                                className={`text-[8px] font-black px-2 py-1 rounded border uppercase tracking-wider transition-all ${
+                                    action.targetFeatures?.includes(opt.value)
+                                        ? 'bg-primary text-white border-primary'
+                                        : 'bg-white border-outline-variant/30 text-slate-500 hover:border-primary/50'
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}
 
-            {/* Label */}
-            <input
-                type="text"
-                placeholder="DESCRIPTION_NULL // ENTER_LABEL"
-                value={action.label ?? ''}
-                onChange={e => onUpdate({ ...action, label: e.target.value })}
-                className="w-full bg-white border border-outline-variant/10 p-2 text-[10px] font-bold outline-none uppercase tracking-tight placeholder:opacity-30"
-            />
+            {/* Kind-specific fields */}
+            <div className="p-4 space-y-3 pt-0">
+                {action.kind === 'feature_override' && (
+                    <div className="space-y-1.5">
+                        <label className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Switch to Tool</label>
+                        <div className="flex gap-1">
+                            {(['fdm', 'syringe', 'uv'] as const).map(th => (
+                                <button
+                                    key={th}
+                                    onClick={() => onUpdate({ ...action, toolOverride: th })}
+                                    className={`flex-1 text-[8px] font-black py-1.5 rounded border uppercase tracking-wider transition-all ${
+                                        action.toolOverride === th
+                                            ? 'bg-primary text-white border-primary'
+                                            : 'bg-white border-outline-variant/30 text-slate-500 hover:border-primary/50'
+                                    }`}
+                                >
+                                    {th === 'fdm' ? 'FDM' : th === 'syringe' ? 'HYDRO' : 'UV'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {action.kind === 'parameter_override' && (
+                    <div className="space-y-4">
+                        {/* FDM Overrides */}
+                        <div className="space-y-2">
+                            <label className="text-[8px] text-slate-600 dark:text-slate-400 uppercase font-bold tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> FDM PARAMETERS
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Speed (%)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="100"
+                                        value={action.fdmSettings?.printSpeedMmS ? Math.round((action.fdmSettings.printSpeedMmS / 60) * 100) : ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, printSpeedMmS: (+e.target.value / 100) * 60 }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Flow (%)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="100"
+                                        value={action.fdmSettings?.extrusionMultiplier ? Math.round(action.fdmSettings.extrusionMultiplier * 100) : ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, extrusionMultiplier: +e.target.value / 100 }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Temp (°C)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="210"
+                                        value={action.fdmSettings?.nozzleTemperature || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, nozzleTemperature: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Fan (%)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="100"
+                                        value={action.fdmSettings?.fanSpeedPercent || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            fdmSettings: { ...action.fdmSettings, fanSpeedPercent: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Syringe Overrides */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <label className="text-[8px] text-slate-600 dark:text-slate-400 uppercase font-bold tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" /> SYRINGE PARAMETERS
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Speed (mm/s)</label>
+                                    <input
+                                        type="number"
+                                        step={0.1}
+                                        value={action.syringeSettings?.printSpeedMmS || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            syringeSettings: { ...action.syringeSettings, printSpeedMmS: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Flow (µl/mm)</label>
+                                    <input
+                                        type="number"
+                                        step={0.01}
+                                        value={action.syringeSettings?.flowRateUlPerMm || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            syringeSettings: { ...action.syringeSettings, flowRateUlPerMm: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Pressure (kPa)</label>
+                                    <input
+                                        type="number"
+                                        value={action.syringeSettings?.pressureKPa || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            syringeSettings: { ...action.syringeSettings, pressureKPa: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] text-slate-400 uppercase font-black">Retract (Steps)</label>
+                                    <input
+                                        type="number"
+                                        value={action.syringeSettings?.retractionSteps || ''}
+                                        onChange={e => onUpdate({ 
+                                            ...action, 
+                                            syringeSettings: { ...action.syringeSettings, retractionSteps: +e.target.value }
+                                        })}
+                                        className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {action.kind === 'process_event' && (
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black">UV Exposure (s)</label>
+                                <input
+                                    type="number" min={0.1} step={0.5}
+                                    value={action.uvSettings?.exposureTimeSec ?? 5}
+                                    onChange={e => onUpdate({ 
+                                        ...action, 
+                                        uvSettings: { 
+                                            ...action.uvSettings, 
+                                            exposureTimeSec: +e.target.value, 
+                                            pausePrint: action.uvSettings?.pausePrint ?? true, 
+                                            doseTargetMjCm2: action.uvSettings?.doseTargetMjCm2 ?? 0 
+                                        }
+                                    })}
+                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black">Dose (mJ)</label>
+                                <input
+                                    type="number" min={0} step={1}
+                                    value={action.uvSettings?.doseTargetMjCm2 ?? 0}
+                                    onChange={e => onUpdate({ 
+                                        ...action, 
+                                        uvSettings: { 
+                                            ...action.uvSettings!, 
+                                            doseTargetMjCm2: +e.target.value, 
+                                            exposureTimeSec: action.uvSettings?.exposureTimeSec ?? 5, 
+                                            pausePrint: action.uvSettings?.pausePrint ?? true 
+                                        }
+                                    })}
+                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black">Pre-Macro</label>
+                                <input
+                                    type="text"
+                                    placeholder="M104 S0"
+                                    value={action.preMacro || ''}
+                                    onChange={e => onUpdate({ ...action, preMacro: e.target.value })}
+                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none uppercase"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black">Post-Macro</label>
+                                <input
+                                    type="text"
+                                    placeholder="M106 S255"
+                                    value={action.postMacro || ''}
+                                    onChange={e => onUpdate({ ...action, postMacro: e.target.value })}
+                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none uppercase"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Label */}
+                <input
+                    type="text"
+                    placeholder="DESCRIPTION_LABEL // ENTER"
+                    value={action.label ?? ''}
+                    onChange={e => onUpdate({ ...action, label: e.target.value })}
+                    className="w-full bg-slate-50 border border-outline-variant/10 p-2 text-[9px] font-bold outline-none uppercase tracking-tight placeholder:opacity-30 rounded"
+                />
+            </div>
         </div>
     );
 };
@@ -192,7 +446,9 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                 id,
                 layerFrom: from,
                 layerTo: to,
-                toolhead: newToolhead,
+                kind: 'feature_override',
+                targetFeatures: ['all'],
+                toolOverride: newToolhead,
                 label: '',
                 color: '#0d9488',
             }
@@ -316,18 +572,33 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
             {/* ── SCHEDULE TAB ── */}
             {activeTab === 'schedule' && (
                 <div className="space-y-4">
+                    {/* Header info */}
+                    <div className="flex items-center justify-between px-1">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            {layerActions.length} SEGMENT{layerActions.length !== 1 ? 'S' : ''} DEFINED
+                        </span>
+                        {totalLayers > 0 && (
+                            <span className="text-[9px] font-mono text-slate-400">
+                                TOTAL: {totalLayers} LAYERS
+                            </span>
+                        )}
+                    </div>
+
                     {/* Actions list */}
                     {layerActions.length === 0 ? (
-                        <div className="text-center py-12 text-slate-300 border border-dashed border-outline-variant/10">
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">SCHEDULE_NULL</span>
+                        <div className="text-center py-12 text-slate-300 border border-dashed border-outline-variant/10 rounded-xl">
+                            <Icon name="layers" className="text-3xl mb-2 opacity-30" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] block">SCHEDULE_EMPTY</span>
+                            <span className="text-[8px] text-slate-400 uppercase mt-1 block">Add segment below</span>
                         </div>
                     ) : (
-                        <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
                             {layerActions.map((action, i) => (
                                 <LayerActionRow
                                     key={action.id}
                                     action={action}
                                     totalLayers={totalLayers}
+                                    models={models}
                                     onUpdate={updated => updateAction(i, updated)}
                                     onDelete={() => deleteAction(i)}
                                 />
@@ -335,24 +606,68 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                         </div>
                     )}
 
-                    {/* Add action */}
-                    <div className="flex gap-px bg-outline-variant/20 pt-2 border-t border-outline-variant/10">
-                        <select
-                            value={newToolhead}
-                            onChange={e => setNewToolhead(e.target.value as ToolheadId)}
-                            className="flex-1 bg-white border-none h-10 px-3 text-[10px] font-black uppercase tracking-widest outline-none"
-                        >
-                            <option value="fdm">FDM HEAD</option>
-                            <option value="syringe">HYDROGEL HEAD</option>
-                            <option value="uv">UV HEAD</option>
-                        </select>
-                        <button
-                            onClick={addLayerAction}
-                            className="bg-primary hover:bg-primary-dark text-white px-6 h-10 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2"
-                        >
-                            <Icon name="add" className="text-xs" />
-                            Entry
-                        </button>
+                    {/* Add new segment */}
+                    <div className="bg-white border-2 border-dashed border-outline-variant/30 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">NEW SEGMENT</span>
+                        </div>
+                        
+                        {/* Intent selector */}
+                        <div className="grid grid-cols-3 gap-2">
+                            {[
+                                { kind: 'feature_override', label: 'Feature Override', icon: 'swap_horiz' },
+                                { kind: 'parameter_override', label: 'Parameter', icon: 'tune' },
+                                { kind: 'process_event', label: 'Process Event', icon: 'bolt' },
+                            ].map(opt => (
+                                <button
+                                    key={opt.kind}
+                                    onClick={() => {
+                                        const last = layerActions[layerActions.length - 1];
+                                        const from = last ? last.layerTo + 1 : 1;
+                                        const to = from + 20;
+                                        onUpdateLayerActions([
+                                            ...layerActions,
+                                            {
+                                                id: generateUUID(),
+                                                layerFrom: from,
+                                                layerTo: to,
+                                                kind: opt.kind as LayerAction['kind'],
+                                                targetFeatures: opt.kind === 'feature_override' ? ['all'] : undefined,
+                                                toolOverride: opt.kind === 'feature_override' ? newToolhead : undefined,
+                                                label: '',
+                                                color: '#0d9488',
+                                            }
+                                        ]);
+                                    }}
+                                    className="flex flex-col items-center gap-1 p-3 rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                                >
+                                    <Icon name={opt.icon} className="text-lg text-slate-400 group-hover:text-primary" />
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight group-hover:text-primary">
+                                        {opt.label}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Quick tool selector */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider flex-shrink-0">Tool:</span>
+                            <div className="flex gap-1 flex-1">
+                                {(['fdm', 'syringe', 'uv'] as const).map(th => (
+                                    <button
+                                        key={th}
+                                        onClick={() => setNewToolhead(th)}
+                                        className={`flex-1 text-[8px] font-black py-1.5 rounded border uppercase tracking-wider transition-all ${
+                                            newToolhead === th
+                                                ? 'bg-primary text-white border-primary'
+                                                : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50'
+                                        }`}
+                                    >
+                                        {th === 'fdm' ? 'FDM' : th === 'syringe' ? 'HYDRO' : 'UV'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

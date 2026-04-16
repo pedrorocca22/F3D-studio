@@ -87,11 +87,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     fffShell: false,
     fffSpeeds: false,
     fffAdhesion: false,
-    fffMaterial: false,
     fffCooling: false,
     toolheads: false,
     heatingBed: false,
   });
+
+  const [toolheadSettingsOpen, setToolheadSettingsOpen] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,11 +105,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   // Sync advanced mode state with accordion state
   useEffect(() => {
     if (selectedModelId) {
-      setIsAdvancedSliceMode(openSections.advanceSlice);
+      setIsAdvancedSliceMode(!!selectedModelId);
     } else {
       setIsAdvancedSliceMode(false);
     }
-  }, [openSections.advanceSlice, selectedModelId, setIsAdvancedSliceMode]);
+  }, [selectedModelId, setIsAdvancedSliceMode]);
 
 
   const toggleSection = (key: string) => {
@@ -151,90 +152,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     });
   };
 
-  const updateAdvancedSettings = (newSettings: AdvancedSliceSettings) => {
-    if (!selectedModel) return;
-    onUpdateAdvancedSettings(newSettings);
-  };
-
-  const addSegment = () => {
-    const segments = [...advancedSettings.segments];
-    const adhesionOffset = (globalSettings.adhesion?.enabled)
-      ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
-      : 0;
-    const modelZHeight = selectedModel?.size?.y ?? 0;
-    const modelTop = modelZHeight > 0 ? modelZHeight : 10;
-
-    if (segments.length === 0) {
-      const newSegment: SliceSegment = {
-        id: generateUUID(),
-        topLimit: modelTop,
-        exposureTime: 2.5,
-        lightIntensity: 15
-      };
-      updateAdvancedSettings({ ...advancedSettings, segments: [newSegment] });
-    } else {
-      const lastSegment = segments[segments.length - 1];
-      const currentTop = lastSegment.topLimit;
-
-      if (modelTop - currentTop > 0.05) {
-        const newSegment: SliceSegment = {
-          id: generateUUID(),
-          topLimit: modelTop,
-          exposureTime: lastSegment.exposureTime,
-          lightIntensity: lastSegment.lightIntensity,
-          gradientMode: 'flat'
-        };
-        updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
-      } else {
-        const prevStart = segments.length > 1
-          ? segments[segments.length - 2].topLimit
-          : adhesionOffset;
-        const midpoint = prevStart + (currentTop - prevStart) / 2;
-        const splitPoint = Math.round(midpoint * 1000) / 1000;
-        segments[segments.length - 1] = {
-          ...lastSegment,
-          topLimit: splitPoint
-        };
-        const newSegment: SliceSegment = {
-          id: generateUUID(),
-          topLimit: currentTop,
-          exposureTime: lastSegment.exposureTime,
-          lightIntensity: lastSegment.lightIntensity,
-          gradientMode: 'flat'
-        };
-        updateAdvancedSettings({ ...advancedSettings, segments: [...segments, newSegment] });
-      }
-    }
-  };
-
-  const removeSegment = (index: number) => {
-    const newSegments = [...advancedSettings.segments];
-    newSegments.splice(index, 1);
-    updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
-  };
-
-  const updateSegment = (index: number, field: keyof SliceSegment, value: any) => {
-    console.log(`[LayersPanel] Updating Segment ${index} Field: ${field} Value:`, value);
-    const newSegments = [...advancedSettings.segments];
-    const segment = { ...newSegments[index], [field]: value };
-
-    if (field === 'topLimit') {
-      const prevTop = index > 0 ? newSegments[index - 1].topLimit : 0;
-      if (value <= prevTop) value = prevTop + 0.1;
-      const nextTop = index < newSegments.length - 1 ? newSegments[index + 1].topLimit : Infinity;
-      if (value >= nextTop) value = nextTop - 0.1;
-    }
-
-    if (field === 'gradientMode' && value === 'gradient') {
-      if (segment.endLightIntensity === undefined) segment.endLightIntensity = segment.lightIntensity;
-      if (segment.endExposureTime === undefined) segment.endExposureTime = segment.exposureTime;
-      if (segment.endTargetDose === undefined) segment.endTargetDose = segment.targetDose;
-    }
-
-    newSegments[index] = { ...segment, [field]: value };
-    console.log(`[LayersPanel] New Segments State:`, newSegments);
-    updateAdvancedSettings({ ...advancedSettings, segments: newSegments });
-  };
+// Cleaned up legacy
 
   const updateGlobalLayerHeight = (value: number) => {
     onUpdateGlobalSettings({
@@ -265,7 +183,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
   const inputClass = "w-32";
   return (
-    <aside className="w-[300px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
+    <aside className="w-[350px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
 
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
@@ -538,98 +456,188 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </AccordionSection>
 
               <AccordionSection title="Heating Bed" isOpen={openSections.heatingBed} onToggle={() => toggleSection('heatingBed')}>
-                <div className="grid grid-cols-2 gap-3 items-center">
-                  <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Bed Surface Temp (°C):</span>
-                  <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">Enable Bed Heating</span>
+                    <button
+                      onClick={() => onUpdateGlobalSettings({ 
+                        ...globalSettings, 
+                        bedHeatingEnabled: !globalSettings.bedHeatingEnabled 
+                      })}
+                      className={`w-10 h-5 rounded-full relative transition-all ${globalSettings.bedHeatingEnabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${globalSettings.bedHeatingEnabled ? 'right-0.5' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <span className="text-[10px] text-slate-500 font-medium">Temperature (°C):</span>
+                    <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
+                  </div>
+
+                  <div className="text-[8px] text-slate-400 italic">
+                    {globalSettings.bedHeatingEnabled 
+                      ? "Bed heating will be applied during print execution" 
+                      : "Bed heating disabled - no temperature command will be sent"}
+                  </div>
                 </div>
               </AccordionSection>
 
               <AccordionSection title="Toolhead" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')}>
-                <div className="space-y-4">
-                  {toolheads.map(th => (
-                    <div key={th.id} className="bg-slate-50 border border-outline-variant/10 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">
-                          {th.id === 'fdm' ? 'FDM head' : th.id === 'syringe' ? 'Hydrogel head' : 'UV head'}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 font-mono italic opacity-50">{th.klipper_tool}</span>
-                      </div>
-                      
-                      {th.id === 'fdm' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Nozzle (mm)</label>
-                            <NumericInput value={(th as FDMToolheadConfig).nozzleDiameter} onChange={v => {
-                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t));
-                              onUpdateGlobalSettings({ ...globalSettings, nozzleDiameter: v });
-                            }} step={0.05} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Temp (°C)</label>
-                            <NumericInput value={(th as FDMToolheadConfig).defaultTemperature} onChange={v => {
-                              onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
-                              onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
-                            }} step={5} />
-                          </div>
-                        </div>
-                      )}
-
-                      {th.id === 'syringe' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Needle (mm)</label>
-                            <NumericInput value={(th as SyringeToolheadConfig).nozzleDiameterMm} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Syringe (mL)</label>
-                            <NumericInput value={(th as SyringeToolheadConfig).syringeVolumeMl} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
-                          </div>
-                        </div>
-                      )}
-
-                      {th.id === 'uv' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Wavelength (nm)</label>
-                            <select 
-                              value={(th as UVToolheadConfig).wavelengthNm}
-                              onChange={e => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: +e.target.value as any } : t))}
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
-                            >
-                              <option value={365}>365 nm</option>
-                              <option value={385}>385 nm</option>
-                              <option value={405}>405 nm</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-bold">Max Power (mW)</label>
-                            <NumericInput value={(th as UVToolheadConfig).maxPowerMw} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </AccordionSection>
-
-              <AccordionSection title="Material & Extrusion" isOpen={openSections.fffMaterial} onToggle={() => toggleSection('fffMaterial')}>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 items-center">
-                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Flow Rate (%):</span>
-                    <NumericInput className="w-full" value={(globalSettings.extrusionMultiplier || 1.0) * 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, extrusionMultiplier: v / 100 })} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract (mm)</span>
-                      <NumericInput value={globalSettings.retractionLength || 1.0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionLength: v })} step={0.1} />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] text-slate-400 uppercase font-bold">Retract Speed</span>
-                      <NumericInput value={globalSettings.retractionSpeed || 45} onChange={v => onUpdateGlobalSettings({ ...globalSettings, retractionSpeed: v })} />
-                    </div>
-                  </div>
+                  <p className="text-[9px] text-slate-400 mb-2">Assign up to 3 tools to available slots</p>
+                  
+                  {[0, 1, 2].map(slotIndex => {
+                    const assignedTool = toolheads.find(t => t.slot === slotIndex);
+                    const availableTools = toolheads.filter(t => !t.slot || t.slot === slotIndex);
+                    
+                    return (
+                      <div key={slotIndex} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">Slot {slotIndex + 1}</span>
+                          {assignedTool && (
+                            <button 
+                              onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined } : t))}
+                              className="text-[8px] text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        
+                        <select
+                          value={assignedTool?.id || ''}
+                          onChange={e => {
+                            const toolId = e.target.value;
+                            if (toolId) {
+                              // Find the tool being moved
+                              const toolToAssign = toolheads.find(t => t.id === toolId);
+                              if (toolToAssign) {
+                                // Remove from current slot if any, then assign to new slot
+                                onUpdateToolheads(toolheads.map(t => {
+                                  if (t.id === toolId) return { ...t, slot: slotIndex };
+                                  return t;
+                                }));
+                              }
+                            }
+                          }}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="">-- Empty --</option>
+                          {toolheads.map(t => (
+                            <option key={t.id} value={t.id}>
+                              {t.id === 'fdm' ? 'FDM HEAD' : t.id === 'syringe' ? 'HYDROGEL HEAD' : 'UV HEAD'}
+                            </option>
+                          ))}
+                        </select>
+                        
+                        {assignedTool && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[8px] text-slate-400 uppercase">
+                                {assignedTool.id === 'fdm' ? 'FDM Settings' : assignedTool.id === 'syringe' ? 'Hydrogel Settings' : 'UV Settings'}
+                              </span>
+                              {(assignedTool.id === 'fdm' || assignedTool.id === 'syringe') && (
+                                <button
+                                  onClick={() => setToolheadSettingsOpen(toolheadSettingsOpen === assignedTool.id ? null : assignedTool.id)}
+                                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
+                                >
+                                  <Icon name="settings" className="text-[14px] text-slate-500" />
+                                </button>
+                              )}
+                            </div>
+                            
+                            {(toolheadSettingsOpen === assignedTool.id || !assignedTool.id) && (
+                              <>
+                                {assignedTool.id === 'fdm' && (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Nozzle (mm)</label>
+                                        <NumericInput value={assignedTool.nozzleDiameter || 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t))} step={0.05} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Temp (°C)</label>
+                                        <NumericInput value={assignedTool.defaultTemperature || 210} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t))} step={5} />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Flowrate (%)</label>
+                                        <NumericInput value={assignedTool.flowratePercent || 100} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, flowratePercent: v } : t))} step={5} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Retract Speed</label>
+                                        <NumericInput value={assignedTool.retractSpeed || 25} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, retractSpeed: v } : t))} step={5} />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Retract Dist (mm)</label>
+                                        <NumericInput value={assignedTool.retractDistance || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, retractDistance: v } : t))} step={0.5} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Lift Z (mm)</label>
+                                        <NumericInput value={assignedTool.zLiftDistance || 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, zLiftDistance: v } : t))} step={0.1} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {assignedTool.id === 'syringe' && (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Needle (mm)</label>
+                                        <NumericInput value={assignedTool.nozzleDiameterMm || 0.5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Syringe (mL)</label>
+                                        <NumericInput value={assignedTool.syringeVolumeMl || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Flowrate (mm/s)</label>
+                                        <NumericInput value={assignedTool.flowrateMmPerSec || 2} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, flowrateMmPerSec: v } : t))} step={0.5} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[8px] text-slate-400 uppercase block">Retract (mm)</label>
+                                        <NumericInput value={assignedTool.retractDistance || 1} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, retractDistance: v } : t))} step={0.5} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                                {assignedTool.id === 'uv' && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-[8px] text-slate-400 uppercase block">Wavelength</label>
+                                      <select 
+                                        value={assignedTool.wavelengthNm || 405}
+                                        onChange={e => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: +e.target.value } : t))}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[9px]"
+                                      >
+                                        <option value={365}>365 nm</option>
+                                        <option value={385}>385 nm</option>
+                                        <option value={405}>405 nm</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[8px] text-slate-400 uppercase block">Power (mW)</label>
+                                      <NumericInput value={assignedTool.maxPowerMw || 1000} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </AccordionSection>
+
+              
             </div>
           )}
 
@@ -638,18 +646,32 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
               <div className="w-full h-px bg-outline-variant/10" />
 
+              {/* Header info */}
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  {layerActions.length} SEGMENT{layerActions.length !== 1 ? 'S' : ''} DEFINED
+                </span>
+                {totalLayers > 0 && (
+                  <span className="text-[9px] font-mono text-slate-400">
+                    TOTAL: {totalLayers} LAYERS
+                  </span>
+                )}
+              </div>
+
               {layerActions.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <Icon name="event_note" className="text-4xl mb-2 opacity-20" />
-                  <p className="text-xs font-bold uppercase tracking-wider">No Actions defined</p>
+                  <Icon name="layers" className="text-4xl mb-2 opacity-20" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider">No Segments Defined</p>
+                  <p className="text-[8px] text-slate-400 mt-1">Add segment below</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
                   {layerActions.map((action, i) => (
                     <LayerActionRow
                       key={action.id}
                       action={action}
                       totalLayers={totalLayers}
+                      models={models}
                       onUpdate={updated => {
                         const next = [...layerActions];
                         next[i] = updated;
@@ -661,32 +683,68 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                <select
-                  value={newToolhead}
-                  onChange={e => setNewToolhead(e.target.value as ToolheadId)}
-                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs font-bold"
-                >
-                  <option value="fdm">FDM HEAD</option>
-                  <option value="syringe">HYDROGEL HEAD</option>
-                  <option value="uv">UV HEAD</option>
-                </select>
-                <button
-                  onClick={() => {
-                    const last = layerActions[layerActions.length - 1];
-                    onUpdateLayerActions([...layerActions, {
-                      id: generateUUID(),
-                      layerFrom: last ? last.layerTo + 1 : 1,
-                      layerTo: (last ? last.layerTo : 0) + 20,
-                      toolhead: newToolhead,
-                      label: '',
-                      color: '#0d9488',
-                    }]);
-                  }}
-                  className="flex items-center justify-center gap-1 px-3 py-1.5 bg-action text-white text-[10px] font-bold rounded uppercase whitespace-nowrap"
-                >
-                  <Icon name="add" className="text-sm" /> Add Segment
-                </button>
+              {/* Add new segment */}
+              <div className="bg-white border-2 border-dashed border-outline-variant/30 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">New Segment</span>
+                </div>
+                
+                {/* Intent selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { kind: 'feature_override', label: 'Feature Override', icon: 'swap_horiz' },
+                    { kind: 'parameter_override', label: 'Parameter', icon: 'tune' },
+                    { kind: 'process_event', label: 'Process Event', icon: 'bolt' },
+                  ].map(opt => (
+                    <button
+                      key={opt.kind}
+                      onClick={() => {
+                        const last = layerActions[layerActions.length - 1];
+                        const from = last ? last.layerTo + 1 : 1;
+                        const to = from + 20;
+                        onUpdateLayerActions([
+                          ...layerActions,
+                          {
+                            id: generateUUID(),
+                            layerFrom: from,
+                            layerTo: to,
+                            kind: opt.kind as 'feature_override' | 'parameter_override' | 'process_event',
+                            targetFeatures: opt.kind === 'feature_override' ? ['all'] : undefined,
+                            toolOverride: opt.kind === 'feature_override' ? newToolhead : undefined,
+                            label: '',
+                            color: '#0d9488',
+                          }
+                        ]);
+                      }}
+                      className="flex flex-col items-center gap-1 p-3 rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                    >
+                      <Icon name={opt.icon} className="text-lg text-slate-400 group-hover:text-primary" />
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight group-hover:text-primary">
+                        {opt.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Quick tool selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider flex-shrink-0">Tool:</span>
+                  <div className="flex gap-1 flex-1">
+                    {(['fdm', 'syringe', 'uv'] as const).map(th => (
+                      <button
+                        key={th}
+                        onClick={() => setNewToolhead(th)}
+                        className={`flex-1 text-[8px] font-black py-1.5 rounded border uppercase tracking-wider transition-all ${
+                          newToolhead === th
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50'
+                        }`}
+                      >
+                        {th === 'fdm' ? 'FDM' : th === 'syringe' ? 'HYDRO' : 'UV'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -694,72 +752,122 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           {/* TAB 3: MAPPING */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
-              <div className="space-y-3">
-                {models.map(m => {
-                  const isScaffold = !!m.scaffoldTools;
-                  const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
-                  const isSelected = selectedModelId === m.id;
-                  
-                  return (
-                    <div 
-                      key={m.id} 
-                      onClick={() => onSelectModel(m.id)}
-                      className={`bg-white border transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'border-primary ring-1 ring-primary/20 shadow-none' 
-                          : 'border-outline-variant/20 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <div className={`flex items-center justify-between p-3 ${
-                        isSelected ? 'bg-primary/5' : 'bg-slate-50'
-                      }`}>
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <div className={`w-1.5 h-1.5 ${isSelected ? 'bg-primary' : 'bg-slate-300'}`} />
-                          <span className={`text-[10px] font-black uppercase tracking-widest truncate pr-2 ${isSelected ? 'text-primary' : 'text-slate-600'}`}>
-                            {m.name}
-                          </span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onUpdateModel(m.id, { 
-                              scaffoldTools: isScaffold ? undefined : { ...DEFAULT_SCAFFOLD_TOOLS, perimeter: m.toolhead || 'fdm' } 
-                            });
-                          }}
-                          className={`text-[8px] font-black px-2 py-0.5 border uppercase tracking-widest transition-all ${
-                            isScaffold ? 'bg-primary text-white border-primary' : 'bg-white border-outline-variant/30 text-slate-400'
-                          }`}
+              
+              {/* Models as individual cards */}
+              {models.length === 0 ? (
+                <div className="text-center py-10 text-slate-300 border border-dashed border-outline-variant/10 rounded-lg">
+                  <Icon name="view_in_ar" className="text-3xl mb-2 opacity-30" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">NO_MODELS // LOAD_STL</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {models.map(m => {
+                    const isScaffold = !!m.scaffoldTools;
+                    const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
+                    const isSelected = selectedModelId === m.id;
+                    const thColor = TOOLHEAD_COLORS[m.toolhead || 'fdm'];
+                    
+                    return (
+                      <div 
+                        key={m.id} 
+                        className={`bg-white border-2 rounded-xl overflow-hidden transition-all ${
+                          isSelected 
+                            ? 'border-primary shadow-lg shadow-primary/10' 
+                            : 'border-outline-variant/20 hover:border-primary/40'
+                        }`}
+                      >
+                        {/* Card header */}
+                        <div 
+                          onClick={() => onSelectModel(m.id)}
+                          className={`flex items-center justify-between px-4 py-3 cursor-pointer ${isSelected ? 'bg-primary/5' : 'bg-slate-50'}`}
                         >
-                          {isScaffold ? 'SCAFFOLD_LINKED' : 'SINGLE_TOOL'}
-                        </button>
-                      </div>
-
-                      <div className="p-3">
-                        {!isScaffold ? (
-                          <ToolheadSelect
-                            value={m.toolhead || 'fdm'}
-                            onChange={v => onUpdateModel(m.id, { toolhead: v })}
-                            className="w-full h-8"
-                          />
-                        ) : (
-                          <div className="space-y-2">
-                            {SCAFFOLD_FEATURE_META.map(feat => (
-                              <div key={feat.key} className="flex items-center justify-between gap-4">
-                                <span className="text-[9px] text-slate-500 uppercase font-bold">{feat.label}</span>
-                                <ToolheadSelect
-                                  value={scTools[feat.key]}
-                                  onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
-                                  className="w-24 h-7"
-                                />
-                              </div>
-                            ))}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div 
+                              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: thColor + '22' }}
+                            >
+                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: thColor }} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`text-[11px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-primary' : 'text-slate-700'}`}>
+                                {m.name}
+                              </p>
+                              <p className="text-[9px] text-slate-400">
+                                {isScaffold ? 'MULTI-TOOL MAPPING' : 'SINGLE TOOL'}
+                              </p>
+                            </div>
                           </div>
-                        )}
+                          
+                          {/* Single / Multi-tool toggle */}
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isScaffold) {
+                                  onUpdateModel(m.id, { scaffoldTools: undefined });
+                                }
+                              }}
+                              className={`text-[8px] font-black px-3 py-1.5 uppercase tracking-widest border transition-all ${
+                                !isScaffold 
+                                  ? 'bg-primary text-white border-primary shadow-sm' 
+                                  : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50 hover:text-primary'
+                              }`}
+                            >
+                              Single
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isScaffold) {
+                                  const base = m.toolhead || 'fdm';
+                                  onUpdateModel(m.id, {
+                                    scaffoldTools: { perimeter: base, infill: base, solidInfill: base, support: base }
+                                  });
+                                }
+                              }}
+                              className={`text-[8px] font-black px-3 py-1.5 uppercase tracking-widest border transition-all ${
+                                isScaffold 
+                                  ? 'bg-primary text-white border-primary shadow-sm' 
+                                  : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50 hover:text-primary'
+                              }`}
+                            >
+                              Multi
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tool assignment */}
+                        <div className="p-4">
+                          {!isScaffold ? (
+                            <div className="space-y-2">
+                              <label className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Toolhead</label>
+                              <ToolheadSelect
+                                value={m.toolhead || 'fdm'}
+                                onChange={v => onUpdateModel(m.id, { toolhead: v })}
+                                className="w-full h-9"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                                {SCAFFOLD_FEATURE_META.map(feat => (
+                                  <div key={feat.key} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800">
+                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">{feat.label}</span>
+                                    <ToolheadSelect
+                                      value={scTools[feat.key]}
+                                      onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
+                                      className="w-32 h-7"
+                                    />
+                                  </div>
+                                ))}
+
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -995,8 +1103,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 <div key={action.id || i} className="flex items-center justify-between text-[10px]">
                                     <div className="flex items-center gap-2">
                                         <span className="w-14 font-mono text-slate-500">L{action.layerFrom}-{action.layerTo}</span>
-                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${action.toolhead === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : action.toolhead === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
-                                            {action.toolhead}
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${(action.toolOverride || 'fdm') === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : (action.toolOverride || 'fdm') === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                                            {action.toolOverride || 'fdm'}
                                         </span>
                                     </div>
                                     {action.label && <span className="text-slate-400 truncate max-w-[80px]">{action.label}</span>}

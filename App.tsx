@@ -10,6 +10,7 @@ import { Viewport } from './components/Viewport/Viewport';
 import { Icon } from './components/Icon';
 import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from './types';
 import { generateUUID } from './utils';
+import { resolveLayerPlans } from './utils/planResolver';
 
 // Helper to convert File to ArrayBuffer
 const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
@@ -420,8 +421,12 @@ export default function App() {
     formData.append('max_fan_speed', String(globalSettings.maxFanSpeed ?? 100));
     formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
 
-    // Toolhead layer-schedule
+    // Toolhead layer-schedule (raw)
     formData.append('layer_actions', JSON.stringify(layerActions));
+
+    // Resolved execution plan (normalized)
+    const resolvedPlans = resolveLayerPlans(models, layerActions, calculatedTotalLayers);
+    formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
 
 
 
@@ -644,9 +649,9 @@ export default function App() {
   };
 
 
-  const selectedModelHeight = models.find(m => m.id === selectedModelId)?.size?.y ?? 0;
-  const calculatedTotalLayers = selectedModelHeight > 0 
-    ? Math.ceil(selectedModelHeight / (globalSettings.layerHeight / 1000)) 
+  const maxModelHeight = Math.max(...models.map(m => m.size?.y ?? 0), 0);
+  const calculatedTotalLayers = maxModelHeight > 0 
+    ? Math.ceil(maxModelHeight / (globalSettings.layerHeight / 1000)) 
     : 100;
 
   return (

@@ -78,6 +78,7 @@ export interface GlobalSettings {
   // FDM additions
   nozzleTemperature?: number;
   bedTemperature?: number;
+  bedHeatingEnabled?: boolean;
   infill?: number;
   infillPattern?: InfillPattern;
   perimeters?: number;
@@ -283,6 +284,8 @@ export interface BaseToolheadConfig {
   klipper_tool: string;
   /** Whether this toolhead is physically installed */
   installed: boolean;
+  /** Slot index (0, 1, 2) - undefined means not assigned */
+  slot?: number;
   /** Klipper macro to call on activation (in addition to Tn) */
   activation_macro?: string;
   /** Klipper macro to call on deactivation */
@@ -297,6 +300,10 @@ export interface FDMToolheadConfig extends BaseToolheadConfig {
   defaultTemperature: number;    // °C, working temp
   retractionLength: number;      // mm
   retractionSpeed: number;       // mm/s
+  // UI settings
+  flowratePercent?: number;
+  retractDistance?: number;
+  zLiftDistance?: number;
 }
 
 export interface SyringeToolheadConfig extends BaseToolheadConfig {
@@ -315,6 +322,9 @@ export interface SyringeToolheadConfig extends BaseToolheadConfig {
   actuatorType: 'mechanical' | 'pneumatic';
   /** Air pressure in kPa (if pneumatic) */
   pressureKPa?: number;
+  // UI settings
+  flowrateMmPerSec?: number;
+  retractDistance?: number;
 }
 
 export interface UVToolheadConfig extends BaseToolheadConfig {
@@ -392,14 +402,57 @@ export interface UVCrosslinkSettings {
 /**
  * Defines what toolhead is active and with what parameters
  * for a specific range of layers.
+ * 
+ * kind:
+ *   - 'feature_override': overrides toolhead assignment for specific features (perimeter, infill, etc.)
+ *   - 'parameter_override': overrides print parameters (speed, temp, flow, etc.) for existing scaffold mapping
+ *   - 'process_event': triggers a process event (UV exposure, pause, macro, etc.)
  */
+/** 
+ * Effective configuration for a range of layers and a specific model.
+ * All 'all' scopes and conditional overrides are resolved here.
+ */
+export interface ResolvedLayerSettings {
+  /** Effective tool mapping per feature for this range */
+  mapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId>;
+  /** Resolved parameters for FDM toolheads */
+  fdm?: Partial<FDMPrintSettings>;
+  /** Resolved parameters for Syringe toolheads */
+  syringe?: Partial<SyringePrintSettings>;
+  /** Resolved parameters for UV events */
+  uv?: UVCrosslinkSettings;
+  /** Custom G-code to run before this range */
+  preMacro?: string;
+  /** Custom G-code to run after this range */
+  postMacro?: string;
+}
+
+export interface ResolvedLayerRange {
+  layerFrom: number;
+  layerTo: number;
+  settings: ResolvedLayerSettings;
+}
+
+export interface ResolvedModelPlan {
+  modelId: string;
+  modelName: string;
+  ranges: ResolvedLayerRange[];
+}
+
 export interface LayerAction {
   id: string;
   /** Layer index from (inclusive) */
   layerFrom: number;
   /** Layer index to (inclusive) */
   layerTo: number;
-  toolhead: ToolheadId;
+  /** Which model this applies to ('all' for all models, or specific modelId) */
+  modelId?: string | 'all';
+  /** Intent of this action */
+  kind: 'feature_override' | 'parameter_override' | 'process_event';
+  /** Which features this action affects (for feature_override and parameter_override) */
+  targetFeatures?: ('perimeter' | 'infill' | 'solidInfill' | 'support' | 'all')[];
+  /** Toolhead to use for this segment (overrides scaffold mapping) */
+  toolOverride?: ToolheadId;
   /** FDM-specific overrides for this segment */
   fdmSettings?: Partial<FDMPrintSettings>;
   /** Syringe-specific overrides for this segment */
@@ -412,6 +465,7 @@ export interface LayerAction {
   postMacro?: string;
   /** Color label shown in the layer timeline */
   color?: string;
+  /** Human-readable description */
   label?: string;
 }
 
