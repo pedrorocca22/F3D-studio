@@ -10,6 +10,10 @@ interface HelpContent {
     label: string;
     text: string;
   }[];
+  example?: {
+    title: string;
+    text: string;
+  };
 }
 
 const WIKI_CONTENT: Record<HelpTopic, HelpContent> = {
@@ -18,8 +22,13 @@ const WIKI_CONTENT: Record<HelpTopic, HelpContent> = {
     description: 'Map physical bioprinter toolheads to virtual slots.',
     details: [
       { label: 'Toolhead Slots', text: 'Virtual slots assigned to specific physical axes (T0, T1, T2). Mapping ensures the G-code uses the correct tool for the correct operation.' },
-      { label: 'Slot Assignments', text: 'You can assign the FDM hot-end, a specific Syringe, or the UV Crosslinker to any available slot depending on your printer configuration.' }
-    ]
+      { label: 'Slot Assignments', text: 'You can assign the FDM hot-end, a specific Syringe, or the UV Crosslinker to any available slot depending on your printer configuration.' },
+      { label: 'Calibration Offsets', text: 'Each slot typically has unique XY offsets relative to the primary tool. Ensure your physical mapping matches the slicer to avoid material misalignment.' }
+    ],
+    example: {
+      title: 'Typical Multi-Material Setup',
+      text: 'Slot 1: FDM (Thermoplastic for support), Slot 2: Syringe (Cellular hydrogel), Slot 3: UV Light (Internal crosslinking during printing).'
+    }
   },
   scaffold_mapping: {
     title: 'Scaffold Tool Mapping',
@@ -35,11 +44,15 @@ const WIKI_CONTENT: Record<HelpTopic, HelpContent> = {
     title: 'Layer Actions & Segments',
     description: 'Advanced multi-material sequencing by layer height.',
     details: [
-      { label: 'Segments', text: 'Divide your print into vertical ranges (Z-height). Each range can have its own overrides.' },
-      { label: 'Feature Override', text: 'Change which toolhead prints specific parts (e.g., use syringe for years 10-20).' },
-      { label: 'Parameter Override', text: 'Adjust speeds, temperatures, or flow rates for a specific layer range.' },
-      { label: 'Process Event', text: 'Insert custom G-code macros for pausing, cleaning, or specialized UV exposure routines.' }
-    ]
+      { label: 'Segments (Z-Ranges)', text: 'Divide your print into vertical ranges based on layer numbers. Each range acts as a custom instruction block for the machine.' },
+      { label: 'Feature Override', text: 'Forces specific parts of the geometry (perimeters, infill, etc.) to use a different toolhead than the one defined globally for that model.' },
+      { label: 'Parameter Override', text: 'Modifies printing dynamics like speed (mm/s) or flow rate (%) for a specific height. Useful for slow-printing "neck" areas of a construct.' },
+      { label: 'Process Event', text: 'Triggers hardware events. Common uses include "Pause" for media changes or "UV Pulse" for post-layer stabilization.' }
+    ],
+    example: {
+      title: 'Multimaterial Scaffold Case',
+      text: 'Start with FDM for a solid base (layers 1-10). Then, use a Feature Override to switch to Syringe for the internal porous structure (layers 11-50), and add a UV Pulse Event every 5 layers for crosslinking.'
+    }
   },
   fdm_settings: {
     title: 'FDM Configuration',
@@ -125,7 +138,19 @@ export const HelpWiki: React.FC<HelpWikiProps> = ({ topic, onClose }) => {
           ))}
         </div>
 
-        <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800">
+        <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800 space-y-4">
+          {content.example && (
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                <Icon name="lightbulb" className="text-secondary" /> Example Scenario
+              </p>
+              <p className="text-[9px] font-bold text-slate-700 dark:text-slate-200 mb-1">{content.example.title}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
+                {content.example.text}
+              </p>
+            </div>
+          )}
+
           <div className="bg-primary/5 rounded-lg p-3 border border-primary/10">
             <p className="text-[8px] text-primary/70 font-bold uppercase tracking-widest mb-1">Pro Tip</p>
             <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">

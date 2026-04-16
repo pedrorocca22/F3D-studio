@@ -80,7 +80,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     activeStep, setActiveStep, onOpenHelp
   } = props;
 
-  const [newToolhead, setNewToolhead] = useState<ToolheadId>('fdm');
   
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     printBed: true,
@@ -745,7 +744,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             layerTo: to,
                             kind: opt.kind as 'feature_override' | 'parameter_override' | 'process_event',
                             targetFeatures: opt.kind === 'feature_override' ? ['all'] : undefined,
-                            toolOverride: opt.kind === 'feature_override' ? newToolhead : undefined,
+                            toolOverride: opt.kind === 'feature_override' ? 'fdm' : undefined,
                             label: '',
                             color: '#0d9488',
                           }
@@ -759,26 +758,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       </span>
                     </button>
                   ))}
-                </div>
-
-                {/* Quick tool selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider flex-shrink-0">Tool:</span>
-                  <div className="flex gap-1 flex-1">
-                    {(['fdm', 'syringe', 'uv'] as const).map(th => (
-                      <button
-                        key={th}
-                        onClick={() => setNewToolhead(th)}
-                        className={`flex-1 text-[8px] font-black py-1.5 rounded border uppercase tracking-wider transition-all ${
-                          newToolhead === th
-                            ? 'bg-primary text-white border-primary'
-                            : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50'
-                        }`}
-                      >
-                        {th === 'fdm' ? 'FDM' : th === 'syringe' ? 'HYDRO' : 'UV'}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             </section>
