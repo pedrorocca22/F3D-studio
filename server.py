@@ -325,7 +325,6 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         zf.writestr("3D/3dmodel.model", model_xml)
         zf.writestr("Metadata/Slic3r_PE_model.config", slic3r_config)
 
-    print(f"[3MF] Written multi-material 3MF with {len(volumes)} volumes to {output_path}")
 
 
 @app.get("/job/<job_id>/progress")
