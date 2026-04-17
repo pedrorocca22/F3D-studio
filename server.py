@@ -79,7 +79,24 @@ def _set_progress(job_id: str, progress: float, message: str, status: str = "run
     _slice_jobs[job_id] = {"status": status, "progress": round(progress, 3), "message": message}
 
 
-def _write_multimaterial_3mf(models_data, output_path):
+def _normalize_fill_pattern(value):
+    if value is None:
+        return None
+
+    raw = str(value).strip().lower()
+    if raw in ("", "default", "inherit", "none"):
+        return None
+
+    mapping = {
+        "rectilinear": "rectilinear",
+        "grid": "grid",
+        "gyroid": "gyroid",
+        "honeycomb": "honeycomb",
+    }
+    return mapping.get(raw, raw)
+
+
+def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer_height=0.2, first_layer_height=0.3):
     """
     Generates a PrusaSlicer-compatible 3MF file with per-volume extruder assignment
     and per-object FDM settings overrides.
@@ -119,7 +136,8 @@ def _write_multimaterial_3mf(models_data, output_path):
             "triangles": tris, 
             "extruder": extruder,
             "scaffoldTools": m_data.get("scaffoldTools"),
-            "fdmSettings": m_data.get("fdmSettings")
+            "fdmSettings": m_data.get("fdmSettings"),
+            "model_id": m_data.get("model_id")
         }
         volumes.append(vol_info)
 
@@ -211,6 +229,126 @@ def _write_multimaterial_3mf(models_data, output_path):
                 config_lines.append(f'  <metadata type="object" key="bottom_solid_layers" value="{fs["bottomSolidLayers"]}"/>')
             if "fillAngle" in fs:
                 config_lines.append(f'  <metadata type="object" key="fill_angle" value="{fs["fillAngle"]}"/>')
+
+        # Determine if layer_actions contains resolved plans
+        is_resolved_plan = False
+        if layer_actions and isinstance(layer_actions, list) and len(layer_actions) > 0:
+            if "ranges" in layer_actions[0] and "modelId" in layer_actions[0]:
+                is_resolved_plan = True
+
+        model_id = vol.get("model_id")
+
+        if is_resolved_plan:
+            plan = next((p for p in layer_actions if str(p.get("modelId")) == str(model_id)), None)
+            if plan:
+                range_entries = []
+
+                for r in plan.get("ranges", []):
+                    l_from = int(r.get("layerFrom", 0))
+                    l_to = int(r.get("layerTo", 0))
+                    settings = r.get("settings", {}) or {}
+                    fdm = settings.get("fdm", {}) or {}
+
+                    z_start = 0.0 if l_from <= 1 else first_layer_height + (l_from - 2) * layer_height
+                    z_end = first_layer_height + (l_to - 1) * layer_height
+                    z_range_str = f"{round(z_start, 4)},{round(z_end, 4)}"
+
+                    entry = {
+                        "range": z_range_str,
+                        "params": {}
+                    }
+
+                    if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
+                        entry["params"]["fill_density"] = f"{fdm['infillPercent']}%"
+
+                    normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
+                    if normalized_pattern:
+                        entry["params"]["fill_pattern"] = normalized_pattern
+
+                    if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
+                        entry["params"]["perimeters"] = str(fdm["wallCount"])
+
+                    if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
+                        entry["params"]["top_solid_layers"] = str(fdm["topSolidLayers"])
+
+                    if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
+                        entry["params"]["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
+
+                    if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
+                        entry["params"]["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
+
+                    if entry["params"]:
+                        range_entries.append(entry)
+
+                if range_entries:
+                    config_lines.append(f'  <metadata type="object" key="layer_range">{";".join(e["range"] for e in range_entries)}</metadata>')
+                    for e in range_entries:
+                        z_rng = e["range"]
+                        for ps_key, ps_val in e["params"].items():
+                            config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
+                            # Special handling for fill pattern consistency
+                            if ps_key == "fill_pattern":
+                                config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
+                                config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
+
+        elif layer_actions:
+            range_entries = []
+
+            for action in layer_actions:
+                if action.get("kind") != "parameter_override":
+                    continue
+
+                action_model_id = action.get("modelId")
+                if action_model_id not in (None, "", "all") and str(action_model_id) != str(model_id):
+                    continue
+
+                try:
+                    l_from = int(action.get("layerFrom", 1))
+                    l_to = int(action.get("layerTo", 1))
+                    z_start = 0.0 if l_from <= 1 else first_layer_height + (l_from - 2) * layer_height
+                    z_end = first_layer_height + (l_to - 1) * layer_height
+                    z_range_str = f"{round(z_start, 4)},{round(z_end, 4)}"
+
+                    fdm = action.get("fdmSettings", {}) or {}
+                    params = {}
+
+                    if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
+                        params["fill_density"] = f"{fdm['infillPercent']}%"
+
+                    normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
+                    if normalized_pattern:
+                        params["fill_pattern"] = normalized_pattern
+
+                    if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
+                        params["perimeters"] = str(fdm["wallCount"])
+
+                    if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
+                        params["top_solid_layers"] = str(fdm["topSolidLayers"])
+
+                    if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
+                        params["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
+
+                    if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
+                        params["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
+
+                    if params:
+                        range_entries.append({
+                            "range": z_range_str,
+                            "params": params
+                        })
+
+                except Exception:
+                    continue
+
+            if range_entries:
+                config_lines.append(f'  <metadata type="object" key="layer_range">{";".join(e["range"] for e in range_entries)}</metadata>')
+                for e in range_entries:
+                    z_rng = e["range"]
+                    for ps_key, ps_val in e["params"].items():
+                        config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
+                        if ps_key == "fill_pattern":
+                            config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
+                            config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
 
         config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
         config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
@@ -385,24 +523,25 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
 
 
 def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
-
     """
     Apply Priority: Layer Schedule > Scaffold Mapping.
-    If a layer is inside a Schedule range, remove internal tool changes (T0/T1/T2)
-    and force the Schedule's toolhead for that whole layer.
+    Only feature_override actions should force tool changes.
+    Parameter overrides must not inject T0/T1/T2 commands.
     """
     if not layer_actions:
         return
 
-    # Map layer number -> forced tool command
     overrides = {}
+
     for action in layer_actions:
         try:
+            if action.get("kind") != "feature_override":
+                continue
+
             lyr_from = int(action.get("layerFrom", 1))
             lyr_to = int(action.get("layerTo", 1))
-            tool = action.get("toolhead", "fdm")
-            
-            # Map toolhead slug to T-command
+            tool = action.get("toolOverride") or action.get("toolhead") or "fdm"
+
             t_cmd = "T0"
             if tool == "syringe":
                 t_cmd = "T1"
@@ -411,6 +550,7 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
 
             for lyr in range(lyr_from, lyr_to + 1):
                 overrides[lyr] = t_cmd
+
         except (ValueError, TypeError):
             continue
 
@@ -422,16 +562,13 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
     current_layer = 0
 
     for line in lines:
-        # Detect layer change in PrusaSlicer G-code
         if ";LAYER_CHANGE" in line:
             current_layer += 1
             output.append(line)
-            # If this layer is overridden, inject the tool command now
             if current_layer in overrides:
                 output.append(f"{overrides[current_layer]} ; Forced by Layer Schedule priority\n")
             continue
 
-        # If inside an overridden layer, strip any T commands coming from the slicer (Scaffold Mapping)
         if current_layer in overrides:
             stripped = line.strip()
             if re.match(r"^T[0-9]+", stripped):
@@ -600,10 +737,10 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         # If any model carries scaffoldTools, apply PrusaSlicer's per-feature extruder keys.
         scaffold_tools = None
         for meta in models_meta:
-            st = meta.get("scaffoldTools")
+            st = meta.get("scaffoldTools") or meta.get("scaffold_tools")
             if st:
                 scaffold_tools = st
-                break  # PrusaSlicer applies these globally; use the first scaffold's mapping
+                break
 
         if scaffold_tools:
             th_to_ext = {"fdm": "1", "syringe": "2", "uv": "3", "none": "1"}
@@ -744,8 +881,9 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
                         consolidated_data.append({
                             "mesh": m,
+                            "model_id": meta.get("id"),
                             "toolhead": meta.get("toolhead", "fdm"),
-                            "scaffoldTools": meta.get("scaffoldTools"),
+                            "scaffoldTools": meta.get("scaffoldTools") or meta.get("scaffold_tools"),
                             "fdmSettings": meta.get("fdm_settings"),
                             "bedMinX": float(m.x.min()),
                             "bedMinY": float(m.y.min()),
@@ -755,7 +893,15 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
             if consolidated_data:
                 consolidated_path = job_dir / "consolidated.3mf"
-                _write_multimaterial_3mf(consolidated_data, consolidated_path)
+                # Coerce heights to float for Z range calculations
+                lh = float(layer_height)
+                flh = float(form_params.get("first_layer_height", "0.3"))
+                # Prefer resolved_layer_plans from frontend if available
+                layer_plans = json.loads(form_params.get("resolved_layer_plans", "[]"))
+                if not layer_plans:
+                    layer_plans = layer_actions_raw
+
+                _write_multimaterial_3mf(consolidated_data, consolidated_path, layer_plans, lh, flh)
                 cmd.append(str(consolidated_path))
             else:
                 for stl_path in stl_paths:

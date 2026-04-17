@@ -382,10 +382,15 @@ export default function App() {
 
     // Attach each model's STL and its metadata (transform, toolhead)
     const modelsMetadata = models.map(m => ({
-      name: m.file?.name,
+      id: m.id,
+      name: m.file?.name ?? m.name,
       transform: m.transform,
       toolhead: m.toolhead || 'fdm',
+
+      // Enviamos ambos nombres por compatibilidad durante la transición
+      scaffoldTools: m.scaffoldTools,
       scaffold_tools: m.scaffoldTools,
+
       fdm_settings: m.fdmSettings,
     }));
 

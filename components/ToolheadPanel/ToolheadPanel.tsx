@@ -115,7 +115,7 @@ export const LayerActionRow: React.FC<{
                 <div className="space-y-1">
                     <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest">Model Scope</label>
                     <select
-                        value={action.modelId || 'all'}
+                        value={action.modelId ?? 'all'}
                         onChange={e => onUpdate({ ...action, modelId: e.target.value })}
                         className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1.5 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary h-8"
                     >
@@ -300,7 +300,7 @@ export const LayerActionRow: React.FC<{
                                         value={action.fdmSettings?.infillPattern || ''}
                                         onChange={e => onUpdate({ 
                                             ...action, 
-                                            fdmSettings: { ...action.fdmSettings, infillPattern: e.target.value as any }
+                                            fdmSettings: { ...action.fdmSettings, infillPattern: (e.target.value || undefined) as any }
                                         })}
                                         className="w-full bg-slate-50 border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none"
                                     >
@@ -526,6 +526,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                 id,
                 layerFrom: from,
                 layerTo: to,
+                modelId: 'all',
                 kind: 'feature_override',
                 targetFeatures: ['all'],
                 toolOverride: newToolhead,
@@ -711,8 +712,12 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                                 id: generateUUID(),
                                                 layerFrom: from,
                                                 layerTo: to,
+                                                modelId: 'all',
                                                 kind: opt.kind as LayerAction['kind'],
-                                                targetFeatures: opt.kind === 'feature_override' ? ['all'] : undefined,
+                                                targetFeatures:
+                                                    opt.kind === 'feature_override' || opt.kind === 'parameter_override'
+                                                        ? ['all']
+                                                        : undefined,
                                                 toolOverride: opt.kind === 'feature_override' ? newToolhead : undefined,
                                                 label: '',
                                                 color: '#0d9488',
