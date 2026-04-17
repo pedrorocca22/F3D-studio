@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Header } from './components/Header';
 
 import { WifiConfig } from './components/WifiConfig/WifiConfig';
@@ -12,6 +12,8 @@ import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceS
 import { generateUUID } from './utils';
 import { resolveLayerPlans } from './utils/planResolver';
 import { HelpWiki, HelpTopic } from './components/HelpWiki/HelpWiki';
+// FIX #4: Import centralized MULTIWELL_SPECS — eliminates the local duplicate defined inside handleSlice
+import { MULTIWELL_SPECS } from './constants/wellplate';
 
 // Helper to convert File to ArrayBuffer
 const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
@@ -114,16 +116,44 @@ export default function App() {
   } | null>(null);
 
 
-  // Auto-reset G-code preview if settings or models change
+  // FIX #7: Auto-reset G-code preview ONLY when slicing parameters change.
+  // Previously, ANY models[] mutation (e.g. size update from Three.js) would destroy the preview.
+  // We now track a hash of the fields that actually affect slicing output.
+  const slicingParamsHash = useMemo(() => {
+    const relevantData = {
+      globalSettings,
+      layerActions,
+      // Only model fields that affect slicing (not size, which Three.js updates after load)
+      modelParams: models.map(m => ({
+        id: m.id,
+        toolhead: m.toolhead,
+        scaffoldTools: m.scaffoldTools,
+        fdmSettings: m.fdmSettings,
+        transform: m.transform,
+        advancedSettings: m.advancedSettings,
+      })),
+    };
+    return JSON.stringify(relevantData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalSettings, layerActions, models.map(m => m.id).join(','),
+      models.map(m => JSON.stringify(m.fdmSettings)).join('|'),
+      models.map(m => JSON.stringify(m.transform)).join('|'),
+      models.map(m => m.toolhead).join(','),
+      models.map(m => JSON.stringify(m.advancedSettings)).join('|')]);
+
+  const prevSlicingParamsRef = useRef<string | null>(null);
   useEffect(() => {
-    if (gcodePreviewJob) {
-      console.log("[App] Settings or models changed, reverting to model view.");
-      setGcodePreviewJob(null);
-      setSlicePercent(0);
-      setSliceError(null);
+    if (prevSlicingParamsRef.current !== null && prevSlicingParamsRef.current !== slicingParamsHash) {
+      if (gcodePreviewJob) {
+        console.log("[App] Slicing parameters changed, reverting to model view.");
+        setGcodePreviewJob(null);
+        setSlicePercent(0);
+        setSliceError(null);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalSettings, models, layerActions]);
+    prevSlicingParamsRef.current = slicingParamsHash;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slicingParamsHash]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -317,20 +347,14 @@ export default function App() {
 
     // Multiwell size validation
     if (globalSettings.printBed?.type === 'multiwell_plate') {
-      const MULTIWELL_SPECS_LOCAL: Record<string, { cols: number; rows: number; pitch: number; dia: number }> = {
-        '6':  { cols: 3, rows: 2, pitch: 39.1, dia: 34.8 },
-        '12': { cols: 4, rows: 3, pitch: 26.1, dia: 22.1 },
-        '24': { cols: 6, rows: 4, pitch: 19.3, dia: 15.62 },
-        '48': { cols: 8, rows: 6, pitch: 13.0, dia: 11.0 },
-      };
-
+      // FIX #4: Use centralized MULTIWELL_SPECS instead of local inline duplicate
       const overflowingModels: string[] = [];
 
       for (const model of models) {
         if (!model.transform.wellAssignment || !model.size) continue;
 
         const fmt = String(model.transform.wellAssignment.format);
-        const spec = MULTIWELL_SPECS_LOCAL[fmt];
+        const spec = MULTIWELL_SPECS[fmt];
         if (!spec) continue;
 
         // Model footprint considering X/Y scale

@@ -20,9 +20,9 @@ export function resolveLayerPlans(
           support: model.toolhead || 'fdm',
         };
 
-    // 2. Resolve every layer independently first
+    // 2. Resolve every layer independently first (1-indexed to match PrusaSlicer)
     const resolvedLayers: ResolvedLayerSettings[] = [];
-    for (let L = 0; L <= totalLayers; L++) {
+    for (let L = 1; L <= totalLayers; L++) {
       // Start with base (including model-specific FDM overrides)
       const settings: ResolvedLayerSettings = {
         mapping: { ...baseMapping },
@@ -79,14 +79,14 @@ export function resolveLayerPlans(
 
     // 3. Compact consecutive layers with identical settings into ranges
     const ranges: ResolvedLayerRange[] = [];
-    if (resolvedLayers.length > 0) {
+    if (resolvedLayers.length > 1) {
       let currentRange: ResolvedLayerRange = {
-        layerFrom: 0,
-        layerTo: 0,
-        settings: resolvedLayers[0]
+        layerFrom: 1,
+        layerTo: 1,
+        settings: resolvedLayers[1]
       };
 
-      for (let L = 1; L <= totalLayers; L++) {
+      for (let L = 2; L <= totalLayers; L++) {
         const settings = resolvedLayers[L];
         if (areSettingsEqual(settings, currentRange.settings)) {
           currentRange.layerTo = L;
@@ -111,10 +111,18 @@ export function resolveLayerPlans(
 }
 
 /**
- * Deep equality check for resolved settings to allow range compaction.
+ * FIX #12: Stable deep equality for resolved settings.
+ * JSON.stringify does not guarantee consistent key ordering across objects built
+ * in different code paths. We use a recursive sorted-key serializer to ensure
+ * two semantically identical objects always produce the same string.
  */
+function stableStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(stableStringify).join(',') + ']';
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify((obj as Record<string, unknown>)[k])).join(',') + '}';
+}
+
 function areSettingsEqual(a: ResolvedLayerSettings, b: ResolvedLayerSettings): boolean {
-  // Simple JSON stringify for comparison since these are flat-ish objects
-  // This is efficient enough for the number of layers/actions we handle
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stableStringify(a) === stableStringify(b);
 }

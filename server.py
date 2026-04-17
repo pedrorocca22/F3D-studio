@@ -36,12 +36,12 @@ JOBS_DIR.mkdir(exist_ok=True)
 app = Flask(__name__)
 CORS(app)  # Habilita CORS para todas las rutas
 
-# Multiwell plate specs matching UI
+# Multiwell plate specs matching UI — FIX #4: added 'dia' field to match frontend constants/wellplate.ts
 MULTIWELL_SPECS = {
-    '6': {'cols': 3, 'rows': 2, 'pitch': 39.1},
-    '12': {'cols': 4, 'rows': 3, 'pitch': 26.1},
-    '24': {'cols': 6, 'rows': 4, 'pitch': 19.3},
-    '48': {'cols': 8, 'rows': 6, 'pitch': 13.0},
+    '6':  {'cols': 3, 'rows': 2, 'pitch': 39.1, 'dia': 34.8},
+    '12': {'cols': 4, 'rows': 3, 'pitch': 26.1, 'dia': 22.1},
+    '24': {'cols': 6, 'rows': 4, 'pitch': 19.3, 'dia': 15.62},
+    '48': {'cols': 8, 'rows': 6, 'pitch': 13.0, 'dia': 11.0},
 }
 
 # Initialize Moonraker client + FDM manager (reads IP from config at first use)
@@ -229,7 +229,6 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                 config_lines.append(f'  <metadata type="object" key="bottom_solid_layers" value="{fs["bottomSolidLayers"]}"/>')
             if "fillAngle" in fs:
                 config_lines.append(f'  <metadata type="object" key="fill_angle" value="{fs["fillAngle"]}"/>')
-
         # Determine if layer_actions contains resolved plans
         is_resolved_plan = False
         if layer_actions and isinstance(layer_actions, list) and len(layer_actions) > 0:
@@ -238,120 +237,79 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
 
         model_id = vol.get("model_id")
 
+        # ── Helper: extract PrusaSlicer param dict from fdm settings dict ──
+        def _fdm_to_ps_params(fdm: dict) -> dict:
+            params = {}
+            if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
+                params["fill_density"] = f"{fdm['infillPercent']}%"
+            normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
+            if normalized_pattern:
+                params["fill_pattern"] = normalized_pattern
+            if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
+                params["perimeters"] = str(fdm["wallCount"])
+            if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
+                params["top_solid_layers"] = str(fdm["topSolidLayers"])
+            if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
+                params["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
+            if "layerHeightMm" in fdm and fdm["layerHeightMm"] not in (None, ""):
+                params["layer_height"] = str(fdm["layerHeightMm"])
+            if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
+                params["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
+            return params
+
+        range_entries = []
+
         if is_resolved_plan:
             plan = next((p for p in layer_actions if str(p.get("modelId")) == str(model_id)), None)
             if plan:
-                range_entries = []
-
                 for r in plan.get("ranges", []):
-                    l_from = int(r.get("layerFrom", 0))
-                    l_to = int(r.get("layerTo", 0))
+                    l_from = int(r.get("layerFrom", 1))
+                    l_to = int(r.get("layerTo", 1))
                     settings = r.get("settings", {}) or {}
                     fdm = settings.get("fdm", {}) or {}
-
-                    z_start = 0.0 if l_from <= 1 else first_layer_height + (l_from - 2) * layer_height
-                    z_end = first_layer_height + (l_to - 1) * layer_height
-                    z_range_str = f"{round(z_start, 4)},{round(z_end, 4)}"
-
-                    entry = {
-                        "range": z_range_str,
-                        "params": {}
-                    }
-
-                    if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
-                        entry["params"]["fill_density"] = f"{fdm['infillPercent']}%"
-
-                    normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
-                    if normalized_pattern:
-                        entry["params"]["fill_pattern"] = normalized_pattern
-
-                    if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
-                        entry["params"]["perimeters"] = str(fdm["wallCount"])
-
-                    if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
-                        entry["params"]["top_solid_layers"] = str(fdm["topSolidLayers"])
-
-                    if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
-                        entry["params"]["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
-
-                    if "layerHeightMm" in fdm and fdm["layerHeightMm"] not in (None, ""):
-                        entry["params"]["layer_height"] = str(fdm["layerHeightMm"])
-
-                    if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
-                        entry["params"]["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
-
-                    if entry["params"]:
-                        range_entries.append(entry)
-
-                if range_entries:
-                    config_lines.append(f'  <metadata type="object" key="layer_range">{";".join(e["range"] for e in range_entries)}</metadata>')
-                    for e in range_entries:
-                        z_rng = e["range"]
-                        for ps_key, ps_val in e["params"].items():
-                            config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
-                            # Special handling for fill pattern consistency
-                            if ps_key == "fill_pattern":
-                                config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
-                                config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
+                    params = _fdm_to_ps_params(fdm)
+                    if params:
+                        # l_from=1 → z=0 (first layer starts at 0)
+                        z_min = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 4)
+                        z_max = round(first_layer_height + (l_to - 1) * layer_height, 4)
+                        range_entries.append({"range": f"{z_min},{z_max}", "params": params})
 
         elif layer_actions:
-            range_entries = []
-
             for action in layer_actions:
                 if action.get("kind") != "parameter_override":
                     continue
-
                 action_model_id = action.get("modelId")
                 if action_model_id not in (None, "", "all") and str(action_model_id) != str(model_id):
                     continue
-
                 try:
                     l_from = int(action.get("layerFrom", 1))
                     l_to = int(action.get("layerTo", 1))
-                    z_start = 0.0 if l_from <= 1 else first_layer_height + (l_from - 2) * layer_height
-                    z_end = first_layer_height + (l_to - 1) * layer_height
-                    z_range_str = f"{round(z_start, 4)},{round(z_end, 4)}"
-
                     fdm = action.get("fdmSettings", {}) or {}
-                    params = {}
-
-                    if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
-                        params["fill_density"] = f"{fdm['infillPercent']}%"
-
-                    normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
-                    if normalized_pattern:
-                        params["fill_pattern"] = normalized_pattern
-
-                    if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
-                        params["perimeters"] = str(fdm["wallCount"])
-
-                    if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
-                        params["top_solid_layers"] = str(fdm["topSolidLayers"])
-
-                    if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
-                        params["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
-
-                    if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
-                        params["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
-
+                    params = _fdm_to_ps_params(fdm)
                     if params:
-                        range_entries.append({
-                            "range": z_range_str,
-                            "params": params
-                        })
-
+                        z_min = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 4)
+                        z_max = round(first_layer_height + (l_to - 1) * layer_height, 4)
+                        range_entries.append({"range": f"{z_min},{z_max}", "params": params})
                 except Exception:
                     continue
 
-            if range_entries:
-                config_lines.append(f'  <metadata type="object" key="layer_range">{";".join(e["range"] for e in range_entries)}</metadata>')
-                for e in range_entries:
-                    z_rng = e["range"]
-                    for ps_key, ps_val in e["params"].items():
-                        config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
-                        if ps_key == "fill_pattern":
-                            config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
-                            config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
+        if range_entries:
+            src = "resolved" if is_resolved_plan else "raw-actions"
+            print(f"[3MF] Model {model_id} ({src}): {len(range_entries)} layer_range entries:")
+            for e in range_entries:
+                print(f"  Z[{e['range'].replace(',', ' -> ')}] params={e['params']}")
+
+            # PrusaSlicer proprietary 3MF format for Height Range Modifiers
+            ranges_str = ";".join(e["range"] for e in range_entries)
+            config_lines.append(f'  <metadata type="object" key="layer_range">{ranges_str}</metadata>')
+            
+            for e in range_entries:
+                z_rng = e["range"]
+                for ps_key, ps_val in e["params"].items():
+                    config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
+                    if ps_key == "fill_pattern":
+                        config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
+                        config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
 
         config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
         config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
@@ -1030,6 +988,7 @@ def fdm_slice():
         "perimeters": request.form.get("perimeters", "3"),
         "supports": request.form.get("supports", "false") == "true",
         "layer_actions": request.form.get("layer_actions", "[]"),
+        "resolved_layer_plans": request.form.get("resolved_layer_plans", "[]"),  # FIX: was missing — segments never reached the slicer
         "models_metadata": request.form.get("models_metadata", "[]"),
         "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
         "first_layer_height": request.form.get("first_layer_height", "0.3"),
@@ -1053,16 +1012,30 @@ def fdm_slice():
         "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
     }
 
-    # Limit to 1 job: Clean up previous ones
+
+    # FIX #11: Safe job cleanup — protect active jobs, keep last N completed ones.
+    # Previously, all jobs were deleted unconditionally even if the user was still
+    # viewing the G-code preview from the most recent slice.
+    MAX_KEPT_JOBS = 3
     try:
         if JOBS_DIR.exists():
-            for item in JOBS_DIR.iterdir():
-                if item.is_dir():
-                    shutil.rmtree(item)
-                elif item.name != "history.db":
-                    item.unlink()
+            job_dirs = sorted(
+                [d for d in JOBS_DIR.iterdir() if d.is_dir()],
+                key=lambda d: d.stat().st_mtime
+            )
+            completed_job_dirs = [
+                d for d in job_dirs
+                if d.name in _slice_jobs and _slice_jobs[d.name].get("status") in ("done", "error")
+            ]
+            # Delete oldest completed jobs beyond the keep limit
+            for old_dir in completed_job_dirs[:-MAX_KEPT_JOBS]:
+                try:
+                    shutil.rmtree(old_dir)
+                    _slice_jobs.pop(old_dir.name, None)
+                except Exception as e:
+                    print(f"[Cleanup] Could not remove {old_dir.name}: {e}")
     except Exception as e:
-        print(f"Cleanup error: {e}")
+        print(f"[Cleanup] Error during job cleanup: {e}")
 
     job_id = uuid.uuid4().hex[:10]
     job_dir = JOBS_DIR / job_id
