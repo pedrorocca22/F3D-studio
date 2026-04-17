@@ -388,6 +388,7 @@ export interface LayerAction {
   kind: 'feature_override' | 'parameter_override' | 'process_event';
   targetFeatures?: ('perimeter' | 'infill' | 'solidInfill' | 'support' | 'all')[];
   toolOverride?: ToolheadId;
+  scaffoldTools?: ScaffoldToolMapping;
   fdmSettings?: Partial<FDMPrintSettings>;
   syringeSettings?: Partial<SyringePrintSettings>;
   uvSettings?: UVCrosslinkSettings;

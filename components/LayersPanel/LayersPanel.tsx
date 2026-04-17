@@ -102,9 +102,19 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   });
 
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  const [expandedSegments, setExpandedSegments] = useState<Set<string>>(new Set());
 
   const toggleModelExpand = (id: string) => {
     setExpandedModels(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSegmentExpand = (id: string) => {
+    setExpandedSegments(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -191,6 +201,41 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     const file = new File([blob], "Cylinder_10mm.stl", { type: "model/stl" });
     onFileUpload(file, false);
     setOpenSections(prev => ({ ...prev, advanceSlice: false }));
+  };
+
+  const handleUpdateSegment = (id: string, updates: Partial<LayerAction>) => {
+    onUpdateLayerActions(layerActions.map(a => a.id === id ? { ...a, ...updates } : a));
+  };
+
+  const handleDeleteSegment = (id: string) => {
+    onUpdateLayerActions(layerActions.filter(a => a.id !== id));
+  };
+
+  const handleAddSegment = (modelId: string, initialSettings?: { scaffoldTools?: any, fdmSettings?: any }) => {
+    const newId = generateUUID();
+    const existing = layerActions.filter(a => a.modelId === modelId);
+    const last = existing[existing.length - 1];
+    const from = last ? last.layerTo + 1 : 1;
+    onUpdateLayerActions([
+      ...layerActions,
+      {
+        id: newId,
+        modelId,
+        layerFrom: from,
+        layerTo: Math.min(from + 20, totalLayers),
+        kind: 'parameter_override',
+        scaffoldTools: initialSettings?.scaffoldTools,
+        fdmSettings: initialSettings?.fdmSettings,
+        color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
+        label: `SEGMENT ${existing.length + 1}`
+      }
+    ]);
+    
+    setExpandedSegments(prev => {
+      const next = new Set(prev);
+      next.add(newId);
+      return next;
+    });
   };
 
   const inputClass = "w-32";
@@ -663,107 +708,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
             </div>
           )}
 
-          {/* TAB 2: SCHEDULE */}
-          {activeStep === 3 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-left-2">
-            
-            <section className="bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Process Management
-                </span>
-                <button 
-                  onClick={() => onOpenHelp('layer_actions')}
-                  className="p-1 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
-                  title="Open Layer Wiki"
-                >
-                  <Icon name="help_outline" className="text-sm" />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  {layerActions.length} SEGMENT{layerActions.length !== 1 ? 'S' : ''} DEFINED
-                </span>
-                {totalLayers > 0 && (
-                  <span className="text-[9px] font-mono text-slate-400">
-                    TOTAL: {totalLayers} LAYERS
-                  </span>
-                )}
-              </div>
-
-              {layerActions.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <Icon name="layers" className="text-4xl mb-2 opacity-20" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider">No Segments Defined</p>
-                  <p className="text-[8px] text-slate-400 mt-1">Add segment below</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-                  {layerActions.map((action, i) => (
-                    <LayerActionRow
-                      key={action.id}
-                      action={action}
-                      totalLayers={totalLayers}
-                      models={models}
-                      onUpdate={updated => {
-                        const next = [...layerActions];
-                        next[i] = updated;
-                        onUpdateLayerActions(next);
-                      }}
-                      onDelete={() => onUpdateLayerActions(layerActions.filter((_, idx) => idx !== i))}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Add new segment */}
-              <div className="bg-white border-2 border-dashed border-outline-variant/30 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">New Segment</span>
-                </div>
-                
-                {/* Intent selector */}
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { kind: 'feature_override', label: 'Feature Override', icon: 'swap_horiz' },
-                    { kind: 'parameter_override', label: 'Parameter', icon: 'tune' },
-                    { kind: 'process_event', label: 'Process Event', icon: 'bolt' },
-                  ].map(opt => (
-                    <button
-                      key={opt.kind}
-                      onClick={() => {
-                        const last = layerActions[layerActions.length - 1];
-                        const from = last ? last.layerTo + 1 : 1;
-                        const to = from + 20;
-                        onUpdateLayerActions([
-                          ...layerActions,
-                          {
-                            id: generateUUID(),
-                            layerFrom: from,
-                            layerTo: to,
-                            kind: opt.kind as 'feature_override' | 'parameter_override' | 'process_event',
-                            targetFeatures: opt.kind === 'feature_override' ? ['all'] : undefined,
-                            toolOverride: opt.kind === 'feature_override' ? 'fdm' : undefined,
-                            label: '',
-                            color: '#0d9488',
-                          }
-                        ]);
-                      }}
-                      className="flex flex-col items-center gap-1 p-3 rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5 transition-all group"
-                    >
-                      <Icon name={opt.icon} className="text-lg text-slate-400 group-hover:text-primary" />
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider text-center leading-tight group-hover:text-primary">
-                        {opt.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-            </div>
-          )}
-
           {/* TAB 3: MAPPING */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-1">
@@ -777,10 +721,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               ) : (
                 <div className="space-y-3">
                   {models.map(m => {
-                    const isScaffold = !!m.scaffoldTools;
                     const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
                     const isSelected = selectedModelId === m.id;
                     const thColor = TOOLHEAD_COLORS[m.toolhead || 'fdm'];
+                    const modelSegments = layerActions.filter(a => a.modelId === m.id);
                     
                     return (
                       <div 
@@ -791,124 +735,105 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             : 'border-outline-variant/20 hover:border-primary/40'
                         }`}
                       >
+                        {/* Segment Visual Bar */}
+                        {modelSegments.length > 0 && (
+                          <div className="px-4 py-1.5 bg-slate-50/50 dark:bg-slate-900/30 border-b border-outline-variant/5">
+                            <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full relative w-full overflow-hidden flex items-center shadow-inner">
+                              {modelSegments.map((seg, idx) => {
+                                const left = (seg.layerFrom / totalLayers) * 100;
+                                const width = ((seg.layerTo - seg.layerFrom + 1) / totalLayers) * 100;
+                                return (
+                                  <div 
+                                    key={seg.id}
+                                    className="absolute h-full opacity-90 flex items-center justify-center overflow-hidden border-r border-white/10 hover:opacity-100 transition-opacity"
+                                    style={{ 
+                                      left: `${left}%`, 
+                                      width: `${width}%`,
+                                      backgroundColor: seg.color || '#3b82f6'
+                                    }}
+                                    title={`${seg.label || 'Segment'} (L${seg.layerFrom}-L${seg.layerTo})`}
+                                  >
+                                    {width > 6 && (
+                                      <span className="text-[6px] text-white font-black truncate px-0.5 pointer-events-none">
+                                        {seg.label ? seg.label.split(' ').map(w => w[0]).join('').toUpperCase() : `S${idx+1}`}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Card header */}
                         <div 
                           onClick={() => onSelectModel(m.id)}
-                          className={`flex items-center justify-between px-4 py-3 cursor-pointer ${isSelected ? 'bg-primary/5' : 'bg-slate-50'}`}
+                          className={`flex items-center justify-between px-3 py-2 cursor-pointer ${isSelected ? 'bg-primary/5' : 'bg-slate-50'}`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <div 
-                              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                               style={{ backgroundColor: thColor + '22' }}
                             >
-                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: thColor }} />
+                              <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: thColor }} />
                             </div>
                             <div className="min-w-0">
-                              <p className={`text-[11px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-primary' : 'text-slate-700'}`}>
+                              <p className={`text-[10px] font-black uppercase tracking-wider truncate ${isSelected ? 'text-primary' : 'text-slate-700'}`}>
                                 {m.name}
                               </p>
-                              <p className="text-[9px] text-slate-400">
-                                {isScaffold ? 'MULTI-TOOL MAPPING' : 'SINGLE TOOL'}
+                              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">
+                                CONFIGURATION
                               </p>
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleModelExpand(m.id); }}
-                              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+                              className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
                             >
                               <Icon 
                                 name={expandedModels.has(m.id) ? "expand_less" : "expand_more"} 
-                                className="text-slate-400 group-hover:text-primary transition-colors" 
+                                className="text-slate-400 group-hover:text-primary transition-colors text-base" 
                               />
-                            </button>
-                            
-                            {/* Single / Multi-tool toggle */}
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isScaffold) {
-                                  onUpdateModel(m.id, { scaffoldTools: undefined });
-                                }
-                              }}
-                              className={`text-[8px] font-black px-3 py-1.5 uppercase tracking-widest border transition-all ${
-                                !isScaffold 
-                                  ? 'bg-primary text-white border-primary shadow-sm' 
-                                  : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50 hover:text-primary'
-                              }`}
-                            >
-                              Single
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!isScaffold) {
-                                  const base = m.toolhead || 'fdm';
-                                  onUpdateModel(m.id, {
-                                    scaffoldTools: { perimeter: base, infill: base, solidInfill: base, support: base }
-                                  });
-                                }
-                              }}
-                              className={`text-[8px] font-black px-3 py-1.5 uppercase tracking-widest border transition-all ${
-                                isScaffold 
-                                  ? 'bg-primary text-white border-primary shadow-sm' 
-                                  : 'bg-white border-outline-variant/30 text-slate-400 hover:border-primary/50 hover:text-primary'
-                              }`}
-                            >
-                              Multi
                             </button>
                           </div>
                         </div>
-                      </div>
 
                         {/* Tool assignment */}
                         {expandedModels.has(m.id) && (
-                        <div className="p-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                          {!isScaffold ? (
-                            <div className="space-y-2">
-                              <label className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Toolhead</label>
-                              <ToolheadSelect
-                                value={m.toolhead || 'fdm'}
-                                onChange={v => onUpdateModel(m.id, { toolhead: v })}
-                                className="w-full h-9"
-                              />
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                                {SCAFFOLD_FEATURE_META.map(feat => (
-                                  <div key={feat.key} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2 border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800">
-                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">{feat.label}</span>
-                                    <ToolheadSelect
-                                      value={scTools[feat.key]}
-                                      onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
-                                      className="w-32 h-7"
-                                    />
-                                  </div>
-                                ))}
-
-                            </div>
-                          )}
+                        <div className="p-3 animate-in fade-in slide-in-from-top-1 duration-200 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                           <div className="grid grid-cols-2 gap-2">
+                               {SCAFFOLD_FEATURE_META.map(feat => (
+                                 <div key={feat.key} className="flex flex-col gap-1 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800">
+                                   <span className="text-[8px] text-slate-500 font-black uppercase tracking-tight">{feat.label}</span>
+                                   <ToolheadSelect
+                                     value={scTools[feat.key]}
+                                     onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
+                                     className="w-full h-6 text-[10px]"
+                                   />
+                                 </div>
+                               ))}
+                           </div>
 
                            {/* Base FDM Settings for the model */}
-                           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                             <label className="text-[9px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-2">
-                               <Icon name="settings" className="text-xs" /> BASE FDM PROFILE
+                           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                             <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-1.5">
+                               <Icon name="settings" className="text-[10px]" /> BASE FDM PROFILE
                              </label>
-                             <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Infill (%)</span>
-                                   <div className="h-8">
+                             <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-0.5">
+                                   <span className="text-[8px] text-slate-500 uppercase font-black">Infill (%)</span>
+                                   <div className="h-7">
                                      <NumericInput 
                                        value={m.fdmSettings?.infillPercent ?? globalSettings.infill ?? 15} 
                                        onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, infillPercent: v } })} 
                                      />
                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                   <span className="text-[10px] text-slate-500 uppercase font-bold">Perimeters</span>
-                                   <div className="h-8">
+                                <div className="space-y-0.5">
+                                   <span className="text-[8px] text-slate-500 uppercase font-black">Walls</span>
+                                   <div className="h-7">
                                      <NumericInput 
                                        value={m.fdmSettings?.wallCount ?? globalSettings.perimeters ?? 3} 
                                        onChange={v => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, wallCount: v } })} 
@@ -960,6 +885,137 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                     />
                                   </div>
                                </div>
+                             </div>
+                           </div>
+
+                           {/* Models Segments */}
+                           <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                             <div className="flex items-center justify-between">
+                               <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-1.5">
+                                 <Icon name="layers" className="text-[10px]" /> LAYER OVERRIDES
+                               </label>
+                               <button 
+                                 onClick={() => {
+                                   handleAddSegment(m.id, { scaffoldTools: scTools, fdmSettings: m.fdmSettings });
+                                 }}
+                                 className="text-[8px] font-black text-primary hover:bg-primary/5 px-2 py-1 rounded transition-colors uppercase tracking-widest border border-primary/20"
+                               >
+                                 + ADD
+                               </button>
+                             </div>
+
+                             <div className="space-y-2">
+                               {modelSegments.map(seg => {
+                                 const isSegExpanded = expandedSegments.has(seg.id);
+                                 return (
+                                   <div key={seg.id} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                     <div 
+                                       onClick={() => toggleSegmentExpand(seg.id)}
+                                       className={`flex items-center justify-between px-2.5 py-1.5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors ${isSegExpanded ? 'bg-slate-100/50 border-b border-slate-100' : ''}`}
+                                     >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
+                                           <span className="text-[8px] font-black uppercase tracking-wide truncate text-slate-600 dark:text-slate-400">
+                                             {seg.label || 'UNTITLED SEGMENT'}
+                                           </span>
+                                           <span className="text-[7px] font-mono text-slate-400 bg-white dark:bg-slate-900 px-1 rounded border border-slate-100 dark:border-slate-800">
+                                             L{seg.layerFrom}-{seg.layerTo}
+                                           </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteSegment(seg.id); }} 
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                          >
+                                            <Icon name="delete" className="text-[10px]" />
+                                          </button>
+                                          <Icon 
+                                            name={isSegExpanded ? "expand_less" : "expand_more"} 
+                                            className="text-slate-400 text-xs" 
+                                          />
+                                        </div>
+                                     </div>
+
+                                     {isSegExpanded && (
+                                       <div className="p-3 space-y-3 animate-in fade-in slide-in-from-top-1">
+                                         <div className="space-y-1">
+                                            <span className="text-[7px] text-slate-400 font-black uppercase">Segment Label</span>
+                                            <input 
+                                              value={seg.label || ''} 
+                                              onChange={e => handleUpdateSegment(seg.id, { label: e.target.value })}
+                                              className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded px-2 py-1 text-[9px] font-bold outline-none h-7"
+                                              placeholder="E.G. REINFORCEMENT"
+                                            />
+                                         </div>
+
+                                         <div className="flex gap-2 items-center">
+                                            <div className="flex-1 space-y-0.5">
+                                               <span className="text-[7px] text-slate-400 uppercase font-black">START</span>
+                                               <NumericInput value={seg.layerFrom} onChange={v => handleUpdateSegment(seg.id, { layerFrom: v })} className="h-6 text-[9px]" />
+                                            </div>
+                                            <div className="flex-1 space-y-0.5">
+                                               <span className="text-[7px] text-slate-400 uppercase font-black">END</span>
+                                               <NumericInput value={seg.layerTo} onChange={v => handleUpdateSegment(seg.id, { layerTo: v })} className="h-6 text-[9px]" />
+                                            </div>
+                                         </div>
+
+                                         <div className="grid grid-cols-2 gap-2 pt-1">
+                                            {SCAFFOLD_FEATURE_META.map(feat => (
+                                              <div key={feat.key} className="flex flex-col gap-0.5">
+                                                <span className="text-[7px] text-slate-500 font-bold uppercase">{feat.label}</span>
+                                                <ToolheadSelect
+                                                  value={seg.scaffoldTools?.[feat.key] || scTools[feat.key]}
+                                                  onChange={v => handleUpdateSegment(seg.id, { scaffoldTools: { ...(seg.scaffoldTools || scTools), [feat.key]: v } })}
+                                                  className="w-full h-6 text-[9px]"
+                                                />
+                                              </div>
+                                            ))}
+                                         </div>
+
+                                         <div className="grid grid-cols-2 gap-2 pt-1">
+                                            <div className="space-y-0.5">
+                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Infill %</span>
+                                               <NumericInput 
+                                                  value={seg.fdmSettings?.infillPercent ?? m.fdmSettings?.infillPercent ?? 15} 
+                                                  onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), infillPercent: v } })} 
+                                                  className="h-6 text-[9px]" 
+                                               />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Walls</span>
+                                               <NumericInput 
+                                                  value={seg.fdmSettings?.wallCount ?? m.fdmSettings?.wallCount ?? 3} 
+                                                  onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), wallCount: v } })} 
+                                                  className="h-6 text-[10px]" 
+                                               />
+                                            </div>
+                                         </div>
+
+                                         <div className="grid grid-cols-2 gap-2">
+                                            <div className="space-y-0.5">
+                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Layer H (mm)</span>
+                                               <NumericInput value={seg.fdmSettings?.layerHeightMm ?? (globalSettings.layerHeight / 1000)} onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), layerHeightMm: v } })} className="h-6 text-[9px]" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Pattern</span>
+                                               <select
+                                                  value={seg.fdmSettings?.infillPattern ?? m.fdmSettings?.infillPattern ?? globalSettings.infillPattern ?? 'grid'}
+                                                  onChange={e => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), infillPattern: e.target.value as any } })}
+                                                  className="w-full h-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1 text-[8px] outline-none h-6"
+                                               >
+                                                 <option value="rectilinear">Rectilinear</option>
+                                                 <option value="grid">Grid</option>
+                                                 <option value="gyroid">Gyroid</option>
+                                                 <option value="honeycomb">Honeycomb</option>
+                                                 <option value="triangles">Triangles</option>
+                                               </select>
+                                            </div>
+                                         </div>
+                                       </div>
+                                     )}
+                                   </div>
+                                 );
+                               })}
                              </div>
                            </div>
                         </div>

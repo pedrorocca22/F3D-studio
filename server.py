@@ -274,6 +274,9 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                     if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
                         entry["params"]["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
 
+                    if "layerHeightMm" in fdm and fdm["layerHeightMm"] not in (None, ""):
+                        entry["params"]["layer_height"] = str(fdm["layerHeightMm"])
+
                     if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
                         entry["params"]["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
 

@@ -62,6 +62,9 @@ export function resolveLayerPlans(
           if (action.syringeSettings) {
              settings.syringe = { ...settings.syringe, ...action.syringeSettings };
           }
+          if (action.scaffoldTools) {
+            settings.mapping = { ...settings.mapping, ...action.scaffoldTools };
+          }
         } else if (action.kind === 'process_event') {
           if (action.uvSettings) {
             settings.uv = { ...action.uvSettings };
