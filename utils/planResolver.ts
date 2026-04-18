@@ -103,6 +103,11 @@ export function resolveLayerPlans(
             if (targets.includes('solidInfill')) settings.mapping.solidInfill = tool;
             if (targets.includes('support')) settings.mapping.support = tool;
           }
+
+          // ALSO merge FDM settings if they exist in a feature override
+          if (action.fdmSettings) {
+            settings.fdm = { ...settings.fdm, ...action.fdmSettings };
+          }
         } else if (action.kind === 'parameter_override') {
           // Merge settings
           if (action.fdmSettings) {

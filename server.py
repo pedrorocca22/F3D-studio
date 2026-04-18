@@ -23,6 +23,13 @@ from moonraker_client import MoonrakerClient
 from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_default_toolhead_actions
 from datetime import datetime
 
+def _debug_log_to_file(filename, content):
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
+    except:
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent
 
 # Configuracion
@@ -238,7 +245,7 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         model_id = vol.get("model_id")
 
         # ── Helper: extract PrusaSlicer param dict from fdm settings dict ──
-        def _fdm_to_ps_params(fdm: dict) -> dict:
+        def _fdm_to_ps_params(fdm: dict, mapping: dict = None) -> dict:
             params = {}
             if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
                 params["fill_density"] = f"{fdm['infillPercent']}%"
@@ -255,6 +262,23 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                 params["layer_height"] = str(fdm["layerHeightMm"])
             if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
                 params["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
+            if "printSpeedMmS" in fdm and fdm["printSpeedMmS"] not in (None, ""):
+                s = str(fdm["printSpeedMmS"])
+                params["infill_speed"] = s
+                params["perimeter_speed"] = s
+                params["solid_infill_speed"] = s
+                params["top_solid_infill_speed"] = s
+            
+            # Add Toolhead/Extruder mappings to metadata so PrusaSlicer handles tool switching
+            if mapping:
+                # Default extruder for the whole range
+                primary = mapping.get("perimeter") or mapping.get("infill") or "fdm"
+                params["extruder"] = str(toolhead_to_extruder.get(primary, 1))
+                params["perimeter_extruder"] = str(toolhead_to_extruder.get(mapping.get("perimeter", "fdm"), 1))
+                params["infill_extruder"] = str(toolhead_to_extruder.get(mapping.get("infill", "fdm"), 1))
+                params["solid_infill_extruder"] = str(toolhead_to_extruder.get(mapping.get("solidInfill", "fdm"), 1))
+                params["support_material_extruder"] = str(toolhead_to_extruder.get(mapping.get("support", "fdm"), 1))
+                
             return params
 
         range_entries = []
@@ -267,12 +291,13 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                     l_to = int(r.get("layerTo", 1))
                     settings = r.get("settings", {}) or {}
                     fdm = settings.get("fdm", {}) or {}
-                    params = _fdm_to_ps_params(fdm)
+                    mapping = settings.get("mapping", {})
+                    params = _fdm_to_ps_params(fdm, mapping)
                     if params:
-                        # l_from=1 → z=0 (first layer starts at 0)
-                        z_min = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 4)
-                        z_max = round(first_layer_height + (l_to - 1) * layer_height, 4)
-                        range_entries.append({"range": f"{z_min},{z_max}", "params": params})
+                        # Precision fixed to 3 decimals to match PS 3MF standard
+                        z_min_f = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 3)
+                        z_max_f = round(first_layer_height + (l_to - 1) * layer_height, 3)
+                        range_entries.append({"range": f"{z_min_f:.3f},{z_max_f:.3f}", "params": params})
 
         elif layer_actions:
             for action in layer_actions:
@@ -296,20 +321,20 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         if range_entries:
             src = "resolved" if is_resolved_plan else "raw-actions"
             print(f"[3MF] Model {model_id} ({src}): {len(range_entries)} layer_range entries:")
-            for e in range_entries:
-                print(f"  Z[{e['range'].replace(',', ' -> ')}] params={e['params']}")
-
-            # PrusaSlicer proprietary 3MF format for Height Range Modifiers
+            
+            # Format compatible with PrusaSlicer: uses 'value' attribute and EXACT precision
             ranges_str = ";".join(e["range"] for e in range_entries)
-            config_lines.append(f'  <metadata type="object" key="layer_range">{ranges_str}</metadata>')
+            config_lines.append(f'  <metadata type="object" key="layer_range" value="{ranges_str}"/>')
             
             for e in range_entries:
                 z_rng = e["range"]
+                print(f"  -> Z[{z_rng}] params={e['params']}")
                 for ps_key, ps_val in e["params"].items():
-                    config_lines.append(f'  <metadata type="object" key="{ps_key}_{z_rng}">{ps_val}</metadata>')
+                    # Format as param:range instead of param_range for better Slic3r compatibility
+                    config_lines.append(f'  <metadata type="object" key="{ps_key}:{z_rng}" value="{ps_val}"/>')
                     if ps_key == "fill_pattern":
-                        config_lines.append(f'  <metadata type="object" key="solid_fill_pattern_{z_rng}">{ps_val}</metadata>')
-                        config_lines.append(f'  <metadata type="object" key="top_fill_pattern_{z_rng}">{ps_val}</metadata>')
+                        config_lines.append(f'  <metadata type="object" key="solid_fill_pattern:{z_rng}" value="{ps_val}"/>')
+                        config_lines.append(f'  <metadata type="object" key="top_fill_pattern:{z_rng}" value="{ps_val}"/>')
 
         config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
         config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
@@ -318,6 +343,8 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         config_lines.append(f' </object>')
     config_lines.append('</config>')
     slic3r_config = "\n".join(config_lines)
+    
+    _debug_log_to_file("debug_last_config.xml", slic3r_config)
 
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
@@ -482,7 +509,7 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
-def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
+def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolheads_config: list = None):
     """
     Apply Priority: Layer Schedule > Scaffold Mapping.
     Only feature_override actions should force tool changes.
@@ -492,29 +519,83 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
         return
 
     overrides = {}
+    events = {} # {layer: [gcode_lines]}
 
-    for action in layer_actions:
-        try:
-            if action.get("kind") != "feature_override":
+    # Map toolhead IDs to their temperatures
+    temps = {}
+    if toolheads_config:
+        for th in toolheads_config:
+            # Check for FDM temperature
+            if th.get("id") == "fdm":
+                temps["fdm"] = th.get("defaultTemperature")
+            elif th.get("id") == "syringe":
+                # syringe might not have temp, but fdm/nozzle often used as reference
+                pass
+
+    for item in layer_actions:
+        # Support both legacy LayerAction and new ResolvedModelPlan formats
+        ranges = []
+        if "ranges" in item:
+            # New format: loop through all ranges of the plan
+            ranges = item["ranges"]
+        else:
+            # Legacy format: single action
+            ranges = [item]
+
+        for r in ranges:
+            try:
+                # Resolve Toolhead
+                tool = "fdm"
+                if "toolOverride" in r: 
+                    tool = r["toolOverride"]
+                elif "settings" in r and "mapping" in r["settings"]:
+                    # In ResolvedModelPlan, we look at mapping.perimeter as primary
+                    tool = r["settings"]["mapping"].get("perimeter", "fdm")
+                else:
+                    tool = r.get("toolhead") or "fdm"
+
+                lyr_from = int(r.get("layerFrom", 1))
+                lyr_to = int(r.get("layerTo", 1))
+
+                t_cmd = "T0"
+                if tool == "syringe":
+                    t_cmd = "T1"
+                elif tool == "uv":
+                    t_cmd = "T2"
+
+                # If we have a temperature for this tool, inject it
+                if tool in temps and temps[tool]:
+                    t_cmd += f"\nM104 S{temps[tool]} ; Set temperature for {tool}"
+
+                for lyr in range(lyr_from, lyr_to + 1):
+                    overrides[lyr] = t_cmd
+
+                # Resolve UV Events / Macros (if present in Plan format)
+                settings = r.get("settings", {})
+                uv = settings.get("uv") or r.get("uvSettings")
+                gcode_cmds = []
+                
+                if uv:
+                    dur = uv.get("exposureTimeSec", 5)
+                    pause = uv.get("pausePrint", True)
+                    gcode_cmds.append(f"; --- UV EVENT AT LAYER {lyr_from} ---")
+                    if pause: gcode_cmds.append("M0 ; Pause for UV exposure")
+                    gcode_cmds.append("T2 ; Switch to UV head")
+                    gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposure for {dur}s")
+                
+                pre = settings.get("preMacro") or r.get("preMacro")
+                if pre: gcode_cmds.append(str(pre))
+                post = settings.get("postMacro") or r.get("postMacro")
+                if post: gcode_cmds.append(str(post))
+
+                if gcode_cmds:
+                    if lyr_from not in events: events[lyr_from] = []
+                    events[lyr_from].extend(gcode_cmds)
+
+            except (ValueError, TypeError, KeyError):
                 continue
 
-            lyr_from = int(action.get("layerFrom", 1))
-            lyr_to = int(action.get("layerTo", 1))
-            tool = action.get("toolOverride") or action.get("toolhead") or "fdm"
-
-            t_cmd = "T0"
-            if tool == "syringe":
-                t_cmd = "T1"
-            elif tool == "uv":
-                t_cmd = "T2"
-
-            for lyr in range(lyr_from, lyr_to + 1):
-                overrides[lyr] = t_cmd
-
-        except (ValueError, TypeError):
-            continue
-
-    if not overrides:
+    if not overrides and not events:
         return
 
     lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
@@ -522,17 +603,27 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list):
     current_layer = 0
 
     for line in lines:
-        if ";LAYER_CHANGE" in line:
+        # Detect any common layer change markers used by different slicers/versions
+        is_layer_marker = ";LAYER_CHANGE" in line or "; LAYER_CHANGE" in line or ";LAYER:" in line
+        if is_layer_marker:
             current_layer += 1
             output.append(line)
+            
+            # 1. Inject Tool Change from Schedule 
             if current_layer in overrides:
-                output.append(f"{overrides[current_layer]} ; Forced by Layer Schedule priority\n")
+                output.append(f"{overrides[current_layer]} ; Forced by Layer Schedule\n")
+            
+            # 2. Inject Process Events (UV, Macros)
+            if current_layer in events:
+                for cmd in events[current_layer]:
+                    output.append(f"{cmd}\n")
             continue
 
         if current_layer in overrides:
             stripped = line.strip()
+            # Suppress any existing toolchanges if we have an override for this layer
             if re.match(r"^T[0-9]+", stripped):
-                output.append(f"; {stripped} ; Suppressed by Layer Schedule priority\n")
+                output.append(f"; {stripped} ; Suppressed by Schedule priority\n")
                 continue
 
         output.append(line)
@@ -647,6 +738,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         perimeters = form_params.get("perimeters", "3")
         models_meta = json.loads(form_params.get("models_metadata", "[]"))
         layer_actions_raw = json.loads(form_params.get("layer_actions", "[]"))
+        toolheads_raw = form_params.get("toolheads")
+        toolheads_config = json.loads(toolheads_raw) if toolheads_raw else []
 
         bed_center_x, bed_center_y = _get_bed_center(Path(FDM_CONFIG_INI))
 
@@ -885,9 +978,11 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         # correctly positioned relative to the bed origin.
 
         # ── Apply Layer Schedule Priority over Scaffold Mapping ──
-        if layer_actions_raw:
+        # Use full layer plans if available for more accurate toolhead switching
+        sanitizer_actions = layer_plans if layer_plans else layer_actions_raw
+        if sanitizer_actions:
             _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
-            _sanitize_gcode_with_schedule(gcode_out, layer_actions_raw)
+            _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config)
 
         # ── Pore Injection Post-Processing ──
         pore_models = [
@@ -1010,6 +1105,13 @@ def fdm_slice():
         "max_fan_speed": request.form.get("max_fan_speed", "100"),
         "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
     }
+    
+    # DEBUG: Log raw request
+    import json as debug_json
+    _debug_log_to_file("debug_last_request.json", debug_json.dumps({
+        "params": form_params,
+        "files_count": len(files)
+    }, indent=2))
 
 
     # FIX #11: Safe job cleanup — protect active jobs, keep last N completed ones.

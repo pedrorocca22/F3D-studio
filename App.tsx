@@ -428,6 +428,7 @@ export default function App() {
 
     formData.append('layer_height', layerH);
     formData.append('first_layer_height', firstLayerH);
+    formData.append('toolheads', JSON.stringify(globalSettings.toolheads));
     formData.append('nozzle_temp', String(globalSettings.nozzleTemperature ?? 210));
     formData.append('bed_temp', String(globalSettings.bedTemperature ?? 60));
     formData.append('infill', String(globalSettings.infill ?? 15));
@@ -472,6 +473,37 @@ export default function App() {
       (globalSettings.firstLayerHeight || 300) / 1000
     );
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
+
+    // Derive legacy layer_actions for backend G-code sanitizer (toolhead switching logic)
+    const layer_h = globalSettings.layerHeight / 1000;
+    const first_layer_h = (globalSettings.firstLayerHeight || 300) / 1000;
+    
+    const derivedLayerActions = zZones.map(zz => {
+        const from = zz.zStartMm <= first_layer_h 
+            ? 1 
+            : Math.max(1, Math.ceil((zz.zStartMm - first_layer_h) / layer_h) + 1);
+        
+        const to = Math.max(from, Math.floor((zz.zEndMm - first_layer_h) / layer_h) + 1);
+
+        return {
+            id: zz.id,
+            layerFrom: from,
+            layerTo: to,
+            modelId: zz.modelScope === 'all' ? 'all' : zz.modelScope,
+            kind: zz.featureOverride ? 'feature_override' : (zz.parameterOverride ? 'parameter_override' : 'process_event'),
+            toolOverride: zz.featureOverride?.toolhead,
+            fdmSettings: zz.parameterOverride?.fdm,
+            syringeSettings: zz.parameterOverride?.syringe,
+            uvSettings: zz.processEvent ? {
+               exposureTimeSec: zz.processEvent.uvExposureTimeSec || 5,
+               doseTargetMjCm2: zz.processEvent.doseTargetMjCm2 || 0,
+               pausePrint: zz.processEvent.pausePrint ?? true
+            } : undefined,
+            label: zz.label,
+            color: zz.color
+        };
+    });
+    formData.append('layer_actions', JSON.stringify(derivedLayerActions));
 
 
 
@@ -698,7 +730,7 @@ export default function App() {
   };
 
 
-  const maxModelHeight = Math.max(...models.map(m => m.size?.y ?? 0), 0);
+  const maxModelHeight = Math.max(...models.map(m => (m.size?.z ?? 0) * (m.transform.scale.z ?? 1)), 0);
   const calculatedTotalLayers = maxModelHeight > 0 
     ? Math.ceil(maxModelHeight / (globalSettings.layerHeight / 1000)) 
     : 100;
