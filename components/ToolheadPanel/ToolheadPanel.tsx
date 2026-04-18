@@ -58,17 +58,21 @@ export const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) 
     </span>
 );
 
-export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) => void; className?: string }> = ({ value, onChange, className }) => (
-    <select
-        value={value}
-        onChange={e => onChange(e.target.value as ToolheadId)}
-        className={`bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[9px] font-bold uppercase px-1.5 py-1 rounded outline-none focus:ring-1 focus:ring-primary cursor-pointer ${className || 'w-20'}`}
-    >
-        <option value="fdm">FDM</option>
-        <option value="syringe">SYR</option>
-        <option value="uv">UV</option>
-    </select>
-);
+export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: ToolheadId) => void; className?: string; toolheads: ToolheadConfig[] }> = ({ value, onChange, className, toolheads }) => {
+    return (
+        <select
+            value={value}
+            onChange={e => onChange(e.target.value as ToolheadId)}
+            className={`bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[9px] font-bold uppercase px-1.5 py-1 rounded outline-none focus:ring-1 focus:ring-primary cursor-pointer ${className || 'w-20'}`}
+        >
+            {toolheads.map(th => (
+                <option key={th.id} value={th.id} className={th.slot !== undefined ? '' : 'text-slate-400 italic'}>
+                   {th.id.toUpperCase()}{th.slot === undefined ? ' (OFFLINE)' : ''}
+                </option>
+            ))}
+        </select>
+    );
+};
 
 
 export const LayerActionRow: React.FC<{
@@ -619,6 +623,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                                     value={m.toolhead || 'fdm'}
                                                     onChange={v => onUpdateModel(m.id, { toolhead: v })}
                                                     className="w-full"
+                                                    toolheads={toolheads}
                                                 />
                                             </div>
                                         )}
@@ -637,6 +642,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                                                 });
                                                             }}
                                                             className="w-20 flex-shrink-0"
+                                                            toolheads={toolheads}
                                                         />
                                                     </div>
                                                 ))}

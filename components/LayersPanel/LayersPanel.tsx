@@ -97,6 +97,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     temp: 60
   });
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
   const toggleModelExpand = (id: string) => {
@@ -790,6 +792,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                      value={scTools[feat.key]}
                                      onChange={v => onUpdateModel(m.id, { scaffoldTools: { ...scTools, [feat.key]: v } })}
                                      className="w-full h-6 text-[10px]"
+                                     toolheads={toolheads}
                                    />
                                  </div>
                                ))}
@@ -1018,6 +1021,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                     className="w-full h-8 text-[10px]"
                                     value={zone.featureOverride.toolhead || 'fdm'}
                                     onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
+                                    toolheads={toolheads}
                                   />
                                 </div>
                               )}
@@ -1260,11 +1264,22 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
       </div>
 
+      {/* VALIDATION MESSAGE */}
+      {validationError && (
+        <div className="mx-4 mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2">
+          <Icon name="warning" className="text-red-500 text-sm" />
+          <span className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-tight">{validationError}</span>
+        </div>
+      )}
+
       {/* STEPPER WIZARD FOOTER */}
       <div className="p-4 border-t border-border-light bg-surface-container-low flex items-center justify-between z-10 flex-shrink-0">
           <button 
              disabled={activeStep === 1}
-             onClick={() => setActiveStep(s => s - 1)}
+             onClick={() => {
+               setValidationError(null);
+               setActiveStep(activeStep - 1);
+             }}
              className="px-4 py-2 bg-white border border-outline-variant/30 font-bold text-xs uppercase tracking-tight disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-2"
           >
               <Icon name="arrow_back" className="text-sm" /> BACK
@@ -1272,7 +1287,24 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           
           {activeStep < 5 ? (
               <button 
-                 onClick={() => setActiveStep(s => s + 1)}
+                 onClick={() => {
+                    if (activeStep === 1) {
+                      // Validate if at least one toolhead is assigned to a slot
+                      const hasTool = toolheads.some(t => t.slot !== undefined);
+                      if (!hasTool) {
+                        setValidationError("Assign at least one toolhead to a machine slot to continue.");
+                        return;
+                      }
+                    }
+                    if (activeStep === 2) {
+                      if (models.length === 0) {
+                        setValidationError("Load at least one model before proceeding.");
+                        return;
+                      }
+                    }
+                    setValidationError(null);
+                    setActiveStep(activeStep + 1);
+                 }}
                  className="px-6 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-none transition-colors uppercase tracking-widest flex items-center gap-2"
               >
                   NEXT <Icon name="arrow_forward" className="text-sm" />

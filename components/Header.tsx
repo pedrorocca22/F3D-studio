@@ -65,28 +65,29 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Stepper Center */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
-          {[
-            { id: 1, label: 'Environment' },
-            { id: 2, label: 'Models' },
-            { id: 3, label: 'Mapping' },
-            { id: 4, label: 'Configuration' },
-            { id: 5, label: 'Slice' }
-          ].map(step => (
-            <button 
-              key={step.id}
-              onClick={() => setActiveStep(step.id)} 
-              className={`px-4 h-10 text-[10px] font-bold uppercase tracking-widest transition-all duration-200 border-x border-transparent ${
-                  activeStep === step.id 
-                  ? 'bg-surface-container-low text-primary border-outline-variant/20' 
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {step.label}
-            </button>
-          ))}
-        </div>
+          {/* Stepper Center - Now purely indicative */}
+          <div className="flex items-center">
+            {[
+              { id: 1, label: 'Environment' },
+              { id: 2, label: 'Models' },
+              { id: 3, label: 'Mapping' },
+              { id: 4, label: 'Configuration' },
+              { id: 5, label: 'Slice' }
+            ].map(step => (
+              <div 
+                key={step.id}
+                className={`px-4 h-10 flex items-center text-[10px] font-bold uppercase tracking-widest transition-all duration-200 border-x border-transparent cursor-default ${
+                    activeStep === step.id 
+                    ? 'bg-surface-container-low text-primary border-outline-variant/20 shadow-inner' 
+                    : activeStep > step.id
+                      ? 'text-primary/60'
+                      : 'text-slate-300'
+                }`}
+              >
+                {step.label}
+              </div>
+            ))}
+          </div>
 
         <div className="flex items-center gap-1.5">
           {/* Printer Status chip - ultra compact */}

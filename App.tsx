@@ -91,7 +91,7 @@ export default function App() {
   // ── Toolheads state ──────────────────────────────────────────────
   const DEFAULT_TOOLHEADS: ToolheadConfig[] = [
     {
-      id: 'fdm', label: 'FDM Hot-end', klipper_tool: 'T0', installed: true,
+      id: 'fdm', label: 'FDM Hot-end', klipper_tool: 'T0', installed: false,
       nozzleDiameter: 0.4, filamentDiameter: 1.75, maxTemperature: 280,
       defaultTemperature: 210, retractionLength: 1.0, retractionSpeed: 45
     } as FDMToolheadConfig,
