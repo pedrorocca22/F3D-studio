@@ -207,135 +207,12 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         '</Relationships>'
     )
 
-    config_lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>']
+    # 2. Metadata/Slic3r_PE_model.config (Limpio, solo estructura)
+    config_lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<config xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">']
     for vol_idx, vol in enumerate(volumes):
         obj_id = vol_idx + 1
         config_lines.append(f' <object id="{obj_id}" instances_count="1">')
         config_lines.append(f'  <metadata type="object" key="name" value="Part_{obj_id}"/>')
-        
-        if vol.get("scaffoldTools"):
-            st = vol["scaffoldTools"]
-            config_lines.append(f'  <metadata type="object" key="perimeter_extruder" value="{toolhead_to_extruder.get(st.get("perimeter", "fdm"), 1)}"/>')
-            config_lines.append(f'  <metadata type="object" key="infill_extruder" value="{toolhead_to_extruder.get(st.get("infill", "fdm"), 1)}"/>')
-            config_lines.append(f'  <metadata type="object" key="solid_infill_extruder" value="{toolhead_to_extruder.get(st.get("solidInfill", "fdm"), 1)}"/>')
-            config_lines.append(f'  <metadata type="object" key="support_material_extruder" value="{toolhead_to_extruder.get(st.get("support", "fdm"), 1)}"/>')
-        else:
-            config_lines.append(f'  <metadata type="object" key="extruder" value="{vol["extruder"]}"/>')
-
-        if vol.get("fdmSettings"):
-            fs = vol["fdmSettings"]
-            if "infillPercent" in fs:
-                config_lines.append(f'  <metadata type="object" key="fill_density" value="{fs["infillPercent"]}%"/>')
-            if "infillPattern" in fs:
-                config_lines.append(f'  <metadata type="object" key="fill_pattern" value="{fs["infillPattern"]}"/>')
-            if "wallCount" in fs:
-                config_lines.append(f'  <metadata type="object" key="perimeters" value="{fs["wallCount"]}"/>')
-            if "topSolidLayers" in fs:
-                config_lines.append(f'  <metadata type="object" key="top_solid_layers" value="{fs["topSolidLayers"]}"/>')
-            if "bottomSolidLayers" in fs:
-                config_lines.append(f'  <metadata type="object" key="bottom_solid_layers" value="{fs["bottomSolidLayers"]}"/>')
-            if "fillAngle" in fs:
-                config_lines.append(f'  <metadata type="object" key="fill_angle" value="{fs["fillAngle"]}"/>')
-        # Determine if layer_actions contains resolved plans
-        is_resolved_plan = False
-        if layer_actions and isinstance(layer_actions, list) and len(layer_actions) > 0:
-            if "ranges" in layer_actions[0] and "modelId" in layer_actions[0]:
-                is_resolved_plan = True
-
-        model_id = vol.get("model_id")
-
-        # ── Helper: extract PrusaSlicer param dict from fdm settings dict ──
-        def _fdm_to_ps_params(fdm: dict, mapping: dict = None) -> dict:
-            params = {}
-            if "infillPercent" in fdm and fdm["infillPercent"] not in (None, ""):
-                params["fill_density"] = f"{fdm['infillPercent']}%"
-            normalized_pattern = _normalize_fill_pattern(fdm.get("infillPattern"))
-            if normalized_pattern:
-                params["fill_pattern"] = normalized_pattern
-            if "wallCount" in fdm and fdm["wallCount"] not in (None, ""):
-                params["perimeters"] = str(fdm["wallCount"])
-            if "topSolidLayers" in fdm and fdm["topSolidLayers"] not in (None, ""):
-                params["top_solid_layers"] = str(fdm["topSolidLayers"])
-            if "bottomSolidLayers" in fdm and fdm["bottomSolidLayers"] not in (None, ""):
-                params["bottom_solid_layers"] = str(fdm["bottomSolidLayers"])
-            if "layerHeightMm" in fdm and fdm["layerHeightMm"] not in (None, ""):
-                params["layer_height"] = str(fdm["layerHeightMm"])
-            if "extrusionMultiplier" in fdm and fdm["extrusionMultiplier"] not in (None, ""):
-                params["extrusion_multiplier"] = str(fdm["extrusionMultiplier"])
-            if "printSpeedMmS" in fdm and fdm["printSpeedMmS"] not in (None, ""):
-                s = str(fdm["printSpeedMmS"])
-                params["infill_speed"] = s
-                params["perimeter_speed"] = s
-                params["solid_infill_speed"] = s
-                params["top_solid_infill_speed"] = s
-            
-            # Add Toolhead/Extruder mappings to metadata so PrusaSlicer handles tool switching
-            if mapping:
-                # Default extruder for the whole range
-                primary = mapping.get("perimeter") or mapping.get("infill") or "fdm"
-                params["extruder"] = str(toolhead_to_extruder.get(primary, 1))
-                params["perimeter_extruder"] = str(toolhead_to_extruder.get(mapping.get("perimeter", "fdm"), 1))
-                params["infill_extruder"] = str(toolhead_to_extruder.get(mapping.get("infill", "fdm"), 1))
-                params["solid_infill_extruder"] = str(toolhead_to_extruder.get(mapping.get("solidInfill", "fdm"), 1))
-                params["support_material_extruder"] = str(toolhead_to_extruder.get(mapping.get("support", "fdm"), 1))
-                
-            return params
-
-        range_entries = []
-
-        if is_resolved_plan:
-            plan = next((p for p in layer_actions if str(p.get("modelId")) == str(model_id)), None)
-            if plan:
-                for r in plan.get("ranges", []):
-                    l_from = int(r.get("layerFrom", 1))
-                    l_to = int(r.get("layerTo", 1))
-                    settings = r.get("settings", {}) or {}
-                    fdm = settings.get("fdm", {}) or {}
-                    mapping = settings.get("mapping", {})
-                    params = _fdm_to_ps_params(fdm, mapping)
-                    if params:
-                        # Precision fixed to 3 decimals to match PS 3MF standard
-                        z_min_f = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 3)
-                        z_max_f = round(first_layer_height + (l_to - 1) * layer_height, 3)
-                        range_entries.append({"range": f"{z_min_f:.3f},{z_max_f:.3f}", "params": params})
-
-        elif layer_actions:
-            for action in layer_actions:
-                if action.get("kind") != "parameter_override":
-                    continue
-                action_model_id = action.get("modelId")
-                if action_model_id not in (None, "", "all") and str(action_model_id) != str(model_id):
-                    continue
-                try:
-                    l_from = int(action.get("layerFrom", 1))
-                    l_to = int(action.get("layerTo", 1))
-                    fdm = action.get("fdmSettings", {}) or {}
-                    params = _fdm_to_ps_params(fdm)
-                    if params:
-                        z_min = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 4)
-                        z_max = round(first_layer_height + (l_to - 1) * layer_height, 4)
-                        range_entries.append({"range": f"{z_min},{z_max}", "params": params})
-                except Exception:
-                    continue
-
-        if range_entries:
-            src = "resolved" if is_resolved_plan else "raw-actions"
-            print(f"[3MF] Model {model_id} ({src}): {len(range_entries)} layer_range entries:")
-            
-            # Format compatible with PrusaSlicer: uses 'value' attribute and EXACT precision
-            ranges_str = ";".join(e["range"] for e in range_entries)
-            config_lines.append(f'  <metadata type="object" key="layer_range" value="{ranges_str}"/>')
-            
-            for e in range_entries:
-                z_rng = e["range"]
-                print(f"  -> Z[{z_rng}] params={e['params']}")
-                for ps_key, ps_val in e["params"].items():
-                    # Format as param:range instead of param_range for better Slic3r compatibility
-                    config_lines.append(f'  <metadata type="object" key="{ps_key}:{z_rng}" value="{ps_val}"/>')
-                    if ps_key == "fill_pattern":
-                        config_lines.append(f'  <metadata type="object" key="solid_fill_pattern:{z_rng}" value="{ps_val}"/>')
-                        config_lines.append(f'  <metadata type="object" key="top_fill_pattern:{z_rng}" value="{ps_val}"/>')
-
         config_lines.append(f'  <volume firstid="0" lastid="{len(vol["triangles"])-1}">')
         config_lines.append(f'   <metadata type="volume" key="name" value="Volume_{obj_id}"/>')
         config_lines.append(f'   <metadata type="volume" key="volume_type" value="ModelPart"/>')
@@ -343,14 +220,88 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         config_lines.append(f' </object>')
     config_lines.append('</config>')
     slic3r_config = "\n".join(config_lines)
+
+    # 3. Metadata/Prusa_Slicer_layer_config_ranges.xml (NUEVA LÓGICA CLONADA)
+    ranges_xml_lines = ['<?xml version="1.0" encoding="utf-8"?>', '<objects>']
+    ranges_found = False
+
+    # Determinar si hay planes de capas para inyectar
+    is_resolved_plan = False
+    if layer_actions and isinstance(layer_actions, list) and len(layer_actions) > 0:
+        if "ranges" in layer_actions[0] and "modelId" in layer_actions[0]:
+            is_resolved_plan = True
+
+    if is_resolved_plan:
+        for vol_idx, vol in enumerate(volumes):
+            obj_id = vol_idx + 1
+            model_id = vol.get("model_id")
+            plan = next((p for p in layer_actions if str(p.get("modelId")) == str(model_id)), None)
+            
+            if plan and plan.get("ranges"):
+                ranges_found = True
+                ranges_xml_lines.append(f'  <object id="{obj_id}">')
+                for r in sorted(plan["ranges"], key=lambda k: int(k.get("layerFrom", 1))):
+                    l_from = int(r.get("layerFrom", 1))
+                    l_to = int(r.get("layerTo", 1))
+                    
+                    z_min = 0.0 if l_from <= 1 else round(first_layer_height + (l_from - 2) * layer_height, 4)
+                    z_max = round(first_layer_height + (l_to - 1) * layer_height, 4)
+                    
+                    if z_max > z_min:
+                        ranges_xml_lines.append(f'    <range min_z="{z_min:.4f}" max_z="{z_max:.4f}">')
+                        
+                        setts = r.get("settings", {})
+                        fdm_s = setts.get("fdm", {})
+                        mapping = setts.get("mapping", {})
+                        
+                        # Infill & Patterns
+                        if "infillPercent" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="fill_density">{fdm_s["infillPercent"]}%</option>')
+                        if "infillPattern" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="fill_pattern">{_normalize_fill_pattern(fdm_s["infillPattern"])}</option>')
+                        
+                        # Layer Height (Clon Prusa)
+                        ranges_xml_lines.append(f'      <option opt_key="layer_height">{layer_height}</option>')
+                        
+                        # Extruder (Base-0)
+                        primary = (mapping.get("perimeter") or mapping.get("infill") or "fdm").lower()
+                        ranges_xml_lines.append(f'      <option opt_key="extruder">{toolhead_to_extruder.get(primary, 0)}</option>')
+                        
+                        ranges_xml_lines.append('    </range>')
+                ranges_xml_lines.append('  </object>')
     
-    _debug_log_to_file("debug_last_config.xml", slic3r_config)
+    ranges_xml_lines.append('</objects>')
+    ranges_xml = "\n".join(ranges_xml_lines)
+
+    # 4. ZIP Construction with correct metadata files
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+        ' <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />\n'
+        ' <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />\n'
+        ' <Override PartName="/Metadata/Slic3r_PE_model.config" ContentType="application/vnd.slic3r.model-config+xml"/>\n'
+        ' <Override PartName="/Metadata/Prusa_Slicer_layer_config_ranges.xml" ContentType="application/xml"/>\n'
+        '</Types>'
+    )
+    
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        ' <Relationship Target="/3D/3dmodel.model" Id="rel1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />\n'
+        '</Relationships>'
+    )
 
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", content_types)
         zf.writestr("_rels/.rels", rels)
         zf.writestr("3D/3dmodel.model", model_xml)
         zf.writestr("Metadata/Slic3r_PE_model.config", slic3r_config)
+        if ranges_found:
+            zf.writestr("Metadata/Prusa_Slicer_layer_config_ranges.xml", ranges_xml)
+
+    _debug_log_to_file("debug_last_config.xml", slic3r_config)
+    if ranges_found:
+        _debug_log_to_file("debug_last_ranges.xml", ranges_xml)
 
 
 

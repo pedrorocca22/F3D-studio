@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<objects>
+  <object id="1">
+    <range min_z="0.0000" max_z="5.1000">
+      <option opt_key="fill_density">15%</option>
+      <option opt_key="fill_pattern">gyroid</option>
+      <option opt_key="layer_height">0.2</option>
+      <option opt_key="extruder">1</option>
+    </range>
+    <range min_z="5.1000" max_z="20.1000">
+      <option opt_key="fill_density">15%</option>
+      <option opt_key="fill_pattern">honeycomb</option>
+      <option opt_key="layer_height">0.2</option>
+      <option opt_key="extruder">0</option>
+    </range>
+  </object>
+</objects>
