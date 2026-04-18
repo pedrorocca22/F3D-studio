@@ -399,6 +399,38 @@ export interface LayerAction {
 }
 
 // ---------------------------------------------------------------------------
+//  Z Zones — Unified Height-based Slicing Overrides
+// ---------------------------------------------------------------------------
+
+export interface ZZone {
+  id: string;
+  modelScope: 'all' | string;
+  zStartMm: number;
+  zEndMm: number;
+  enabled: boolean;
+  priority: number;
+
+  featureOverride?: {
+    toolhead?: ToolheadId;
+    targetFeatures?: ('all' | 'perimeter' | 'infill' | 'solidInfill' | 'support')[];
+  };
+
+  parameterOverride?: {
+    fdm?: Partial<FDMPrintSettings>;
+    syringe?: Partial<SyringePrintSettings>;
+  };
+
+  processEvent?: {
+    uvExposureTimeSec?: number;
+    doseTargetMjCm2?: number;
+    pausePrint?: boolean;
+  };
+
+  label?: string;
+  color?: string;
+}
+
+// ---------------------------------------------------------------------------
 //  Global FDM Settings
 // ---------------------------------------------------------------------------
 

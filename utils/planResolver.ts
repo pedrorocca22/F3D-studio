@@ -1,14 +1,63 @@
-import { ModelData, LayerAction, ResolvedModelPlan, ResolvedLayerRange, ResolvedLayerSettings, ToolheadId } from '../types';
+import { ModelData, LayerAction, ResolvedModelPlan, ResolvedLayerRange, ResolvedLayerSettings, ToolheadId, ZZone } from '../types';
 
 /**
- * Normalizes and resolves all LayerActions for each model into an execution plan.
- * This resolves model scoping ('all' -> specific), precedence, and feature mappings.
+ * Normalizes and resolves all LayerActions and ZZones for each model into an execution plan.
  */
 export function resolveLayerPlans(
   models: ModelData[],
-  layerActions: LayerAction[],
-  totalLayers: number
+  totalLayers: number,
+  zZones: ZZone[] = [],
+  layerHeightMm: number = 0.2,
+  firstLayerHeightMm: number = 0.3
 ): ResolvedModelPlan[] {
+  // Convert ZZones to LayerActions for internal processing
+  const allActions: LayerAction[] = zZones.filter(z => z.enabled !== false).map(z => {
+    // Helper to map Z height exactly to layer indices
+    const mmToLayer = (zMm: number) => {
+      if (zMm <= 0.001) return 1;
+      if (zMm <= firstLayerHeightMm + 0.001) return 1;
+      return Math.floor((zMm - firstLayerHeightMm - 0.001) / layerHeightMm) + 2;
+    };
+
+    const action: LayerAction = {
+      id: z.id,
+      layerFrom: mmToLayer(z.zStartMm),
+      layerTo: mmToLayer(z.zEndMm),
+      modelId: z.modelScope,
+      kind: z.featureOverride ? 'feature_override' : (z.processEvent ? 'process_event' : 'parameter_override'),
+      label: z.label,
+      color: z.color,
+      priority: z.priority,
+    };
+
+    if (z.featureOverride) {
+      action.toolOverride = z.featureOverride.toolhead;
+      action.targetFeatures = z.featureOverride.targetFeatures;
+    }
+
+    if (z.parameterOverride) {
+      action.fdmSettings = z.parameterOverride.fdm;
+      action.syringeSettings = z.parameterOverride.syringe;
+    }
+
+    if (z.processEvent) {
+      action.uvSettings = {
+        doseTargetMjCm2: z.processEvent.doseTargetMjCm2 || 0,
+        exposureTimeSec: z.processEvent.uvExposureTimeSec || 0,
+        pausePrint: !!z.processEvent.pausePrint
+      };
+    }
+
+    return action;
+  });
+
+  // Sort by priority if applicable
+  const sortedActions = [...allActions].sort((a, b) => {
+     const pA = (a as any).priority || 0;
+     const pB = (b as any).priority || 0;
+     return pA - pB;
+  });
+
   return models.map(model => {
     // 1. Establish base mapping for this model
     const baseMapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId> = model.scaffoldTools 
@@ -31,7 +80,7 @@ export function resolveLayerPlans(
       };
 
       // Find all actions that apply to this layer and model
-      const applicableActions = layerActions.filter(a => {
+      const applicableActions = sortedActions.filter(a => {
         const isModelMatch = a.modelId === 'all' || a.modelId === model.id;
         const isLayerMatch = L >= a.layerFrom && L <= a.layerTo;
         return isModelMatch && isLayerMatch;

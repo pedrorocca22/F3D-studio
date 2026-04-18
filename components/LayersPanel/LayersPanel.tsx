@@ -2,12 +2,12 @@ import React, { useState, useRef } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, LayerAction, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from '../../types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SliceSegment, ToolheadConfig, ToolheadId, ScaffoldToolMapping, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ZZone } from '../../types';
 import { HelpTopic } from '../HelpWiki/HelpWiki';
 
 import { generateUUID } from '../../utils';
 import { generateCubeStl, generateCylinderStl } from '../../shapeGenerators';
-import { ToolheadBadge, ToolheadSelect, LayerActionRow, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
+import { ToolheadBadge, ToolheadSelect, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
 import { TOOLHEAD_COLORS } from '../Viewport/Viewport';
 // FIX #4: Import centralized MULTIWELL_SPECS instead of local duplicate
 import { MULTIWELL_SPECS } from '../../constants/wellplate';
@@ -45,10 +45,10 @@ interface LayersPanelProps {
   onSlice: () => void;
   // Toolhead props
   toolheads: ToolheadConfig[];
-  layerActions: LayerAction[];
   totalLayers: number;
   onUpdateToolheads: (toolheads: ToolheadConfig[]) => void;
-  onUpdateLayerActions: (actions: LayerAction[]) => void;
+  zZones: ZZone[];
+  onUpdateZZones: (zones: ZZone[]) => void;
   isSlicing?: boolean;
   slicePercent?: number;
   sliceMessage?: string;
@@ -69,7 +69,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     models, globalSettings, onUpdateGlobalSettings, selectedModelId, onSelectModel,
     onDeleteModel, onUpdateModel, onTransformChange, onUpdateSettings, onUpdateAdvancedSettings,
     onApplySettingsToAll, isAdvancedSliceMode, setIsAdvancedSliceMode, onSlice, onFileUpload,
-    toolheads, layerActions, totalLayers, onUpdateToolheads, onUpdateLayerActions,
+    toolheads, totalLayers, onUpdateToolheads,
+    zZones, onUpdateZZones,
     isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId,
     activeStep, setActiveStep, onOpenHelp
   } = props;
@@ -85,6 +86,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     fffCooling: false,
     toolheads: false,
     heatingBed: false,
+    zZones: true,
   });
 
   const [toolheadSettingsOpen, setToolheadSettingsOpen] = useState<string | null>(null);
@@ -96,7 +98,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   });
 
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
-  const [expandedSegments, setExpandedSegments] = useState<Set<string>>(new Set());
 
   const toggleModelExpand = (id: string) => {
     setExpandedModels(prev => {
@@ -107,14 +108,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     });
   };
 
-  const toggleSegmentExpand = (id: string) => {
-    setExpandedSegments(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const selectedModel = models.find(m => m.id === selectedModelId);
 
@@ -191,62 +184,34 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     setOpenSections(prev => ({ ...prev, advanceSlice: false }));
   };
 
-  const handleUpdateSegment = (id: string, updates: Partial<LayerAction>) => {
-    const updated = layerActions.map(a => a.id === id ? { ...a, ...updates } : a);
 
-    // FIX #5: Validate layer range overlap when from/to changes
-    if ('layerFrom' in updates || 'layerTo' in updates) {
-      const target = updated.find(a => a.id === id);
-      if (target) {
-        const siblings = updated.filter(a => a.id !== id && a.modelId === target.modelId);
-        const hasOverlap = siblings.some(s =>
-          target.layerFrom <= s.layerTo && target.layerTo >= s.layerFrom
-        );
-        if (hasOverlap) {
-          console.warn(`[Segments] Overlap detected for segment ${id}: L${target.layerFrom}-${target.layerTo}`);
-          // Still allow the update but set the overlap flag so the UI can show a warning
-        }
-      }
-    }
-    onUpdateLayerActions(updated);
-  };
-
-  const handleDeleteSegment = (id: string) => {
-    onUpdateLayerActions(layerActions.filter(a => a.id !== id));
-  };
-
-  const handleAddSegment = (modelId: string, initialSettings?: { scaffoldTools?: any, fdmSettings?: any }) => {
+  const handleAddZZone = (modelScope: 'all' | string = 'all') => {
     const newId = generateUUID();
-    const existing = layerActions.filter(a => a.modelId === modelId);
-    const last = existing[existing.length - 1];
-    const from = last ? last.layerTo + 1 : 1;
+    const sorted = [...zZones].sort((a, b) => a.zEndMm - b.zEndMm);
+    const last = sorted[sorted.length - 1];
+    const start = last ? last.zEndMm : 0;
+    const end = start + 5.0; // Default 5mm slab
 
-    // FIX #5: Guard against segment starting beyond totalLayers
-    if (from > totalLayers) {
-      console.warn(`[Segments] Cannot add segment: layer ${from} exceeds totalLayers (${totalLayers})`)
-      return;
-    }
+    const newZone: ZZone = {
+      id: newId,
+      modelScope,
+      zStartMm: start,
+      zEndMm: end,
+      enabled: true,
+      priority: 1,
+      label: `ZONE ${zZones.length + 1}`,
+      color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
+    };
 
-    onUpdateLayerActions([
-      ...layerActions,
-      {
-        id: newId,
-        modelId,
-        layerFrom: from,
-        layerTo: Math.min(from + 20, totalLayers),
-        kind: 'parameter_override',
-        scaffoldTools: initialSettings?.scaffoldTools,
-        fdmSettings: initialSettings?.fdmSettings,
-        color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
-        label: `SEGMENT ${existing.length + 1}`
-      }
-    ]);
-    
-    setExpandedSegments(prev => {
-      const next = new Set(prev);
-      next.add(newId);
-      return next;
-    });
+    onUpdateZZones([...zZones, newZone]);
+  };
+
+  const handleUpdateZZone = (id: string, updates: Partial<ZZone>) => {
+    onUpdateZZones(zZones.map(z => z.id === id ? { ...z, ...updates } : z));
+  };
+
+  const handleDeleteZZone = (id: string) => {
+    onUpdateZZones(zZones.filter(z => z.id !== id));
   };
 
   const inputClass = "w-32";
@@ -735,7 +700,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
                     const isSelected = selectedModelId === m.id;
                     const thColor = TOOLHEAD_COLORS[m.toolhead || 'fdm'];
-                    const modelSegments = layerActions.filter(a => a.modelId === m.id);
+                    const modelZZones = zZones.filter(z => z.modelScope === 'all' || z.modelScope === m.id);
+                    const totalHeightMm = totalLayers > 0 
+                      ? ((totalLayers - 1) * globalSettings.layerHeight / 1000) + (globalSettings.firstLayerHeight || 300) / 1000
+                      : 100; // Fallback
                     
                     return (
                       <div 
@@ -746,23 +714,23 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             : 'border-outline-variant/20 hover:border-primary/40'
                         }`}
                       >
-                        {/* Segment Visual Bar */}
-                        {modelSegments.length > 0 && (
+                        {/* Z-Zone Visual Bar */}
+                        {modelZZones.length > 0 && (
                           <div className="px-4 py-1.5 bg-slate-50/50 dark:bg-slate-900/30 border-b border-outline-variant/5">
-                            <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full relative w-full overflow-hidden flex items-center shadow-inner">
-                              {modelSegments.map((seg, idx) => {
-                                const left = (seg.layerFrom / totalLayers) * 100;
-                                const width = ((seg.layerTo - seg.layerFrom + 1) / totalLayers) * 100;
+                            <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded-full relative w-full overflow-hidden flex items-center shadow-inner">
+                              {modelZZones.map((zone, idx) => {
+                                const left = (zone.zStartMm / totalHeightMm) * 100;
+                                const width = ((zone.zEndMm - zone.zStartMm) / totalHeightMm) * 100;
                                 return (
                                   <div 
-                                    key={seg.id}
+                                    key={zone.id}
                                     className="absolute h-full opacity-90 flex items-center justify-center overflow-hidden border-r border-white/10 hover:opacity-100 transition-opacity"
                                     style={{ 
                                       left: `${left}%`, 
                                       width: `${width}%`,
-                                      backgroundColor: seg.color || '#3b82f6'
+                                      backgroundColor: zone.color || '#3b82f6'
                                     }}
-                                    title={`${seg.label || 'Segment'} (L${seg.layerFrom}-L${seg.layerTo})`}
+                                    title={`${zone.label || 'Zone'} (${zone.zStartMm}-${zone.zEndMm}mm)`}
                                   >
                                     {width > 6 && (
                                       <span className="text-[6px] text-white font-black truncate px-0.5 pointer-events-none">
@@ -897,140 +865,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                   </div>
                                </div>
                              </div>
-                           </div>
-
-                           {/* Models Segments */}
-                           <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                             <div className="flex items-center justify-between">
-                               <label className="text-[8px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-1.5">
-                                 <Icon name="layers" className="text-[10px]" /> LAYER OVERRIDES
-                               </label>
-                               <button 
-                                 onClick={() => {
-                                   handleAddSegment(m.id, { scaffoldTools: scTools, fdmSettings: m.fdmSettings });
-                                 }}
-                                 className="text-[8px] font-black text-primary hover:bg-primary/5 px-2 py-1 rounded transition-colors uppercase tracking-widest border border-primary/20"
-                               >
-                                 + ADD
-                               </button>
-                             </div>
-
-                             <div className="space-y-2">
-                               {modelSegments.map(seg => {
-                                 const isSegExpanded = expandedSegments.has(seg.id);
-                                 return (
-                                   <div key={seg.id} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden">
-                                     <div 
-                                       onClick={() => toggleSegmentExpand(seg.id)}
-                                       className={`flex items-center justify-between px-2.5 py-1.5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors ${isSegExpanded ? 'bg-slate-100/50 border-b border-slate-100' : ''}`}
-                                     >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
-                                           <span className="text-[8px] font-black uppercase tracking-wide truncate text-slate-600 dark:text-slate-400">
-                                             {seg.label || 'UNTITLED SEGMENT'}
-                                           </span>
-                                           <span className="text-[7px] font-mono text-slate-400 bg-white dark:bg-slate-900 px-1 rounded border border-slate-100 dark:border-slate-800">
-                                             L{seg.layerFrom}-{seg.layerTo}
-                                           </span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <button 
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteSegment(seg.id); }} 
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
-                                          >
-                                            <Icon name="delete" className="text-[10px]" />
-                                          </button>
-                                          <Icon 
-                                            name={isSegExpanded ? "expand_less" : "expand_more"} 
-                                            className="text-slate-400 text-xs" 
-                                          />
-                                        </div>
-                                     </div>
-
-                                     {isSegExpanded && (
-                                       <div className="p-3 space-y-3 animate-in fade-in slide-in-from-top-1">
-                                         <div className="space-y-1">
-                                            <span className="text-[7px] text-slate-400 font-black uppercase">Segment Label</span>
-                                            <input 
-                                              value={seg.label || ''} 
-                                              onChange={e => handleUpdateSegment(seg.id, { label: e.target.value })}
-                                              className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded px-2 py-1 text-[9px] font-bold outline-none h-7"
-                                              placeholder="E.G. REINFORCEMENT"
-                                            />
-                                         </div>
-
-                                         <div className="flex gap-2 items-center">
-                                            <div className="flex-1 space-y-0.5">
-                                               <span className="text-[7px] text-slate-400 uppercase font-black">START</span>
-                                               <NumericInput value={seg.layerFrom} onChange={v => handleUpdateSegment(seg.id, { layerFrom: v })} className="h-6 text-[9px]" />
-                                            </div>
-                                            <div className="flex-1 space-y-0.5">
-                                               <span className="text-[7px] text-slate-400 uppercase font-black">END</span>
-                                               <NumericInput value={seg.layerTo} onChange={v => handleUpdateSegment(seg.id, { layerTo: v })} className="h-6 text-[9px]" />
-                                            </div>
-                                         </div>
-
-                                         <div className="grid grid-cols-2 gap-2 pt-1">
-                                            {SCAFFOLD_FEATURE_META.map(feat => (
-                                              <div key={feat.key} className="flex flex-col gap-0.5">
-                                                <span className="text-[7px] text-slate-500 font-bold uppercase">{feat.label}</span>
-                                                <ToolheadSelect
-                                                  value={seg.scaffoldTools?.[feat.key] || scTools[feat.key]}
-                                                  onChange={v => handleUpdateSegment(seg.id, { scaffoldTools: { ...(seg.scaffoldTools || scTools), [feat.key]: v } })}
-                                                  className="w-full h-6 text-[9px]"
-                                                />
-                                              </div>
-                                            ))}
-                                         </div>
-
-                                         <div className="grid grid-cols-2 gap-2 pt-1">
-                                            <div className="space-y-0.5">
-                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Infill %</span>
-                                               <NumericInput 
-                                                  value={seg.fdmSettings?.infillPercent ?? m.fdmSettings?.infillPercent ?? 15} 
-                                                  onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), infillPercent: v } })} 
-                                                  className="h-6 text-[9px]" 
-                                               />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Walls</span>
-                                               <NumericInput 
-                                                  value={seg.fdmSettings?.wallCount ?? m.fdmSettings?.wallCount ?? 3} 
-                                                  onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), wallCount: v } })} 
-                                                  className="h-6 text-[10px]" 
-                                               />
-                                            </div>
-                                         </div>
-
-                                         <div className="grid grid-cols-2 gap-2">
-                                            <div className="space-y-0.5">
-                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Layer H (mm)</span>
-                                               <NumericInput value={seg.fdmSettings?.layerHeightMm ?? (globalSettings.layerHeight / 1000)} onChange={v => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), layerHeightMm: v } })} className="h-6 text-[9px]" />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                               <span className="text-[7px] text-slate-500 uppercase font-bold">Pattern</span>
-                                               <select
-                                                  value={seg.fdmSettings?.infillPattern ?? m.fdmSettings?.infillPattern ?? globalSettings.infillPattern ?? 'grid'}
-                                                  onChange={e => handleUpdateSegment(seg.id, { fdmSettings: { ...(seg.fdmSettings || {}), infillPattern: e.target.value as any } })}
-                                                  className="w-full h-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1 text-[8px] outline-none h-6"
-                                               >
-                                                 <option value="rectilinear">Rectilinear</option>
-                                                 <option value="grid">Grid</option>
-                                                 <option value="gyroid">Gyroid</option>
-                                                 <option value="honeycomb">Honeycomb</option>
-                                                 <option value="triangles">Triangles</option>
-                                               </select>
-                                            </div>
-                                         </div>
-                                       </div>
-                                     )}
-                                   </div>
-                                 );
-                               })}
-                             </div>
-                           </div>
-                        </div>
-                        )}
+                            </div>
+                         </div>
+                       )}
                       </div>
                     );
                   })}
@@ -1071,7 +908,172 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
               </AccordionSection>
 
+              <AccordionSection 
+                title={
+                  <div className="flex items-center justify-between w-full pr-2">
+                    <div className="flex items-center gap-2">
+                      <Icon name="straighten" className="text-primary text-xs" />
+                      <span className="text-[10px] uppercase font-black tracking-widest">Height Zones</span>
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAddZZone(); }}
+                      className="text-[8px] bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20 hover:bg-primary/20 transition-colors font-black uppercase tracking-widest"
+                    >
+                      + ADD
+                    </button>
+                  </div>
+                } 
+                isOpen={openSections.zZones} 
+                onToggle={() => toggleSection('zZones')}
+              >
+                <div className="space-y-4 py-2 px-1">
+                  {zZones.length === 0 && (
+                    <div className="text-center py-6 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">
+                      <p className="text-[10px] text-slate-400 uppercase font-black mb-1">No height zones</p>
+                      <button 
+                        onClick={() => handleAddZZone()}
+                        className="text-[10px] text-primary font-black hover:underline"
+                      >
+                        CREATE FIRST ZONE
+                      </button>
+                    </div>
+                  )}
+                  {zZones.sort((a,b) => a.zStartMm - b.zStartMm).map((zone, idx) => (
+                    <div key={zone.id} className="relative pl-4 border-l-2 border-slate-200 dark:border-slate-800 pb-2 last:pb-0">
+                      <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-700 border border-white dark:border-slate-900" />
+                      <div className="bg-white dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2.5 space-y-2.5 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 overflow-hidden flex-1">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: zone.color }} />
+                            <select 
+                              className="text-[8px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 outline-none font-black text-primary uppercase tracking-tighter max-w-[80px] truncate"
+                              value={zone.modelScope}
+                              onChange={e => handleUpdateZZone(zone.id, { modelScope: e.target.value })}
+                            >
+                               <option value="all">Global</option>
+                               {models.map(m => (
+                                 <option key={m.id} value={m.id}>{m.name.toUpperCase()}</option>
+                               ))}
+                            </select>
+                            <input 
+                              className="text-[10px] font-bold uppercase bg-transparent outline-none w-full truncate text-slate-700 dark:text-slate-300 ml-1"
+                              value={zone.label}
+                              onChange={e => handleUpdateZZone(zone.id, { label: e.target.value })}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <button onClick={() => handleDeleteZZone(zone.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                               <Icon name="delete" className="text-xs" />
+                             </button>
+                          </div>
+                        </div>
 
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest font-mono">Start (mm)</span>
+                            <NumericInput 
+                              value={zone.zStartMm} 
+                              onChange={v => handleUpdateZZone(zone.id, { zStartMm: v })}
+                              className="h-7 text-[10px] font-mono"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-[8px] text-slate-400 uppercase font-black tracking-widest font-mono">End (mm)</span>
+                            <NumericInput 
+                              value={zone.zEndMm} 
+                              onChange={v => handleUpdateZZone(zone.id, { zEndMm: v })}
+                              className="h-7 text-[10px] font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-1 flex gap-2">
+                           <button 
+                             onClick={() => handleUpdateZZone(zone.id, { featureOverride: zone.featureOverride ? undefined : { toolhead: 'fdm', targetFeatures: ['all'] } })}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.featureOverride ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                           >
+                             Tool
+                           </button>
+                           <button 
+                             onClick={() => handleUpdateZZone(zone.id, { parameterOverride: zone.parameterOverride ? undefined : { fdm: {} } })}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.parameterOverride ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                           >
+                             Param
+                           </button>
+                           <button 
+                             onClick={() => handleUpdateZZone(zone.id, { processEvent: zone.processEvent ? undefined : { uvExposureTimeSec: 5, doseTargetMjCm2: 50, pausePrint: false } })}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.processEvent ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                           >
+                             Event
+                           </button>
+                        </div>
+                        
+                        {/* Detail Overrides */}
+                        {(zone.featureOverride || zone.parameterOverride || zone.processEvent) && (
+                           <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                              {zone.featureOverride && (
+                                <div className="space-y-1.5">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Assigned Tool</span>
+                                  <ToolheadSelect 
+                                    className="w-full h-8 text-[10px]"
+                                    value={zone.featureOverride.toolhead || 'fdm'}
+                                    onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
+                                  />
+                                </div>
+                              )}
+                              {zone.parameterOverride && (
+                                <div className="grid grid-cols-2 gap-3">
+                                   <div className="space-y-1">
+                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
+                                      <NumericInput 
+                                        value={zone.parameterOverride.fdm?.infillPercent ?? 15}
+                                        onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPercent: v } } })}
+                                        className="h-7 text-[10px]"
+                                      />
+                                   </div>
+                                   <div className="space-y-1">
+                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
+                                      <select 
+                                        className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-slate-50 dark:bg-slate-900 outline-none px-1"
+                                        value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
+                                        onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
+                                      >
+                                         <option value="rectilinear">Rectilinear</option>
+                                         <option value="grid">Grid</option>
+                                         <option value="gyroid">Gyroid</option>
+                                         <option value="honeycomb">Honeycomb</option>
+                                      </select>
+                                   </div>
+                                </div>
+                              )}
+                              {zone.processEvent && (
+                                <div className="grid grid-cols-2 gap-3 items-end">
+                                   <div className="space-y-1 flex-1">
+                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">UV Time (s)</span>
+                                      <NumericInput 
+                                        value={zone.processEvent.uvExposureTimeSec || 0}
+                                        onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, uvExposureTimeSec: v } })}
+                                        className="h-7 text-[10px] font-mono"
+                                      />
+                                   </div>
+                                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 h-7 px-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                                      <span className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">Pause</span>
+                                      <input 
+                                        type="checkbox" 
+                                        className="accent-primary w-3 h-3"
+                                        checked={!!zone.processEvent.pausePrint}
+                                        onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, pausePrint: e.target.checked } })}
+                                      />
+                                   </div>
+                                </div>
+                              )}
+                           </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AccordionSection>
 
               <AccordionSection title="Motion Dynamics" isOpen={openSections.fffSpeeds} onToggle={() => toggleSection('fffSpeeds')}>
                 <div className="space-y-4 py-2">
@@ -1230,31 +1232,29 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Layer Schedule ({layerActions.length} actions)</h3>
-                    {layerActions.length > 0 ? (
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Z-Zones Schedule ({zZones.length} zones)</h3>
+                    {zZones.length > 0 ? (
                         <div className="space-y-2">
-                            {layerActions.map((action, i) => (
-                                <div key={action.id || i} className="flex items-center justify-between text-[10px]">
+                            {zZones.sort((a,b) => a.zStartMm - b.zStartMm).map((zone, i) => (
+                                <div key={zone.id || i} className="flex items-center justify-between text-[10px]">
                                     <div className="flex items-center gap-2">
-                                        <span className="w-14 font-mono text-slate-500">L{action.layerFrom}-{action.layerTo}</span>
-                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${(action.toolOverride || 'fdm') === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : (action.toolOverride || 'fdm') === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
-                                            {action.toolOverride || 'fdm'}
+                                        <span className="w-16 font-mono text-slate-500">{zone.zStartMm}-{zone.zEndMm}mm</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-colors ${(zone.featureOverride?.toolhead || 'fdm') === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : (zone.featureOverride?.toolhead || 'fdm') === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                                            {zone.featureOverride?.toolhead || 'fdm'}
                                         </span>
                                     </div>
-                                    {action.label && <span className="text-slate-400 truncate max-w-[80px]">{action.label}</span>}
+                                    <span className="text-slate-400 truncate max-w-[80px]">{zone.label || 'Zone'}</span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-[10px] text-slate-400">No layer schedule defined</p>
+                        <p className="text-[10px] text-slate-400">No height zones predefined</p>
                     )}
                 </div>
 
-                {layerActions.length > 0 && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
-                        <p className="text-[10px] text-slate-500">Total layers: <span className="font-mono font-bold">{Math.max(...layerActions.map(a => a.layerTo), 0)}</span></p>
-                    </div>
-                )}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-slate-500 uppercase font-black">Ready for slicing</p>
+                </div>
             </div>
         )}
 

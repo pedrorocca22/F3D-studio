@@ -8,7 +8,7 @@ import { Viewport } from './components/Viewport/Viewport';
 // GCodePreview is now integrated into Viewport directly
 
 import { Icon } from './components/Icon';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig } from './types';
+import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, SceneObject, SliceJobResponse, BackendRangeOverride, ToolheadConfig, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ZZone } from './types';
 import { generateUUID } from './utils';
 import { resolveLayerPlans } from './utils/planResolver';
 import { HelpWiki, HelpTopic } from './components/HelpWiki/HelpWiki';
@@ -106,7 +106,7 @@ export default function App() {
     } as UVToolheadConfig,
   ];
   const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
-  const [layerActions, setLayerActions] = useState<LayerAction[]>([]);
+  const [zZones, setZZones] = useState<ZZone[]>([]);
 
   // G-code preview state
   const [gcodePreviewJob, setGcodePreviewJob] = useState<{
@@ -122,7 +122,7 @@ export default function App() {
   const slicingParamsHash = useMemo(() => {
     const relevantData = {
       globalSettings,
-      layerActions,
+      zZones,
       // Only model fields that affect slicing (not size, which Three.js updates after load)
       modelParams: models.map(m => ({
         id: m.id,
@@ -135,7 +135,7 @@ export default function App() {
     };
     return JSON.stringify(relevantData);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalSettings, layerActions, models.map(m => m.id).join(','),
+  }, [globalSettings, zZones, models.map(m => m.id).join(','),
       models.map(m => JSON.stringify(m.fdmSettings)).join('|'),
       models.map(m => JSON.stringify(m.transform)).join('|'),
       models.map(m => m.toolhead).join(','),
@@ -460,11 +460,17 @@ export default function App() {
     formData.append('max_fan_speed', String(globalSettings.maxFanSpeed ?? 100));
     formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
 
-    // Toolhead layer-schedule (raw)
-    formData.append('layer_actions', JSON.stringify(layerActions));
+    // Toolhead height zones
+    formData.append('z_zones', JSON.stringify(zZones));
 
     // Resolved execution plan (normalized)
-    const resolvedPlans = resolveLayerPlans(models, layerActions, calculatedTotalLayers);
+    const resolvedPlans = resolveLayerPlans(
+      models, 
+      calculatedTotalLayers, 
+      zZones, 
+      globalSettings.layerHeight / 1000, 
+      (globalSettings.firstLayerHeight || 300) / 1000
+    );
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
 
 
@@ -605,7 +611,8 @@ export default function App() {
       const projectData = {
         models: modelsMetadata,
         globalSettings,
-        version: "2.0"
+        zZones,
+        version: "3.5"
       };
 
       zip.file("project.json", JSON.stringify(projectData, null, 2));
@@ -646,6 +653,9 @@ export default function App() {
 
         if (projectData.globalSettings) {
           setGlobalSettings(projectData.globalSettings);
+        }
+        if (projectData.zZones) {
+          setZZones(projectData.zZones);
         }
 
         if (projectData.models) {
@@ -734,10 +744,10 @@ export default function App() {
           onSlice={handleSlice}
           onFileUpload={handleFileUpload}
           toolheads={toolheads}
-          layerActions={layerActions}
           totalLayers={calculatedTotalLayers}
           onUpdateToolheads={setToolheads}
-          onUpdateLayerActions={setLayerActions}
+          zZones={zZones}
+          onUpdateZZones={setZZones}
           onOpenHelp={setHelpTopic}
           // Integrated slicing workflow props
           isSlicing={isSlicing}
