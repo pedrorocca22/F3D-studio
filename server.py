@@ -114,10 +114,10 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
     output_path: Path to the .3mf file to write.
     """
     toolhead_to_extruder = {
-        "fdm": 1,
-        "syringe": 2,
-        "uv": 3,
-        "none": 1
+        "fdm": 0,
+        "syringe": 1,
+        "uv": 2,
+        "none": 0
     }
 
     vertices = []

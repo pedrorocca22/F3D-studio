@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<objects>
+ <object id="1">
+  <range min_z="0" max_z="2">
+   <option opt_key="extruder">0</option>
+   <option opt_key="fill_density">30%</option>
+   <option opt_key="fill_pattern">gyroid</option>
+   <option opt_key="layer_height">0.2</option>
+  </range>
+ </object>
+</objects>

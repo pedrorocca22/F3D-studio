@@ -2,37 +2,37 @@
 <config>
  <object id="1" instances_count="1">
   <metadata type="object" key="name" value="Part_1"/>
-  <metadata type="object" key="extruder" value="1"/>
+  <metadata type="object" key="extruder" value="0"/>
   <metadata type="object" key="fill_density" value="15%"/>
-  <metadata type="object" key="fill_pattern" value="grid"/>
+  <metadata type="object" key="fill_pattern" value="honeycomb"/>
   <metadata type="object" key="perimeters" value="3"/>
   <metadata type="object" key="top_solid_layers" value="3"/>
   <metadata type="object" key="bottom_solid_layers" value="3"/>
   <metadata type="object" key="layer_range" value="0.000,5.100;5.100,20.100"/>
   <metadata type="object" key="fill_density:0.000,5.100" value="15%"/>
-  <metadata type="object" key="fill_pattern:0.000,5.100" value="gyroid"/>
-  <metadata type="object" key="solid_fill_pattern:0.000,5.100" value="gyroid"/>
-  <metadata type="object" key="top_fill_pattern:0.000,5.100" value="gyroid"/>
+  <metadata type="object" key="fill_pattern:0.000,5.100" value="grid"/>
+  <metadata type="object" key="solid_fill_pattern:0.000,5.100" value="grid"/>
+  <metadata type="object" key="top_fill_pattern:0.000,5.100" value="grid"/>
   <metadata type="object" key="perimeters:0.000,5.100" value="3"/>
   <metadata type="object" key="top_solid_layers:0.000,5.100" value="3"/>
   <metadata type="object" key="bottom_solid_layers:0.000,5.100" value="3"/>
-  <metadata type="object" key="extruder:0.000,5.100" value="2"/>
-  <metadata type="object" key="perimeter_extruder:0.000,5.100" value="2"/>
-  <metadata type="object" key="infill_extruder:0.000,5.100" value="2"/>
-  <metadata type="object" key="solid_infill_extruder:0.000,5.100" value="2"/>
-  <metadata type="object" key="support_material_extruder:0.000,5.100" value="2"/>
+  <metadata type="object" key="extruder:0.000,5.100" value="1"/>
+  <metadata type="object" key="perimeter_extruder:0.000,5.100" value="1"/>
+  <metadata type="object" key="infill_extruder:0.000,5.100" value="1"/>
+  <metadata type="object" key="solid_infill_extruder:0.000,5.100" value="1"/>
+  <metadata type="object" key="support_material_extruder:0.000,5.100" value="1"/>
   <metadata type="object" key="fill_density:5.100,20.100" value="15%"/>
-  <metadata type="object" key="fill_pattern:5.100,20.100" value="grid"/>
-  <metadata type="object" key="solid_fill_pattern:5.100,20.100" value="grid"/>
-  <metadata type="object" key="top_fill_pattern:5.100,20.100" value="grid"/>
+  <metadata type="object" key="fill_pattern:5.100,20.100" value="honeycomb"/>
+  <metadata type="object" key="solid_fill_pattern:5.100,20.100" value="honeycomb"/>
+  <metadata type="object" key="top_fill_pattern:5.100,20.100" value="honeycomb"/>
   <metadata type="object" key="perimeters:5.100,20.100" value="3"/>
   <metadata type="object" key="top_solid_layers:5.100,20.100" value="3"/>
   <metadata type="object" key="bottom_solid_layers:5.100,20.100" value="3"/>
-  <metadata type="object" key="extruder:5.100,20.100" value="1"/>
-  <metadata type="object" key="perimeter_extruder:5.100,20.100" value="1"/>
-  <metadata type="object" key="infill_extruder:5.100,20.100" value="1"/>
-  <metadata type="object" key="solid_infill_extruder:5.100,20.100" value="1"/>
-  <metadata type="object" key="support_material_extruder:5.100,20.100" value="1"/>
+  <metadata type="object" key="extruder:5.100,20.100" value="0"/>
+  <metadata type="object" key="perimeter_extruder:5.100,20.100" value="0"/>
+  <metadata type="object" key="infill_extruder:5.100,20.100" value="0"/>
+  <metadata type="object" key="solid_infill_extruder:5.100,20.100" value="0"/>
+  <metadata type="object" key="support_material_extruder:5.100,20.100" value="0"/>
   <volume firstid="0" lastid="1711">
    <metadata type="volume" key="name" value="Volume_1"/>
    <metadata type="volume" key="volume_type" value="ModelPart"/>
