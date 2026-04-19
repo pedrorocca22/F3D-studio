@@ -259,6 +259,14 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                             ranges_xml_lines.append(f'      <option opt_key="fill_density">{fdm_s["infillPercent"]}%</option>')
                         if "infillPattern" in fdm_s:
                             ranges_xml_lines.append(f'      <option opt_key="fill_pattern">{_normalize_fill_pattern(fdm_s["infillPattern"])}</option>')
+                        if "wallCount" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="perimeters">{fdm_s["wallCount"]}</option>')
+                        if "topSolidLayers" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="top_solid_layers">{fdm_s["topSolidLayers"]}</option>')
+                        if "bottomSolidLayers" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="bottom_solid_layers">{fdm_s["bottomSolidLayers"]}</option>')
+                        if "fillAngle" in fdm_s:
+                            ranges_xml_lines.append(f'      <option opt_key="fill_angle">{fdm_s["fillAngle"]}</option>')
                         
                         # Layer Height (Clon Prusa)
                         ranges_xml_lines.append(f'      <option opt_key="layer_height">{layer_height}</option>')
@@ -739,6 +747,35 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
         # ── Per-feature extruder assignment (Scaffold mode) ──
         # If any model carries scaffoldTools, apply PrusaSlicer's per-feature extruder keys.
+        # ── Filter overrides ──
+        # Determine which parameters are actually being overridden in ranges
+        layer_plans = json.loads(form_params.get("resolved_layer_plans", "[]"))
+        if not layer_plans:
+            layer_plans = json.loads(form_params.get("layer_actions", "[]"))
+            
+        params_in_ranges = set()
+        if layer_plans:
+            for plan in layer_plans:
+                for r in plan.get("ranges", []):
+                    setts = r.get("settings", {}) or {}
+                    fdm = setts.get("fdm", {})
+                    # Map UI keys (frontend) to PrusaSlicer keys (ini)
+                    if "infillPercent" in fdm: params_in_ranges.add("fill_density")
+                    if "infillPattern" in fdm: 
+                        params_in_ranges.add("fill_pattern")
+                        params_in_ranges.add("infill_pattern")
+                    if "wallCount" in fdm: params_in_ranges.add("perimeters")
+                    if "topSolidLayers" in fdm: params_in_ranges.add("top_solid_layers")
+                    if "bottomSolidLayers" in fdm: params_in_ranges.add("bottom_solid_layers")
+                    if "fillAngle" in fdm: params_in_ranges.add("fill_angle")
+
+        # Parameters that should be omitted from .ini ONLY IF they are present in ranges
+        # to ensure 3MF per-object/per-layer settings take precedence.
+        keys_to_omit = {
+            "fill_density", "fill_pattern", "infill_pattern", "perimeters", 
+            "top_solid_layers", "bottom_solid_layers", "fill_angle"
+        }.intersection(params_in_ranges)
+
         scaffold_tools = None
         for meta in models_meta:
             st = meta.get("scaffoldTools") or meta.get("scaffold_tools")
@@ -747,14 +784,13 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 break
 
         if scaffold_tools:
+            # IMPORTANT: For .ini (config.ini), PrusaSlicer expects 1-based indexing (1, 2, 3)
+            # This is different from the 3MF metadata which is 0-indexed.
             th_to_ext = {"fdm": "1", "syringe": "2", "uv": "3", "none": "1"}
             overrides_dict["perimeter_extruder"] = th_to_ext.get(scaffold_tools.get("perimeter", "fdm"), "1")
             overrides_dict["infill_extruder"] = th_to_ext.get(scaffold_tools.get("infill", "fdm"), "1")
             overrides_dict["solid_infill_extruder"] = th_to_ext.get(scaffold_tools.get("solidInfill", "fdm"), "1")
             overrides_dict["support_material_extruder"] = th_to_ext.get(scaffold_tools.get("support", "fdm"), "1")
-            print(f"[FDM SLICE] Scaffold tools applied: perimeter={overrides_dict['perimeter_extruder']}, "
-                  f"infill={overrides_dict['infill_extruder']}, solid={overrides_dict['solid_infill_extruder']}, "
-                  f"support={overrides_dict['support_material_extruder']}")
 
         config_lines = []
         applied_overrides = set()
@@ -768,6 +804,10 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
                     if "=" in line_strip and not line_strip.startswith("#"):
                         key = line_strip.split("=")[0].strip()
+                        # Only skip if the key is actually being handled by 3MF ranges
+                        if key in keys_to_omit:
+                            continue
+                            
                         if key in overrides_dict:
                             config_lines.append(f"{key} = {overrides_dict[key]}\n")
                             applied_overrides.add(key)
@@ -787,6 +827,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         if missing_overrides:
             config_lines.append("\n# --- Added by UI ---\n")
             for k in missing_overrides:
+                if k in keys_to_omit:
+                    continue
                 config_lines.append(f"{k} = {overrides_dict[k]}\n")
 
         with open(job_config_ini, "w", encoding="utf-8") as f:
