@@ -736,7 +736,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                   >
                                     {width > 6 && (
                                       <span className="text-[6px] text-white font-black truncate px-0.5 pointer-events-none">
-                                        {seg.label ? seg.label.split(' ').map(w => w[0]).join('').toUpperCase() : `S${idx+1}`}
+                                        {zone.label ? zone.label.split(' ').map(w => w[0]).join('').toUpperCase() : `S${idx+1}`}
                                       </span>
                                     )}
                                   </div>
