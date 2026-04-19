@@ -283,50 +283,54 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                         if vi:
                             vi_clean = "".join(c for c in vi if c.isdigit() or c == ".")
                             if vi_clean:
-                                ranges_xml_lines.append(f'      <option opt_key="fill_density" value="{vi_clean}%"/>')
+                                ranges_xml_lines.append(f'      <option opt_key="fill_density">{vi_clean}%</option>')
 
                         pat = _normalize_fill_pattern(fdm_s.get("infillPattern"))
                         if pat:
-                            ranges_xml_lines.append(f'      <option opt_key="fill_pattern" value="{pat}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="fill_pattern">{pat}</option>')
 
                         wc = _safe_str(fdm_s.get("wallCount"))
                         if wc:
                             wc_clean = "".join(c for c in wc if c.isdigit())
                             if wc_clean:
-                                ranges_xml_lines.append(f'      <option opt_key="perimeters" value="{wc_clean}"/>')
+                                ranges_xml_lines.append(f'      <option opt_key="perimeters">{wc_clean}</option>')
 
                         tsl = _safe_str(fdm_s.get("topSolidLayers"))
                         if tsl:
                             tsl_clean = "".join(c for c in tsl if c.isdigit())
                             if tsl_clean:
-                                ranges_xml_lines.append(f'      <option opt_key="top_solid_layers" value="{tsl_clean}"/>')
+                                ranges_xml_lines.append(f'      <option opt_key="top_solid_layers">{tsl_clean}</option>')
 
                         bsl = _safe_str(fdm_s.get("bottomSolidLayers"))
                         if bsl:
                             bsl_clean = "".join(c for c in bsl if c.isdigit())
                             if bsl_clean:
-                                ranges_xml_lines.append(f'      <option opt_key="bottom_solid_layers" value="{bsl_clean}"/>')
+                                ranges_xml_lines.append(f'      <option opt_key="bottom_solid_layers">{bsl_clean}</option>')
 
                         fa = _safe_str(fdm_s.get("fillAngle"))
                         if fa:
-                            ranges_xml_lines.append(f'      <option opt_key="fill_angle" value="{fa}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="fill_angle">{fa}</option>')
 
-                        ranges_xml_lines.append(f'      <option opt_key="layer_height" value="{layer_height}"/>')
+                        ranges_xml_lines.append(f'      <option opt_key="layer_height">{layer_height}</option>')
 
                         # Extruder Assignments
                         has_feature_extruders = any(k in mapping for k in ("perimeter", "infill", "solidInfill", "support"))
-                        if not has_feature_extruders:
+                        if has_feature_extruders:
+                            # Si hay específicos, anulamos el general con el valor '0' (estilo nativo Prusa)
+                            ranges_xml_lines.append('      <option opt_key="extruder">0</option>')
+                        else:
+                            # Solo si el rango es uniforme, ponemos el índice real (1, 2, 3...)
                             primary = (mapping.get("perimeter") or mapping.get("infill") or "fdm")
-                            ranges_xml_lines.append(f'      <option opt_key="extruder" value="{_get_ext(primary, toolhead_to_extruder)}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="extruder">{_get_ext(primary, toolhead_to_extruder)}</option>')
 
                         if "perimeter" in mapping:
-                            ranges_xml_lines.append(f'      <option opt_key="perimeter_extruder" value="{_get_ext(mapping["perimeter"], toolhead_to_extruder)}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="perimeter_extruder">{_get_ext(mapping["perimeter"], toolhead_to_extruder)}</option>')
                         if "infill" in mapping:
-                            ranges_xml_lines.append(f'      <option opt_key="infill_extruder" value="{_get_ext(mapping["infill"], toolhead_to_extruder)}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="infill_extruder">{_get_ext(mapping["infill"], toolhead_to_extruder)}</option>')
                         if "solidInfill" in mapping:
-                            ranges_xml_lines.append(f'      <option opt_key="solid_infill_extruder" value="{_get_ext(mapping["solidInfill"], toolhead_to_extruder)}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="solid_infill_extruder">{_get_ext(mapping["solidInfill"], toolhead_to_extruder)}</option>')
                         if "support" in mapping:
-                            ranges_xml_lines.append(f'      <option opt_key="support_material_extruder" value="{_get_ext(mapping["support"], toolhead_to_extruder)}"/>')
+                            ranges_xml_lines.append(f'      <option opt_key="support_material_extruder">{_get_ext(mapping["support"], toolhead_to_extruder)}</option>')
 
                         ranges_xml_lines.append('    </range>')
                 ranges_xml_lines.append('  </object>')
@@ -558,29 +562,38 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
             try:
                 # Resolve Toolhead
                 tool = "fdm"
+                is_multi_tool_layer = False
+                
                 if "toolOverride" in r: 
                     tool = r["toolOverride"]
                 elif "settings" in r and "mapping" in r["settings"]:
-                    # In ResolvedModelPlan, we look at mapping.perimeter as primary
-                    tool = r["settings"]["mapping"].get("perimeter", "fdm")
+                    mapping = r["settings"]["mapping"]
+                    tool = mapping.get("perimeter", "fdm")
+                    # Detectar si hay más de una herramienta distinta en esta capa
+                    active_tools = [v for k, v in mapping.items() if v != "none" and v is not None]
+                    if len(set(active_tools)) > 1:
+                        is_multi_tool_layer = True
                 else:
                     tool = r.get("toolhead") or "fdm"
 
                 lyr_from = int(r.get("layerFrom", 1))
                 lyr_to = int(r.get("layerTo", 1))
 
-                t_cmd = "T0"
-                if tool == "syringe":
-                    t_cmd = "T1"
-                elif tool == "uv":
-                    t_cmd = "T2"
+                # SOLO forzamos la herramienta si la capa entera usa una única herramienta.
+                # Si es multi-herramienta, dejamos que PrusaSlicer gestione los cambios T0/T1.
+                if not is_multi_tool_layer:
+                    t_cmd = "T0"
+                    if tool == "syringe":
+                        t_cmd = "T1"
+                    elif tool == "uv":
+                        t_cmd = "T2"
 
-                # If we have a temperature for this tool, inject it
-                if tool in temps and temps[tool]:
-                    t_cmd += f"\nM104 S{temps[tool]} ; Set temperature for {tool}"
+                    # If we have a temperature for this tool, inject it
+                    if tool in temps and temps[tool]:
+                        t_cmd += f"\nM104 S{temps[tool]} ; Set temperature for {tool}"
 
-                for lyr in range(lyr_from, lyr_to + 1):
-                    overrides[lyr] = t_cmd
+                    for lyr in range(lyr_from, lyr_to + 1):
+                        overrides[lyr] = t_cmd
 
                 # Resolve UV Events / Macros (if present in Plan format)
                 settings = r.get("settings", {})
@@ -845,13 +858,14 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
         # Parameters that should be omitted from .ini ONLY IF they are present in ranges
         # to ensure 3MF per-object/per-layer settings take precedence.
-        # NOTE: We NEVER omit "fill_density" because PrusaSlicer requires a base value
-        # in the config.ini even if it's later overridden in the 3MF ranges.
-        keys_to_omit = {
-             "fill_pattern", "infill_pattern", "perimeters", 
-            "top_solid_layers", "bottom_solid_layers", "fill_angle",
+        # NOTE: We NEVER omit "fill_density" or "fill_pattern" because PrusaSlicer requires
+        # a base value in the config.ini to validate overrides in the 3MF ranges.
+        NEVER_OMIT = {"fill_density", "fill_pattern", "infill_pattern", "layer_height", "first_layer_height"}
+
+        keys_to_omit = ({
+            "perimeters", "top_solid_layers", "bottom_solid_layers", "fill_angle",
             "perimeter_extruder", "infill_extruder", "solid_infill_extruder", "support_material_extruder"
-        }.intersection(params_in_ranges)
+        }.intersection(params_in_ranges)) - NEVER_OMIT
 
 
         scaffold_tools = None
