@@ -1,23 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <objects>
   <object id="1">
-    <range min_z="0.0000" max_z="5.1000">
-      <option opt_key="fill_density">15%</option>
-      <option opt_key="fill_pattern">honeycomb</option>
-      <option opt_key="perimeters">1</option>
-      <option opt_key="top_solid_layers">3</option>
-      <option opt_key="bottom_solid_layers">3</option>
-      <option opt_key="layer_height">0.2</option>
-      <option opt_key="extruder">1</option>
-    </range>
-    <range min_z="5.1000" max_z="20.1000">
-      <option opt_key="fill_density">15%</option>
-      <option opt_key="fill_pattern">grid</option>
-      <option opt_key="perimeters">1</option>
-      <option opt_key="top_solid_layers">3</option>
-      <option opt_key="bottom_solid_layers">3</option>
-      <option opt_key="layer_height">0.2</option>
-      <option opt_key="extruder">0</option>
+    <range min_z="0.0000" max_z="20.1000">
+      <option opt_key="fill_density" value="30%"/>
+      <option opt_key="fill_pattern" value="grid"/>
+      <option opt_key="perimeters" value="3"/>
+      <option opt_key="top_solid_layers" value="3"/>
+      <option opt_key="bottom_solid_layers" value="3"/>
+      <option opt_key="layer_height" value="0.2"/>
+      <option opt_key="perimeter_extruder" value="1"/>
+      <option opt_key="infill_extruder" value="2"/>
+      <option opt_key="solid_infill_extruder" value="1"/>
+      <option opt_key="support_material_extruder" value="1"/>
     </range>
   </object>
 </objects>

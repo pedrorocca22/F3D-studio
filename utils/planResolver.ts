@@ -33,6 +33,7 @@ export function resolveLayerPlans(
     if (z.featureOverride) {
       action.toolOverride = z.featureOverride.toolhead;
       action.targetFeatures = z.featureOverride.targetFeatures;
+      action.scaffoldTools = z.featureOverride.scaffoldTools;
     }
 
     if (z.parameterOverride) {
@@ -102,6 +103,10 @@ export function resolveLayerPlans(
             if (targets.includes('infill')) settings.mapping.infill = tool;
             if (targets.includes('solidInfill')) settings.mapping.solidInfill = tool;
             if (targets.includes('support')) settings.mapping.support = tool;
+          }
+
+          if (action.scaffoldTools) {
+            settings.mapping = { ...settings.mapping, ...action.scaffoldTools };
           }
 
           // ALSO merge FDM settings if they exist in a feature override

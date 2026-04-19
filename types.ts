@@ -413,6 +413,8 @@ export interface ZZone {
   featureOverride?: {
     toolhead?: ToolheadId;
     targetFeatures?: ('all' | 'perimeter' | 'infill' | 'solidInfill' | 'support')[];
+    /** Per-feature override mapping within this zone. */
+    scaffoldTools?: ScaffoldToolMapping;
   };
 
   parameterOverride?: {

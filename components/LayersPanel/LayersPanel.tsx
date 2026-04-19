@@ -1015,39 +1015,107 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         {(zone.featureOverride || zone.parameterOverride || zone.processEvent) && (
                            <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
                               {zone.featureOverride && (
-                                <div className="space-y-1.5">
-                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Assigned Tool</span>
-                                  <ToolheadSelect 
-                                    className="w-full h-8 text-[10px]"
-                                    value={zone.featureOverride.toolhead || 'fdm'}
-                                    onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
-                                    toolheads={toolheads}
-                                  />
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Zone Tool Strategy</span>
+                                    <button 
+                                      onClick={() => {
+                                        const isScaffold = !!zone.featureOverride?.scaffoldTools;
+                                        if (isScaffold) {
+                                          handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, scaffoldTools: undefined } });
+                                        } else {
+                                          handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, scaffoldTools: DEFAULT_SCAFFOLD_TOOLS } });
+                                        }
+                                      }}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border font-black uppercase tracking-tighter ${!!zone.featureOverride.scaffoldTools ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800'}`}
+                                    >
+                                      {!!zone.featureOverride.scaffoldTools ? 'SCAFFOLD_ON' : 'SINGLE_HEAD'}
+                                    </button>
+                                  </div>
+                                  
+                                  {!zone.featureOverride.scaffoldTools ? (
+                                    <ToolheadSelect 
+                                      className="w-full h-8 text-[10px]"
+                                      value={zone.featureOverride.toolhead || 'fdm'}
+                                      onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
+                                      toolheads={toolheads}
+                                    />
+                                  ) : (
+                                    <div className="space-y-1.5 p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
+                                      {SCAFFOLD_FEATURE_META.map(feat => (
+                                         <div key={feat.key} className="flex items-center justify-between gap-2">
+                                            <span className="text-[8px] text-slate-500 font-bold uppercase truncate">{feat.label}</span>
+                                            <ToolheadSelect
+                                              value={zone.featureOverride?.scaffoldTools?.[feat.key] || 'fdm'}
+                                              onChange={v => {
+                                                handleUpdateZZone(zone.id, { 
+                                                  featureOverride: { 
+                                                    ...zone.featureOverride!, 
+                                                    scaffoldTools: { ...(zone.featureOverride?.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS), [feat.key]: v } 
+                                                  } 
+                                                });
+                                              }}
+                                              className="w-20"
+                                              toolheads={toolheads}
+                                            />
+                                         </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {zone.parameterOverride && (
-                                <div className="grid grid-cols-2 gap-3">
-                                   <div className="space-y-1">
-                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
-                                      <NumericInput 
-                                        value={zone.parameterOverride.fdm?.infillPercent ?? 15}
-                                        onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPercent: v } } })}
-                                        className="h-7 text-[10px]"
-                                      />
-                                   </div>
-                                   <div className="space-y-1">
-                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
-                                      <select 
-                                        className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-slate-50 dark:bg-slate-900 outline-none px-1"
-                                        value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
-                                        onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
-                                      >
-                                         <option value="rectilinear">Rectilinear</option>
-                                         <option value="grid">Grid</option>
-                                         <option value="gyroid">Gyroid</option>
-                                         <option value="honeycomb">Honeycomb</option>
-                                      </select>
-                                   </div>
+                                <div className="space-y-2.5">
+                                  <div className="grid grid-cols-2 gap-3">
+                                     <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
+                                        <NumericInput 
+                                          value={zone.parameterOverride.fdm?.infillPercent ?? 15}
+                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPercent: v } } })}
+                                          className="h-7 text-[10px]"
+                                        />
+                                     </div>
+                                     <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
+                                        <select 
+                                          className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-slate-50 dark:bg-slate-900 outline-none px-1 font-bold"
+                                          value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
+                                          onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
+                                        >
+                                           <option value="rectilinear">Rectilinear</option>
+                                           <option value="grid">Grid</option>
+                                           <option value="gyroid">Gyroid</option>
+                                           <option value="honeycomb">Honeycomb</option>
+                                           <option value="triangles">Triangles</option>
+                                        </select>
+                                     </div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                     <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Walls</span>
+                                        <NumericInput 
+                                          value={zone.parameterOverride.fdm?.wallCount ?? 3}
+                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), wallCount: v } } })}
+                                          className="h-7 text-[10px]"
+                                        />
+                                     </div>
+                                     <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Top L.</span>
+                                        <NumericInput 
+                                          value={zone.parameterOverride.fdm?.topSolidLayers ?? 3}
+                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), topSolidLayers: v } } })}
+                                          className="h-7 text-[10px]"
+                                        />
+                                     </div>
+                                     <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Bot L.</span>
+                                        <NumericInput 
+                                          value={zone.parameterOverride.fdm?.bottomSolidLayers ?? 3}
+                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), bottomSolidLayers: v } } })}
+                                          className="h-7 text-[10px]"
+                                        />
+                                     </div>
+                                  </div>
                                 </div>
                               )}
                               {zone.processEvent && (
