@@ -325,31 +325,68 @@ export default function App() {
     const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
     if (!spec) return;
 
-    const newModels: ModelData[] = wellIds.map(wellId => {
-      const row = wellId.charCodeAt(0) - 65;
-      const col = parseInt(wellId.substring(1)) - 1;
-      const well_x = (col - (spec.cols - 1) / 2.0) * spec.pitch;
-      const well_y = (row - (spec.rows - 1) / 2.0) * spec.pitch;
+    if (wellIds.length === 0) {
+      // User cleared selections -> remove well assignment from base model
+      handleUpdateModel(baseModelId, { 
+        ...baseModel, 
+        transform: { ...baseModel.transform, wellAssignment: undefined, position: { x: 0, y: 0, z: 0 } } 
+      });
+      return;
+    }
 
-      const clonedSegments = baseModel.advancedSettings.segments.map(s => ({ ...s, id: generateUUID() }));
+    setModels(prev => {
+      let nextModels = [...prev];
+      const baseIndex = nextModels.findIndex(m => m.id === baseModelId);
+      
+      // 1. Move base model to the first selected well
+      const firstWell = wellIds[0];
+      const row0 = firstWell.charCodeAt(0) - 65;
+      const col0 = parseInt(firstWell.substring(1)) - 1;
+      const well_x0 = (col0 - (spec.cols - 1) / 2.0) * spec.pitch;
+      const well_y0 = (row0 - (spec.rows - 1) / 2.0) * spec.pitch;
+      
+      // Clean up previous " (A1)" string from name if it exists, before attaching new one
+      const cleanName = baseModel.name.replace(/\s\([A-Z]\d+\)$/, '');
 
-      return {
+      nextModels[baseIndex] = {
         ...baseModel,
-        id: generateUUID(),
-        name: `${baseModel.name} (${wellId})`,      
+        name: `${cleanName} (${firstWell})`,
         transform: {
           ...baseModel.transform,
-          position: { x: well_x, y: well_y, z: 0 },
-          wellAssignment: { format, wellId }
-        },
-        advancedSettings: {
-          ...baseModel.advancedSettings,
-          segments: clonedSegments
+          position: { x: well_x0, y: well_y0, z: 0 },
+          wellAssignment: { format, wellId: firstWell }
         }
       };
-    });
 
-    setModels(prev => [...prev, ...newModels]);
+      // 2. Clone the core model for any additional wells
+      const remainingWells = wellIds.slice(1);
+      const newModels: ModelData[] = remainingWells.map(wellId => {
+        const row = wellId.charCodeAt(0) - 65;
+        const col = parseInt(wellId.substring(1)) - 1;
+        const well_x = (col - (spec.cols - 1) / 2.0) * spec.pitch;
+        const well_y = (row - (spec.rows - 1) / 2.0) * spec.pitch;
+
+        // Generate brand new segment states for the clones
+        const clonedSegments = baseModel.advancedSettings.segments.map(s => ({ ...s, id: generateUUID() }));
+
+        return {
+          ...baseModel,
+          id: generateUUID(),
+          name: `${cleanName} (${wellId})`,      
+          transform: {
+            ...baseModel.transform,
+            position: { x: well_x, y: well_y, z: 0 },
+            wellAssignment: { format, wellId }
+          },
+          advancedSettings: {
+            ...baseModel.advancedSettings,
+            segments: clonedSegments
+          }
+        };
+      });
+
+      return [...nextModels, ...newModels];
+    });
   };
 
   const handleArrayModels = (spacing: number) => {

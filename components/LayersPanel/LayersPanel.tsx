@@ -276,130 +276,89 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               )}
             </div>
 
-            {/* Models List — always visible */}
-            <div>
+            {/* Lista de Modelos — Rediseño Plano y Segmentado */}
+            <div className="space-y-2 mt-4">
               <div className="flex items-center justify-between px-1 mb-1.5">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Loaded Models</span>
-                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">{models.length}</span>
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Modelos en Escena</span>
+                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700">
+                  {models.length}
+                </span>
               </div>
-              <div className="flex flex-col bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-200 dark:divide-slate-800 shadow-inner">
+              
+              <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar max-h-[350px] pr-1">
                 {models.length === 0 ? (
-                  <div className="text-center py-6 border-dashed border-slate-200 dark:border-slate-700">
-                    <Icon name="view_in_ar" className="text-2xl text-slate-200 dark:text-slate-700 mb-1" />
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest">No models loaded</p>
+                  <div className="text-center py-10 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
+                    <Icon name="layers_clear" className="text-3xl text-slate-200 dark:text-slate-800 mb-2" />
+                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Bandeja Vacía</p>
                   </div>
                 ) : (
                   models.map(model => {
                     const thId = model.toolhead || 'none';
                     const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
-                    const thLabel = TOOLHEAD_LABELS[thId] || '';
+                    const thLabel = TOOLHEAD_LABELS[thId] || 'OBJ';
                     const isSelected = selectedModelId === model.id;
+                    const wellId = model.transform.wellAssignment?.wellId;
+
                     return (
                       <div
                         key={model.id}
                         onClick={() => onSelectModel(model.id)}
-                        className={`flex items-stretch min-h-[32px] cursor-pointer transition-all group select-none ${
+                        className={`flex items-stretch border overflow-hidden transition-all select-none h-11 ${
                           isSelected
-                            ? 'bg-primary/5 dark:bg-primary/10'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 bg-white dark:bg-slate-900'
+                            ? 'border-primary bg-primary/5'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
                       >
-                        {/* 1. Toolhead Color Segment Bar */}
+                        {/* SEGMENTO 1: Identificador de Herramienta / Pocillo */}
                         <div 
-                          className="w-1.5 shrink-0 transition-colors shadow-[1px_0_2px_rgba(0,0,0,0.05)]" 
-                          style={{ backgroundColor: thColor }} 
-                        />
-                        
-                        {/* 2. Main Name Segment */}
-                        <div className="flex flex-1 items-center px-2 min-w-0">
-                          <span className={`text-[11px] truncate ${isSelected ? 'text-primary font-black' : 'text-slate-600 dark:text-slate-300 font-medium'}`} title={model.name}>
-                            {model.name}
+                          className="w-11 flex items-center justify-center text-white shrink-0 border-r border-black/5"
+                          style={{ backgroundColor: thColor }}
+                        >
+                          <span className="text-[11px] font-black tracking-tighter">
+                            {(globalSettings.printBed?.type === 'multiwell_plate' && wellId) ? wellId : thLabel}
                           </span>
                         </div>
 
-                        {/* 3. Toolhead Label Segment */}
-                        {thLabel && (
-                          <div className="flex items-center px-2 border-l border-slate-200 dark:border-slate-800">
-                            <span className="text-[8px] font-black uppercase tracking-wider" style={{ color: thColor }}>
-                              {thLabel}
-                            </span>
+                        {/* SEGMENTO 2: Información Principal */}
+                        <div className="flex-1 min-w-0 px-3 flex flex-col justify-center border-r border-slate-100 dark:border-slate-800">
+                          <h3 className={`text-[11px] truncate uppercase tracking-tight ${isSelected ? 'font-black text-primary' : 'font-bold text-slate-700 dark:text-slate-300'}`}>
+                            {model.name}
+                          </h3>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[8px] text-slate-400 font-black uppercase">{thId}</span>
+                            {model.size && (
+                              <>
+                                <span className="text-[8px] text-slate-300">•</span>
+                                <span className="text-[8px] text-slate-400 font-mono">{model.size.x.toFixed(1)}x{model.size.y.toFixed(1)}mm</span>
+                              </>
+                            )}
                           </div>
-                        )}
+                        </div>
 
-                        {/* 4. Well Assignment Segment */}
-                        {globalSettings.printBed?.type === 'multiwell_plate' && (
-                          <div 
-                            className="flex items-stretch border-l border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors relative"
-                            onClick={(e) => e.stopPropagation()} // Prevent selecting row on selector click
-                          >
-                            <div className="flex items-center justify-center px-1.5 border-r border-slate-200 dark:border-slate-800">
-                               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Well</span>
-                            </div>
-                            <div className="relative flex items-center justify-center min-w-[36px]">
-                              <select
-                                value={model.transform.wellAssignment?.wellId ?? 'none'}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  const wellId = e.target.value;
-                                  if (wellId === 'none') {
-                                    onUpdateModel(model.id, { transform: { ...model.transform, wellAssignment: undefined } });
-                                  } else {
-                                    const format = (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48;
-                                    const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
-                                    const row = wellId.charCodeAt(0) - 65;
-                                    const col = parseInt(wellId.substring(1)) - 1;
-                                    const well_x = (col - (spec.cols - 1) / 2.0) * spec.pitch;
-                                    const well_y = (row - (spec.rows - 1) / 2.0) * spec.pitch;
-                                    onUpdateModel(model.id, { 
-                                      transform: { 
-                                        ...model.transform, 
-                                        position: { x: well_x, y: well_y, z: 0 }, 
-                                        wellAssignment: { format, wellId } 
-                                      } 
-                                    });
-                                  }
-                                }}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              >
-                                <option value="none">—</option>
-                                {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24)
-                                  ? (() => {
-                                      const spec = MULTIWELL_SPECS[(globalSettings.printBed?.multiwellFormat ?? 24).toString() as keyof typeof MULTIWELL_SPECS];
-                                      const wells = [];
-                                      for (let r = 0; r < spec.rows; r++) {
-                                        for (let c = 0; c < spec.cols; c++) {
-                                          const w = String.fromCharCode(65 + r) + (c + 1);
-                                          wells.push(<option key={w} value={w}>{w}</option>);
-                                        }
-                                      }
-                                      return wells;
-                                    })()
-                                  : []}
-                              </select>
-                              <span className={`text-[10px] font-mono font-bold ${model.transform.wellAssignment?.wellId ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}>
-                                 {model.transform.wellAssignment?.wellId ?? '—'}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 5. Actions Segment */}
-                        <div className="flex items-stretch border-l border-slate-200 dark:border-slate-800">
+                        {/* SEGMENTO 3: Acciones rápidas (Background sólido) */}
+                        <div className="flex items-center bg-slate-50 dark:bg-slate-800/50">
+                          {/* Botón de Asignación / Clonación Visual */}
                           {globalSettings.printBed?.type === 'multiwell_plate' && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setCloneWellDialogFor(model.id); setSelectedCloneWells(new Set()); }}
-                              className={`w-8 flex items-center justify-center border-r border-slate-200 dark:border-slate-800 text-slate-400 transition-colors ${isSelected ? 'hover:bg-primary hover:text-white' : 'hover:text-primary hover:bg-primary/10'}`}
-                              title="Clone model to multiple wells"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setCloneWellDialogFor(model.id); 
+                                setSelectedCloneWells(new Set(wellId ? [wellId] : [])); 
+                              }}
+                              className="w-9 h-full flex items-center justify-center text-slate-300 hover:text-primary hover:bg-primary/10 border-r border-slate-100 dark:border-slate-800 transition-colors"
+                              title="Asignar o clonar en pocillos"
                             >
-                              <Icon name="grid_view" className="text-[13px]" />
+                              <Icon name="grid_view" className="text-[16px]" />
                             </button>
                           )}
+
+                          {/* Botón de Borrado */}
                           <button
                             onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
-                            className={`w-8 flex items-center justify-center text-slate-400 transition-colors ${isSelected ? 'hover:bg-red-500 hover:text-white' : 'hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'}`}
-                            title="Remove model"
+                            className="w-9 h-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Eliminar"
                           >
-                            <Icon name="close" className="text-[14px]" />
+                            <Icon name="close" className="text-[16px]" />
                           </button>
                         </div>
                       </div>
@@ -1638,10 +1597,13 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   const format = globalSettings.printBed?.multiwellFormat ?? 24;
                   const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                   if (!spec) return null;
-                  
+                  const baseModelWell = cloneWellDialogFor 
+                    ? models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
+                    : undefined;
+                    
                   const occupiedWells = new Set(models
                     .map(m => m.transform.wellAssignment?.wellId)
-                    .filter(Boolean) as string[]);
+                    .filter(w => w && w !== baseModelWell) as string[]);
 
                   const rows = [];
                   for (let r = 0; r < spec.rows; r++) {
@@ -1695,7 +1657,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       const format = globalSettings.printBed?.multiwellFormat ?? 24;
                       const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                       const all = new Set<string>();
-                      const occupiedWells = new Set(models.map(m => m.transform.wellAssignment?.wellId).filter(Boolean) as string[]);
+                      const baseModelWell = cloneWellDialogFor 
+                        ? models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
+                        : undefined;
+                      const occupiedWells = new Set(models
+                        .map(m => m.transform.wellAssignment?.wellId)
+                        .filter(w => w && w !== baseModelWell) as string[]);
                       
                       for (let r = 0; r < spec.rows; r++) {
                         for (let c = 0; c < spec.cols; c++) {
@@ -1729,13 +1696,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </button>
               <button 
                 onClick={() => {
-                  if (onCloneToWells && selectedCloneWells.size > 0 && cloneWellDialogFor) {
+                  if (onCloneToWells && cloneWellDialogFor) {
                     const format = globalSettings.printBed?.multiwellFormat ?? 24;
                     onCloneToWells(cloneWellDialogFor, Array.from(selectedCloneWells), format as 6 | 12 | 24 | 48);
                     setCloneWellDialogFor(null);
                   }
                 }} 
-                disabled={selectedCloneWells.size === 0}
                 className="px-4 py-1.5 text-[11px] text-white bg-primary font-bold uppercase tracking-widest rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-sm"
               >
                 Confirm
