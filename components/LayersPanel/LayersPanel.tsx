@@ -716,36 +716,6 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                             : 'border-outline-variant/20 hover:border-primary/40'
                         }`}
                       >
-                        {/* Z-Zone Visual Bar */}
-                        {modelZZones.length > 0 && (
-                          <div className="px-4 py-1.5 bg-slate-50/50 dark:bg-slate-900/30 border-b border-outline-variant/5">
-                            <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded-full relative w-full overflow-hidden flex items-center shadow-inner">
-                              {modelZZones.map((zone, idx) => {
-                                const left = (zone.zStartMm / totalHeightMm) * 100;
-                                const width = ((zone.zEndMm - zone.zStartMm) / totalHeightMm) * 100;
-                                return (
-                                  <div 
-                                    key={zone.id}
-                                    className="absolute h-full opacity-90 flex items-center justify-center overflow-hidden border-r border-white/10 hover:opacity-100 transition-opacity"
-                                    style={{ 
-                                      left: `${left}%`, 
-                                      width: `${width}%`,
-                                      backgroundColor: zone.color || '#3b82f6'
-                                    }}
-                                    title={`${zone.label || 'Zone'} (${zone.zStartMm}-${zone.zEndMm}mm)`}
-                                  >
-                                    {width > 6 && (
-                                      <span className="text-[6px] text-white font-black truncate px-0.5 pointer-events-none">
-                                        {zone.label ? zone.label.split(' ').map(w => w[0]).join('').toUpperCase() : `S${idx+1}`}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
                         {/* Card header */}
                         <div 
                           onClick={() => onSelectModel(m.id)}
@@ -1068,6 +1038,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 <div className="space-y-2.5">
                                   <div className="grid grid-cols-2 gap-3">
                                      <div className="space-y-1">
+                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Layer Height (µm)</span>
+                                        <NumericInput 
+                                          value={zone.parameterOverride.fdm?.layerHeightMm ? (zone.parameterOverride.fdm.layerHeightMm * 1000) : (globalSettings.layerHeight || 200)}
+                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), layerHeightMm: v / 1000 } } })}
+                                          className="h-7 text-[10px]"
+                                          step={10}
+                                        />
+                                     </div>
+                                     <div className="space-y-1">
                                         <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
                                         <NumericInput 
                                           value={zone.parameterOverride.fdm?.infillPercent ?? 15}
@@ -1075,6 +1054,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                           className="h-7 text-[10px]"
                                         />
                                      </div>
+                                  </div>
+                                  <div className="grid grid-cols-1">
                                      <div className="space-y-1">
                                         <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
                                         <select 

@@ -311,7 +311,12 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                         if fa:
                             ranges_xml_lines.append(f'      <option opt_key="fill_angle">{fa}</option>')
 
-                        ranges_xml_lines.append(f'      <option opt_key="layer_height">{layer_height}</option>')
+                        # Layer Height Override
+                        lh_ovr = _safe_str(fdm_s.get("layerHeightMm"))
+                        if lh_ovr:
+                             ranges_xml_lines.append(f'      <option opt_key="layer_height">{lh_ovr}</option>')
+                        else:
+                             ranges_xml_lines.append(f'      <option opt_key="layer_height">{layer_height}</option>')
 
                         # Extruder Assignments
                         has_feature_extruders = any(k in mapping for k in ("perimeter", "infill", "solidInfill", "support"))
