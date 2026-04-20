@@ -1391,7 +1391,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                     <React.Fragment key={`zone-ui-${zone.id}`}>
                                         {/* Bloque de Herramienta - COLOR SÓLIDO SIN TEXTO */}
                                         <div 
-                                            className="absolute left-0 w-full border-y border-white/10 z-10"
+                                            className="absolute left-0 w-full border-y-[1.5px] border-white/40 z-10"
                                             style={{ 
                                                 bottom: `${bottomPct}%`, 
                                                 height: `${Math.max(heightPct, 0.5)}%`, 
