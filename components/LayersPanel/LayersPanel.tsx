@@ -1317,164 +1317,173 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           )}
 
         {/* STEP 5: PREVIEW & SLICE */}
-        {activeStep === 5 && (
-            <div className="space-y-4 overflow-y-auto max-h-full pb-20">
-                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Global Settings</h3>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
-                        <div className="flex justify-between"><span className="text-slate-400">Layer Height:</span><span className="font-mono">{globalSettings.layerHeight || 0.2}mm</span></div>
-                        <div className="flex justify-between"><span className="text-slate-400">Infill:</span><span className="font-mono">{globalSettings.infill || 15}%</span></div>
-                        <div className="flex justify-between"><span className="text-slate-400">Nozzle:</span><span className="font-mono">{globalSettings.nozzleDiameter || 0.4}mm</span></div>
-                        <div className="flex justify-between"><span className="text-slate-400">Temperature:</span><span className="font-mono">{globalSettings.temperature || 210}°C</span></div>
-                        <div className="flex justify-between"><span className="text-slate-400">Bed Temp:</span><span className="font-mono">{globalSettings.bedTemperature || 60}°C</span></div>
-                        <div className="flex justify-between"><span className="text-slate-400">Perimeters:</span><span className="font-mono">{globalSettings.perimeters || 3}</span></div>
+        {activeStep === 5 && (() => {
+            // 1. Calculamos la altura física real de los modelos cargados (Segmento base)
+            const modelMaxZ = models.length > 0 
+              ? Math.max(...models.map(m => (m.transform.position.z || 0) + (m.size?.z || 0)))
+              : 0;
+            
+            // 2. Determinamos el límite superior del gráfico (el mayor entre modelos y zonas)
+            const zonesMaxZ = zZones.length > 0 ? Math.max(...zZones.map(z => z.zEndMm)) : 0;
+            const maxZ = Math.max(modelMaxZ, zonesMaxZ, 1); // Evitamos división por cero
+            
+            const layerHeightMm = (globalSettings.layerHeight || 200) / 1000;
+
+            return (
+            <div className="space-y-4 overflow-y-auto max-h-full pb-20 px-1">
+                {/* Resumen de Parámetros Críticos */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
+                        <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Hardware Setup</h3>
+                        <div className="space-y-1 text-[10px]">
+                            <div className="flex justify-between"><span className="text-slate-500">Nozzle:</span><span className="font-mono font-bold text-primary">{globalSettings.nozzleDiameter || 0.4}mm</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Layer:</span><span className="font-mono font-bold text-primary">{globalSettings.layerHeight}µm</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Bed:</span><span className="font-mono font-bold">{globalSettings.bedHeatingEnabled ? `${globalSettings.bedTemperature}°C` : 'OFF'}</span></div>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
+                        <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Print Area</h3>
+                        <div className="space-y-1 text-[10px]">
+                            <div className="flex justify-between"><span className="text-slate-500">Surface:</span><span className="font-mono font-bold capitalize">{(globalSettings.printBed?.type || 'glass').replace('_', ' ')}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Height:</span><span className="font-mono font-bold text-primary">{modelMaxZ.toFixed(2)}mm</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Models:</span><span className="font-mono font-bold">{models.length}</span></div>
+                        </div>
                     </div>
                 </div>
 
+                {/* Visualizador de Estratigrafía de Impresión */}
                 <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Print Bed</h3>
-                    <div className="text-[10px] space-y-1">
-                        <div className="flex justify-between">
-                            <span className="text-slate-400">Type:</span>
-                            <span className="font-mono capitalize">{globalSettings.printBed?.type?.replace('_', ' ') || 'glass_bed'}</span>
-                        </div>
-                        {globalSettings.printBed?.type === 'glass_bed' && (
-                            <div className="flex justify-between">
-                                <span className="text-slate-400">Size:</span>
-                                <span className="font-mono">{globalSettings.printBed?.dimensions?.width || 100}x{globalSettings.printBed?.dimensions?.height || 100}mm</span>
-                            </div>
-                        )}
-                        {globalSettings.printBed?.type === 'multiwell_plate' && (
-                            <div className="flex justify-between">
-                                <span className="text-slate-400">Format:</span>
-                                <span className="font-mono">{globalSettings.printBed?.multiwellFormat || 24} Wells</span>
-                            </div>
-                        )}
-                        {globalSettings.printBed?.type === 'petri_dish' && (
-                            <div className="flex justify-between">
-                                <span className="text-slate-400">Diameter:</span>
-                                <span className="font-mono">{globalSettings.printBed?.petriDiameter || 60}mm</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Models ({models.length})</h3>
-                    {models.map(m => (
-                        <div key={m.id} className="border-b border-slate-100 dark:border-slate-800 py-2 last:border-0">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{m.name}</span>
-                                <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold uppercase">{m.toolhead || 'fdm'}</span>
-                            </div>
-                            <div className="text-[9px] text-slate-400 font-mono">
-                                {(m.size?.x || 0).toFixed(1)}x{(m.size?.y || 0).toFixed(1)}x{(m.size?.z || 0).toFixed(1)}mm
-                                {m.wellAssignment && ` → Well ${m.wellAssignment.wellId}`}
-                            </div>
-                        </div>
-                    ))}
-                    {models.length === 0 && <p className="text-[10px] text-slate-400">No models loaded</p>}
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Process Roadmap (Z-Height)</h3>
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Icon name="layers" className="text-xs" /> Build Schedule Summary
+                    </h3>
                     
-                    {zZones.length > 0 ? (
-                        <div className="flex gap-6">
-                            {/* Vertical Visual Indicator Bar */}
-                            <div className="w-6 bg-slate-100 dark:bg-slate-800 rounded-lg relative overflow-hidden flex flex-col-reverse h-80 border border-slate-200 dark:border-slate-700 shrink-0">
-                                {zZones.map((zone) => {
-                                    const totalH = Math.max(...zZones.map(z => z.zEndMm), 1);
-                                    const top = ((zone.zEndMm) / totalH) * 100;
-                                    const bottom = (zone.zStartMm / totalH) * 100;
-                                    const height = top - bottom;
-                                    
-                                    const color = zone.featureOverride?.toolhead === 'uv' ? '#a855f7' :
-                                                 zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6';
+                    <div className="relative h-[320px] flex items-stretch gap-4 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                        
+                        {/* Regla de Altura (Eje Z) */}
+                        <div className="w-8 relative border-r border-slate-200 dark:border-slate-700">
+                            <span className="absolute top-0 right-2 text-[8px] font-mono text-slate-400 -translate-y-1/2">{maxZ.toFixed(1)}</span>
+                            <span className="absolute bottom-0 right-2 text-[8px] font-mono text-slate-400 translate-y-1/2">0.0</span>
+                            <div className="absolute inset-y-0 right-0 w-1 bg-slate-100 dark:bg-slate-800" />
+                        </div>
 
-                                    return (
+                        {/* Columna de Composición Geométrica */}
+                        <div className="w-12 relative group">
+                            {/* 1. REPRESENTACIÓN DEL MODELO BASE (Segmento restante) */}
+                            <div 
+                                className="absolute bottom-0 left-0 w-full bg-slate-200 dark:bg-slate-800 border-x border-slate-300 dark:border-slate-700 z-0"
+                                style={{ height: `${(modelMaxZ / maxZ) * 100}%` }}
+                                title="Volumen total del modelo"
+                            />
+
+                            {/* 2. OVERLAY DE ZONAS CONFIGURADAS */}
+                            {zZones.map(zone => {
+                                const bottomPct = (zone.zStartMm / maxZ) * 100;
+                                const heightPct = ((zone.zEndMm - zone.zStartMm) / maxZ) * 100;
+                                
+                                const hasUV = zone.processEvent && (zone.processEvent.uvExposureTimeSec ?? 0) > 0;
+                                const isSingleLayerUV = (zone.zEndMm - zone.zStartMm) <= (layerHeightMm + 0.01) || zone.processEvent?.trigger === 'after_segment';
+                                
+                                const tool = zone.featureOverride?.toolhead || 'fdm';
+                                // COLORES SOLIDOS: Syringe (Amber), FDM (Turquoise), UV (Purple)
+                                const toolColor = tool === 'syringe' ? '#f59e0b' : tool === 'uv' ? '#a855f7' : '#14b8a6';
+
+                                return (
+                                    <React.Fragment key={`zone-ui-${zone.id}`}>
+                                        {/* Bloque de Herramienta - COLOR SÓLIDO SIN TEXTO */}
                                         <div 
-                                            key={zone.id}
-                                            className="absolute w-full transition-all duration-500 flex items-center justify-center border-y border-white/20"
+                                            className="absolute left-0 w-full border-y border-white/10 z-10"
                                             style={{ 
-                                                bottom: `${bottom}%`, 
-                                                height: `${height}%`,
-                                                backgroundColor: color
+                                                bottom: `${bottomPct}%`, 
+                                                height: `${Math.max(heightPct, 0.5)}%`, 
+                                                backgroundColor: toolColor,
                                             }}
-                                        >
-                                            {height > 5 && (
-                                                <span className="text-[7px] text-white font-black rotate-90 leading-none opacity-50 uppercase">
-                                                    {zone.featureOverride?.toolhead || 'T0'}
-                                                </span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                                {/* Height Ticks */}
-                                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-1 text-[6px] font-mono text-slate-400 text-center">
-                                    <span>{Math.max(...zZones.map(z => z.zEndMm)).toFixed(0)}</span>
-                                    <span>{Math.max(...zZones.map(z => z.zEndMm)) / 2}</span>
-                                    <span>0</span>
-                                </div>
-                            </div>
+                                        />
 
-                            {/* Detailed Configuration Panels */}
-                            <div className="flex-1 space-y-3 overflow-y-auto max-h-80 pr-2">
-                                {zZones.sort((a,b) => b.zStartMm - a.zStartMm).map((zone, i) => (
-                                    <div key={zone.id || i} className="relative pl-3 border-l-2" style={{ borderColor: zone.featureOverride?.toolhead === 'uv' ? '#a855f7' : zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6' }}>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{zone.label || `Zone ${i+1}`}</span>
-                                            <span className="text-[9px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 rounded">{zone.zStartMm}-{zone.zEndMm}mm</span>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {/* Toolhead Info */}
-                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded">
-                                                <span className="block text-[6px] text-slate-400 uppercase font-bold tracking-widest mb-1">Toolhead Mapping</span>
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: zone.featureOverride?.toolhead === 'uv' ? '#a855f7' : zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6' }}></div>
-                                                    <span className="text-[8px] font-bold uppercase">{zone.featureOverride?.toolhead || 'fdm'}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* UV specific info or generic details */}
-                                            {zone.featureOverride?.toolhead === 'uv' && zone.processEvent ? (
-                                                <div className="bg-purple-50/50 dark:bg-purple-900/10 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
-                                                    <span className="block text-[6px] text-purple-400 uppercase font-bold tracking-widest mb-1 items-center flex gap-1">
-                                                        <Icon name="wb_sunny" className="text-[8px]" /> UV PROCESS
-                                                    </span>
-                                                    <div className="grid grid-cols-2 gap-x-2 text-[7px] text-slate-600 dark:text-slate-300">
-                                                        <div>PWR: <span className="font-black text-purple-600">{zone.processEvent.powerPercentage ?? 100}%</span></div>
-                                                        <div>SPD: <span className="font-black">{zone.processEvent.scanSpeedMmS ?? 10}mm/s</span></div>
-                                                        <div className="col-span-2 mt-0.5 border-t border-purple-100/50 pt-0.5 opacity-60">
-                                                            TRG: {zone.processEvent.trigger?.replace('_', ' ').toUpperCase()} • {zone.processEvent.mode?.toUpperCase()}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        {/* Indicador UV - SÓLIDO, SIN GLOW */}
+                                        {hasUV && (
+                                            isSingleLayerUV ? (
+                                                /* Línea horizontal nítida en el tope de la zona o centro si es capa única */
+                                                <div 
+                                                    className="absolute -left-1 w-14 h-[3px] bg-[#a855f7] z-30 border border-white/20"
+                                                    style={{ bottom: `${zone.processEvent?.trigger === 'after_segment' ? (zone.zEndMm / maxZ) * 100 : (bottomPct + heightPct/2)}%`, transform: 'translateY(50%)' }}
+                                                />
                                             ) : (
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded">
-                                                    <span className="block text-[6px] text-slate-400 uppercase font-bold tracking-widest mb-1">Parameter Sets</span>
-                                                    <span className="text-[7px] text-slate-500 italic">Inherited Profile</span>
-                                                </div>
-                                            )}
+                                                /* Barrido lateral sólido */
+                                                <div 
+                                                    className="absolute -right-2 w-1.5 bg-[#a855f7] z-20 border border-white/10"
+                                                    style={{ 
+                                                        bottom: `${bottomPct}%`, 
+                                                        height: `${heightPct}%`,
+                                                    }}
+                                                />
+                                            )
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+
+                        {/* Panel de Detalles Alineado */}
+                        <div className="flex-1 relative">
+                            {zZones.length === 0 && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">
+                                            Base Profile Active
+                                        </p>
+                                        <p className="text-[8px] text-slate-400 font-mono">T0 - FDM • Standard</p>
+                                    </div>
+                                </div>
+                            )}
+                            {zZones.map(zone => {
+                                const bottomPct = (zone.zStartMm / maxZ) * 100;
+                                const heightPct = ((zone.zEndMm - zone.zStartMm) / maxZ) * 100;
+                                const tool = zone.featureOverride?.toolhead || 'fdm';
+                                const hasUV = zone.processEvent && (zone.processEvent.uvExposureTimeSec ?? 0) > 0;
+
+                                return (
+                                    <div 
+                                        key={`label-${zone.id}`}
+                                        className="absolute left-0 w-full flex items-center gap-2 group"
+                                        style={{ bottom: `${bottomPct + heightPct/2}%`, transform: 'translateY(50%)' }}
+                                    >
+                                        <div className="h-[1px] w-3 bg-slate-300 dark:bg-slate-700" />
+                                        <div className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 shadow-sm transition-colors">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-[9px] font-black text-slate-600 dark:text-slate-200 truncate">{zone.label || 'Segment'}</span>
+                                                <span className="text-[8px] font-mono text-primary font-bold">{zone.zStartMm}-{zone.zEndMm}mm</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                <span className={`text-[7px] font-bold px-1 rounded-sm uppercase ${tool === 'syringe' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
+                                                    {tool}
+                                                </span>
+                                                {hasUV && (
+                                                    <span className="text-[7px] font-bold px-1 rounded-sm bg-purple-100 text-purple-700 uppercase">
+                                                        UV {zone.processEvent!.uvExposureTimeSec}s
+                                                    </span>
+                                                )}
+                                                {zone.parameterOverride?.fdm?.infillPercent !== undefined && (
+                                                    <span className="text-[7px] font-bold px-1 rounded-sm bg-slate-100 text-slate-500">
+                                                        {zone.parameterOverride.fdm.infillPercent}% INF
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })}
                         </div>
-                    ) : (
-                        <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-lg">
-                            <Icon name="layers_clear" className="text-2xl text-slate-200 mb-2" />
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No segments configured</p>
-                        </div>
-                    )}
+                    </div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase font-black">Ready for slicing</p>
+                <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 text-center animate-pulse">
+                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">
+                        Configuration Locked • Ready to Slice
+                    </p>
                 </div>
             </div>
-        )}
+            );
+        })()}
 
       </div>
 
