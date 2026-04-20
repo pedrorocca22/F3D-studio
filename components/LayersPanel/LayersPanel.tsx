@@ -98,6 +98,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
@@ -222,138 +223,160 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
-
         {activeStep === 2 && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-left-1">
-        {/* Upload Button */}
-        <div className="mb-1">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".stl"
-            multiple
-            className="hidden"
-          />
-          <button
-            onClick={handleUploadClick}
-            className="w-full py-3 bg-primary/90 hover:bg-primary text-white text-[11px] font-black uppercase tracking-widest transition-colors btn-transition flex items-center justify-center gap-2"
-          >
-            <Icon name="upload_file" className="text-base" />
-            LOAD FILES
-          </button>
-        </div>
+          <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
 
-        {/* Models List */}
-        <AccordionSection
-          title="Models"
-          isOpen={openSections.models}
-          onToggle={() => toggleSection('models')}
-        >
-          <div className="space-y-1 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-             {models.map(model => {
-               const thId = model.toolhead || 'none';
-               const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
-               const thLabel = TOOLHEAD_LABELS[thId] || '';
-               return (
-                 <div
-                   key={model.id}
-                   onClick={() => onSelectModel(model.id)}
-                   className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${selectedModelId === model.id
-                      ? 'border-action bg-action text-white shadow-sm'
-                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}
-                   `}
-                 >
-                   <div className="flex items-center gap-2 overflow-hidden">
-                     <div
-                       className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors"
-                       style={{ backgroundColor: selectedModelId === model.id ? 'rgba(255,255,255,0.2)' : thColor + '22' }}
-                     >
-                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: thColor }} />
-                     </div>
-                     <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
-                     {thLabel && (
-                       <span
-                         className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${selectedModelId === model.id ? 'bg-white/20 text-white' : ''}`}
-                         style={selectedModelId !== model.id ? { backgroundColor: thColor + '22', color: thColor } : {}}
-                       >
-                         {thLabel}
-                       </span>
-                     )}
-                   </div>
-                   
-                    {/* Well Assignment UI (only for multiwell plate) */}
-                    {globalSettings.printBed?.type === 'multiwell_plate' && (
-                      <div className="flex items-baseline gap-1 text-[9px] ml-1">
-                        <select
-                          value={model.transform.wellAssignment?.wellId ?? 'none'}
-                          onChange={(e) => {
-                            const wellId = e.target.value;
-                            if (wellId === 'none') {
-                              onUpdateModel(model.id, { 
-                                transform: { 
-                                  ...model.transform, 
-                                  wellAssignment: undefined 
-                                } 
-                              });
-                            } else {
-                            // When assigning to a well, reset Z position (height) to 0 so model sits on bed
-                            onUpdateModel(model.id, { 
-                              transform: { 
-                                ...model.transform, 
-                                position: { ...model.transform.position, z: 0 },
-                                wellAssignment: { 
-                                  format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, 
-                                  wellId 
-                                } 
-                              } 
-                            });
-                            }
-                          }}
-                          className="w-[55px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="none">â€”</option>
-                         {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24) 
-                           ? (() => {
-                               const format = globalSettings.printBed?.multiwellFormat ?? 24;
-                               const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
-                               const wells = [];
-                               for (let r = 0; r < spec.rows; r++) {
-                                 for (let c = 0; c < spec.cols; c++) {
-                                   const wellId = String.fromCharCode(65 + r) + (c + 1);
-                                   wells.push(<option key={wellId}>{wellId}</option>);
-                                 }
-                               }
-                               return wells;
-                             })()
-                           : []
-                         }
-                       </select>
-                     </div>
-                   )}
-                   
-                   <button
-                     onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
-                     className={`p-1 rounded transition-all focus:opacity-100 ${selectedModelId === model.id
-                       ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
-                       : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
-                     }`}
-                     title="Remove model"
-                   >
-                     <Icon name="close" className="text-sm" />
-                   </button>
-                 </div>
-               );
-             })}
-            {models.length === 0 && (
-              <div className="text-center p-8 bg-slate-50 border border-outline-variant/10">
-                <span className="text-slate-300 text-[9px] font-black uppercase tracking-widest">Models_Null</span>
+            {/* Drag & Drop Upload Zone */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".stl"
+              multiple
+              className="hidden"
+            />
+            <div
+              onClick={handleUploadClick}
+              onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setIsDragOver(false);
+                const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.stl'));
+                files.forEach(f => onFileUpload(f));
+              }}
+              className={`relative cursor-pointer border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all duration-200 group ${
+                isDragOver
+                  ? 'border-primary bg-primary/5 scale-[1.01]'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                isDragOver ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary'
+              }`}>
+                <Icon name={isDragOver ? 'file_download' : 'upload_file'} className="text-2xl" />
               </div>
-            )}
+              <div className="text-center">
+                <p className={`text-[11px] font-black uppercase tracking-widest transition-colors ${
+                  isDragOver ? 'text-primary' : 'text-slate-600 dark:text-slate-300 group-hover:text-primary'
+                }`}>
+                  {isDragOver ? 'Drop to Load' : 'Load Files'}
+                </p>
+                <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wide">
+                  Click or drag & drop · .STL
+                </p>
+              </div>
+              {isDragOver && (
+                <div className="absolute inset-0 rounded-xl border-2 border-primary animate-pulse pointer-events-none" />
+              )}
+            </div>
+
+            {/* Models List — always visible */}
+            <div>
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Loaded Models</span>
+                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">{models.length}</span>
+              </div>
+              <div className="space-y-1 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                {models.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
+                    <Icon name="view_in_ar" className="text-2xl text-slate-200 dark:text-slate-700 mb-1" />
+                    <p className="text-[9px] text-slate-300 dark:text-slate-600 font-black uppercase tracking-widest">No models loaded</p>
+                  </div>
+                ) : (
+                  models.map(model => {
+                    const thId = model.toolhead || 'none';
+                    const thColor = TOOLHEAD_COLORS[thId] || TOOLHEAD_COLORS.none;
+                    const thLabel = TOOLHEAD_LABELS[thId] || '';
+                    return (
+                      <div
+                        key={model.id}
+                        onClick={() => onSelectModel(model.id)}
+                        className={`flex items-center justify-between py-1 px-2 rounded-md border cursor-pointer transition-all group select-none ${
+                          selectedModelId === model.id
+                            ? 'border-action bg-action text-white shadow-sm'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <div
+                            className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                            style={{ backgroundColor: selectedModelId === model.id ? 'rgba(255,255,255,0.2)' : thColor + '22' }}
+                          >
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: thColor }} />
+                          </div>
+                          <span className="text-xs font-medium truncate" title={model.name}>{model.name}</span>
+                          {thLabel && (
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${selectedModelId === model.id ? 'bg-white/20 text-white' : ''}`}
+                              style={selectedModelId !== model.id ? { backgroundColor: thColor + '22', color: thColor } : {}}
+                            >
+                              {thLabel}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Well Assignment UI (only for multiwell plate) */}
+                        {globalSettings.printBed?.type === 'multiwell_plate' && (
+                          <div className="flex items-baseline gap-1 text-[9px] ml-1">
+                            <select
+                              value={model.transform.wellAssignment?.wellId ?? 'none'}
+                              onChange={(e) => {
+                                const wellId = e.target.value;
+                                if (wellId === 'none') {
+                                  onUpdateModel(model.id, { transform: { ...model.transform, wellAssignment: undefined } });
+                                } else {
+                                  onUpdateModel(model.id, { 
+                                    transform: { 
+                                      ...model.transform, 
+                                      position: { ...model.transform.position, z: 0 },
+                                      wellAssignment: { format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, wellId } 
+                                    } 
+                                  });
+                                }
+                              }}
+                              className="w-[55px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              <option value="none">—</option>
+                              {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24)
+                                ? (() => {
+                                    const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                                    const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+                                    const wells = [];
+                                    for (let r = 0; r < spec.rows; r++) {
+                                      for (let c = 0; c < spec.cols; c++) {
+                                        const wellId = String.fromCharCode(65 + r) + (c + 1);
+                                        wells.push(<option key={wellId}>{wellId}</option>);
+                                      }
+                                    }
+                                    return wells;
+                                  })()
+                                : []
+                              }
+                            </select>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
+                          className={`p-1 rounded transition-all focus:opacity-100 ${
+                            selectedModelId === model.id
+                              ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
+                              : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                          }`}
+                          title="Remove model"
+                        >
+                          <Icon name="close" className="text-sm" />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
-        </AccordionSection>
-      </div>
-    )}
+        )}
+
         {/* TAB 1: PRINT BED */}
         {activeStep === 1 && (
             <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
