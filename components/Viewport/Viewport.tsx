@@ -714,6 +714,34 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
     }
   }, [transformData, geometry, checkBounds]);
 
+  const getBottomOffset = useCallback(() => {
+    if (!geometry.boundingBox) return 0;
+    const rotMatrix = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(
+      THREE.MathUtils.degToRad(transformData.rotation.x),
+      THREE.MathUtils.degToRad(transformData.rotation.z), // Data Z -> Three Y
+      THREE.MathUtils.degToRad(transformData.rotation.y)  // Data Y -> Three Z
+    ));
+    const scaleMatrix = new THREE.Matrix4().makeScale(
+      transformData.scale.x,
+      transformData.scale.z,
+      transformData.scale.y
+    );
+    const worldMatrix = new THREE.Matrix4().multiplyMatrices(scaleMatrix, rotMatrix);
+    const box = geometry.boundingBox.clone().applyMatrix4(worldMatrix);
+    return box.min.y;
+  }, [geometry, transformData.rotation, transformData.scale]);
+
+  useEffect(() => {
+    if (posGroupRef.current) {
+      const offset = getBottomOffset();
+      posGroupRef.current.position.set(
+        transformData.position.x,
+        transformData.position.z - offset, // Three Y = Data Z + Pivot Offset
+        transformData.position.y
+      );
+    }
+  }, [transformData.position, getBottomOffset]);
+
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     if (!isVisible) return;
     e.stopPropagation();
@@ -728,7 +756,6 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
       const newQuat = alignQuat.multiply(meshRef.current.quaternion.clone());
       const newEuler = new THREE.Euler().setFromQuaternion(newQuat);
 
-      // Just update rotation - the adjustPositionToFloor effect will handle the Z snap perfectly
       onTransformChange({
         ...transformData,
         rotation: {
@@ -742,13 +769,13 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
 
   const handleTransformComplete = () => {
     if (posGroupRef.current && scaleGroupRef.current && rotGroupRef.current) {
-      // Map current group states back to flat transformData
+      const offset = getBottomOffset();
       onTransformChange({
         ...transformData,
         position: {
           x: posGroupRef.current.position.x,
           y: posGroupRef.current.position.z, // Three Z -> Data Y
-          z: posGroupRef.current.position.y  // Three Y -> Data Z
+          z: posGroupRef.current.position.y + offset // Real Bottom Z = Pivot Y + Offset
         },
         rotation: {
           x: Math.round(THREE.MathUtils.radToDeg(rotGroupRef.current.rotation.x)),
@@ -766,45 +793,19 @@ const Model: React.FC<ModelProps & { globalSettings: GlobalSettings; wellAssignm
   };
 
   const adjustPositionToFloor = useCallback((updateIfChanged = true) => {
-    if (!geometry.boundingBox) return;
-
-    // 1. Construct the hierarchy math to find the world bounding box base
-    // Note: We use the hierarchy: UniversalPos * UniversalScale * LocalRot * Mesh
-    // To find the base, we calculate (Scale * Rot * Box) and see how far below 0 its Y is.
-
-    const rotMatrix = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(
-      THREE.MathUtils.degToRad(transformData.rotation.x),
-      THREE.MathUtils.degToRad(transformData.rotation.z), // Data Z -> Three Y
-      THREE.MathUtils.degToRad(transformData.rotation.y)  // Data Y -> Three Z
-    ));
-
-    const scaleMatrix = new THREE.Matrix4().makeScale(
-      transformData.scale.x,
-      transformData.scale.z,
-      transformData.scale.y
-    );
-
-    const worldMatrix = new THREE.Matrix4().multiplyMatrices(scaleMatrix, rotMatrix);
-    const box = geometry.boundingBox.clone().applyMatrix4(worldMatrix);
-
-    const requiredZ = -box.min.y;
-
-    if (updateIfChanged && Math.abs(requiredZ - transformData.position.z) > 0.001) {
+    // With the new mapping, grounding just means Z=0
+    if (updateIfChanged && Math.abs(transformData.position.z) > 0.001) {
       onTransformChange({
         ...transformData,
-        position: { ...transformData.position, z: requiredZ }
+        position: { ...transformData.position, z: 0 }
       });
     }
-  }, [geometry, transformData.scale, transformData.rotation, transformData.position.z, onTransformChange]);
-
-  useEffect(() => {
-    adjustPositionToFloor();
-  }, [geometry, transformData.scale, transformData.rotation]);
+  }, [transformData.position.z, onTransformChange]);
 
   useEffect(() => {
     const { x, y, z } = transformData.position;
-    // Initial grounding if we are at the center/bottom defaults
-    if (x === 0 && y === 0 && z === 0) adjustPositionToFloor();
+    // Initial grounding check (if almost zero, snap to 0)
+    if (Math.abs(z) < 0.001) adjustPositionToFloor();
   }, [transformData.position]);
 
   return (
