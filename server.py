@@ -527,75 +527,27 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
 
 def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolheads_config: list = None):
     """
-    Apply Priority: Layer Schedule > Scaffold Mapping.
-    Only feature_override actions should force tool changes.
-    Parameter overrides must not inject T0/T1/T2 commands.
+    Inyecta eventos de proceso (Macros y UV) en las capas especificadas.
+    Nota: Ya NO fuerza comandos T0/T1. PrusaSlicer gestiona el ruteo de herramientas
+    nativamente gracias a las opciones inyectadas en el archivo 3MF.
     """
     if not layer_actions:
         return
 
-    overrides = {}
     events = {} # {layer: [gcode_lines]}
 
-    # Map toolhead IDs to their temperatures
-    temps = {}
-    if toolheads_config:
-        for th in toolheads_config:
-            # Check for FDM temperature
-            if th.get("id") == "fdm":
-                temps["fdm"] = th.get("defaultTemperature")
-            elif th.get("id") == "syringe":
-                # syringe might not have temp, but fdm/nozzle often used as reference
-                pass
-
     for item in layer_actions:
-        # Support both legacy LayerAction and new ResolvedModelPlan formats
         ranges = []
         if "ranges" in item:
-            # New format: loop through all ranges of the plan
             ranges = item["ranges"]
         else:
-            # Legacy format: single action
             ranges = [item]
 
         for r in ranges:
             try:
-                # Resolve Toolhead
-                tool = "fdm"
-                is_multi_tool_layer = False
-                
-                if "toolOverride" in r: 
-                    tool = r["toolOverride"]
-                elif "settings" in r and "mapping" in r["settings"]:
-                    mapping = r["settings"]["mapping"]
-                    tool = mapping.get("perimeter", "fdm")
-                    # Detectar si hay más de una herramienta distinta en esta capa
-                    active_tools = [v for k, v in mapping.items() if v != "none" and v is not None]
-                    if len(set(active_tools)) > 1:
-                        is_multi_tool_layer = True
-                else:
-                    tool = r.get("toolhead") or "fdm"
-
                 lyr_from = int(r.get("layerFrom", 1))
-                lyr_to = int(r.get("layerTo", 1))
 
-                # SOLO forzamos la herramienta si la capa entera usa una única herramienta.
-                # Si es multi-herramienta, dejamos que PrusaSlicer gestione los cambios T0/T1.
-                if not is_multi_tool_layer:
-                    t_cmd = "T0"
-                    if tool == "syringe":
-                        t_cmd = "T1"
-                    elif tool == "uv":
-                        t_cmd = "T2"
-
-                    # If we have a temperature for this tool, inject it
-                    if tool in temps and temps[tool]:
-                        t_cmd += f"\nM104 S{temps[tool]} ; Set temperature for {tool}"
-
-                    for lyr in range(lyr_from, lyr_to + 1):
-                        overrides[lyr] = t_cmd
-
-                # Resolve UV Events / Macros (if present in Plan format)
+                # Resolver Eventos UV y Macros (estos sí debemos inyectarlos manualmente)
                 settings = r.get("settings", {})
                 uv = settings.get("uv") or r.get("uvSettings")
                 gcode_cmds = []
@@ -603,10 +555,10 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
                 if uv:
                     dur = uv.get("exposureTimeSec", 5)
                     pause = uv.get("pausePrint", True)
-                    gcode_cmds.append(f"; --- UV EVENT AT LAYER {lyr_from} ---")
-                    if pause: gcode_cmds.append("M0 ; Pause for UV exposure")
-                    gcode_cmds.append("T2 ; Switch to UV head")
-                    gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposure for {dur}s")
+                    gcode_cmds.append(f"; --- EVENTO UV EN CAPA {lyr_from} ---")
+                    if pause: gcode_cmds.append("M0 ; Pausa para exposicion UV")
+                    gcode_cmds.append("T2 ; Cambiar a cabezal UV")
+                    gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposicion de {dur}s")
                 
                 pre = settings.get("preMacro") or r.get("preMacro")
                 if pre: gcode_cmds.append(str(pre))
@@ -620,7 +572,7 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
             except (ValueError, TypeError, KeyError):
                 continue
 
-    if not overrides and not events:
+    if not events:
         return
 
     lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
@@ -628,36 +580,16 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
     current_layer = 0
 
     for line in lines:
-        # Detect any common layer change markers used by different slicers/versions
         is_layer_marker = ";LAYER_CHANGE" in line or "; LAYER_CHANGE" in line or ";LAYER:" in line
         if is_layer_marker:
             current_layer += 1
             output.append(line)
             
-            # 1. Inject Tool Change from Schedule 
-            if current_layer in overrides:
-                output.append(f"{overrides[current_layer]} ; Forced by Layer Schedule\n")
-            
-            # 2. Inject Process Events (UV, Macros)
+            # Inyectar Eventos de Proceso (UV, Macros) al inicio de la capa
             if current_layer in events:
                 for cmd in events[current_layer]:
                     output.append(f"{cmd}\n")
             continue
-
-        if current_layer in overrides:
-            stripped = line.strip()
-            # Only suppress existing toolchanges if we are NOT using a detailed mapping.
-            # If we are using detailed mapping, we WANT the native T commands to stay.
-            # We can check the source of the override: simple 'toolhead' vs complex 'mapping'
-            # For safety, if there's any active override but it's a layer-start injection,
-            # we only suppress if it's the exact same tool or if it's a legacy override.
-            if re.match(r"^T[0-9]+", stripped):
-                # If the schedule injected a T command at the start of the layer, 
-                # we only suppress sub-layer T commands if the user DID NOT use detailed mapping.
-                # However, a better heuristic: don't suppress T commands if they are legitimate slice output.
-                # For now, let's DISABLE suppression to see if native Prusa multi-material works.
-                output.append(f"{line}") 
-                continue
 
         output.append(line)
 
