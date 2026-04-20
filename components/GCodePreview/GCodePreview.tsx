@@ -80,6 +80,7 @@ export interface ParsedGCode {
     bbox: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
     usedLineTypes: Set<string>;
     usedToolheads: Set<string>;
+    layerHeights: number[]; // Mapping of layer index (1-based) to Z height
 }
 
 interface ExtrusionData {
@@ -183,8 +184,11 @@ export function parseGCode(raw: string): ParsedGCode {
     }
 
     if (!isFinite(bbox.minX)) { bbox.minX = 0; bbox.maxX = 100; bbox.minY = 0; bbox.maxY = 100; }
+    
+    // Map of layer index to physical Z height
+    const layerHeights = [0, ...knownZ]; // layer 1 is knownZ[0], etc.
 
-    return { moves, layerCount: maxSeenLayer, bbox, usedLineTypes, usedToolheads };
+    return { moves, layerCount: maxSeenLayer, bbox, usedLineTypes, usedToolheads, layerHeights };
 }
 
 // ── Geometry builder ──────────────────────────────────────────────────────────

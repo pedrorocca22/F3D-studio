@@ -7,11 +7,4 @@
    <metadata type="volume" key="volume_type" value="ModelPart"/>
   </volume>
  </object>
- <object id="2" instances_count="1">
-  <metadata type="object" key="name" value="Part_2"/>
-  <volume firstid="0" lastid="11">
-   <metadata type="volume" key="name" value="Volume_2"/>
-   <metadata type="volume" key="volume_type" value="ModelPart"/>
-  </volume>
- </object>
 </config>

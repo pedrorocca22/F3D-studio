@@ -497,7 +497,14 @@ export default function App() {
             uvSettings: zz.processEvent ? {
                exposureTimeSec: zz.processEvent.uvExposureTimeSec || 5,
                doseTargetMjCm2: zz.processEvent.doseTargetMjCm2 || 0,
-               pausePrint: zz.processEvent.pausePrint ?? true
+               pausePrint: zz.processEvent.pausePrint ?? true,
+               mode: zz.processEvent.mode,
+               pattern: zz.processEvent.pattern,
+               scanSpeedMmS: zz.processEvent.scanSpeedMmS,
+               powerPercentage: zz.processEvent.powerPercentage,
+               lineSpacingMm: zz.processEvent.lineSpacingMm,
+               zOffsetMm: zz.processEvent.zOffsetMm,
+               trigger: zz.processEvent.trigger
             } : undefined,
             label: zz.label,
             color: zz.color
@@ -805,6 +812,7 @@ export default function App() {
 
             isAdvancedSliceMode={isAdvancedSliceMode}
             globalSettings={globalSettings}
+            zZones={zZones}
             gcodeJob={gcodePreviewJob ? {
               jobId: gcodePreviewJob.jobId,
               gcodeUrl: `http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`,

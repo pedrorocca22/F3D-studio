@@ -525,7 +525,59 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
-def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolheads_config: list = None):
+def _generate_uv_sweep_gcode(min_x, max_x, min_y, max_y, speed_mms, power_percent, line_spacing, z_offset):
+    """
+    Genera el G-code para un barrido UV en zigzag sobre un área delimitada.
+    """
+    gcode = []
+    gcode.append("; --- INICIO BARRIDO UV ZIGZAG ---")
+    gcode.append("T2 ; Cambiar a cabezal UV")
+    
+    # 1. Levantar el cabezal para evitar colisiones con biotinta fresca (Z-Hop relativo)
+    gcode.append("G91 ; Coordenadas relativas")
+    gcode.append(f"G1 Z{z_offset:.2f} F600 ; Levantar cabezal UV {z_offset}mm")
+    gcode.append("G90 ; Coordenadas absolutas")
+    
+    # 2. Ir a la esquina de inicio (con el UV apagado)
+    travel_feedrate = 6000 # 100 mm/s para movimientos rápidos
+    feedrate_mm_min = speed_mms * 60 # Convertir mm/s a mm/min para el comando G1
+    gcode.append(f"G0 X{min_x:.2f} Y{min_y:.2f} F{travel_feedrate} ; Ir a posicion inicial")
+    
+    # 3. Encender UV (Ajusta este comando según cómo Klipper controle tu UV)
+    # Ejemplo: M106 P2 S255 (Ventilador 2) o un macro SET_PIN
+    pwm_val = int((power_percent / 100.0) * 255)
+    gcode.append(f"M106 P2 S{pwm_val} ; Encender UV al {power_percent}%")
+    
+    # 4. Generar el patrón de Zigzag
+    current_y = min_y
+    moving_right = True
+    
+    while current_y <= max_y:
+        target_x = max_x if moving_right else min_x
+        # Barrido horizontal
+        gcode.append(f"G1 X{target_x:.2f} Y{current_y:.2f} F{feedrate_mm_min}")
+        
+        current_y += line_spacing
+        
+        # Salto vertical hacia la siguiente línea (si no hemos terminado)
+        if current_y <= max_y:
+            gcode.append(f"G1 X{target_x:.2f} Y{current_y:.2f} F{feedrate_mm_min}")
+            
+        moving_right = not moving_right
+        
+    # 5. Apagar UV
+    gcode.append("M106 P2 S0 ; Apagar UV")
+    
+    # 6. Restaurar la altura Z
+    gcode.append("G91 ; Coordenadas relativas")
+    gcode.append(f"G1 Z-{z_offset:.2f} F600 ; Restaurar altura Z")
+    gcode.append("G90 ; Coordenadas absolutas")
+    gcode.append("; --- FIN BARRIDO UV ---")
+    
+    return gcode
+
+
+def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolheads_config: list = None, model_bboxes: dict = None):
     """
     Inyecta eventos de proceso (Macros y UV) en las capas especificadas.
     Nota: Ya NO fuerza comandos T0/T1. PrusaSlicer gestiona el ruteo de herramientas
@@ -547,18 +599,39 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
             try:
                 lyr_from = int(r.get("layerFrom", 1))
 
-                # Resolver Eventos UV y Macros (estos sí debemos inyectarlos manualmente)
+                # Resolve UV Events / Macros (estos sí debemos inyectarlos manualmente)
                 settings = r.get("settings", {})
                 uv = settings.get("uv") or r.get("uvSettings")
                 gcode_cmds = []
                 
                 if uv:
-                    dur = uv.get("exposureTimeSec", 5)
-                    pause = uv.get("pausePrint", True)
-                    gcode_cmds.append(f"; --- EVENTO UV EN CAPA {lyr_from} ---")
-                    if pause: gcode_cmds.append("M0 ; Pausa para exposicion UV")
-                    gcode_cmds.append("T2 ; Cambiar a cabezal UV")
-                    gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposicion de {dur}s")
+                    # Extraer parámetros de la UI (si no existen, ponemos valores por defecto)
+                    speed_mms = float(uv.get("scanSpeedMmS", 20.0))
+                    power_percent = float(uv.get("powerPercentage", 100.0))
+                    line_spacing = float(uv.get("lineSpacingMm", 1.0))
+                    z_offset = float(uv.get("zOffsetMm", 2.0))
+                    
+                    # Obtener los límites geométricos
+                    model_id = str(r.get("modelId", "global"))
+                    bbox = model_bboxes.get(model_id) if model_bboxes else None
+                    if not bbox:
+                        bbox = model_bboxes.get("global") if model_bboxes else None
+                    
+                    if bbox:
+                        sweep_gcode = _generate_uv_sweep_gcode(
+                            min_x=bbox["min_x"], max_x=bbox["max_x"], 
+                            min_y=bbox["min_y"], max_y=bbox["max_y"], 
+                            speed_mms=speed_mms, power_percent=power_percent, 
+                            line_spacing=line_spacing, z_offset=z_offset
+                        )
+                        gcode_cmds.extend(sweep_gcode)
+                    else:
+                        # Fallback por si no hay geometria (el modo pausa original)
+                        dur = uv.get("exposureTimeSec", 5)
+                        gcode_cmds.append(f"; --- EVENTO UV EN CAPA {lyr_from} ---")
+                        if uv.get("pausePrint", True): gcode_cmds.append("M0 ; Pausa para exposicion UV")
+                        gcode_cmds.append("T2 ; Cambiar a cabezal UV")
+                        gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposicion de {dur}s")
                 
                 pre = settings.get("preMacro") or r.get("preMacro")
                 if pre: gcode_cmds.append(str(pre))
@@ -578,8 +651,15 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
     lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
     output = []
     current_layer = 0
+    active_tool = "T0"  # Default assumption
 
     for line in lines:
+        stripped = line.strip()
+        # Track active toolhead (T0, T1, T2...)
+        if re.match(r"^T[0-9]+", stripped):
+            # Extract only the T# part, ignoring comments
+            active_tool = stripped.split(';')[0].strip()
+
         is_layer_marker = ";LAYER_CHANGE" in line or "; LAYER_CHANGE" in line or ";LAYER:" in line
         if is_layer_marker:
             current_layer += 1
@@ -589,6 +669,10 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
             if current_layer in events:
                 for cmd in events[current_layer]:
                     output.append(f"{cmd}\n")
+                
+                # RESTAURAR EL CABEZAL ORIGINAL DESPUÉS DEL EVENTO
+                # Si el evento (como el barrido UV) cambió a T2, debemos volver a lo que Prusa esperaba.
+                output.append(f"{active_tool} ; Restaurar cabezal original tras evento de proceso\n")
             continue
 
         output.append(line)
@@ -966,7 +1050,9 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                             "scaffoldTools": meta.get("scaffoldTools") or meta.get("scaffold_tools"),
                             "fdmSettings": meta.get("fdm_settings"),
                             "bedMinX": float(m.x.min()),
+                            "bedMaxX": float(m.x.max()),
                             "bedMinY": float(m.y.min()),
+                            "bedMaxY": float(m.y.max()),
                         })
                     except Exception as e:
                         print(f"[FDM SLICE] Error processing {f_name}: {e}")
@@ -1006,10 +1092,25 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
         # ── Apply Layer Schedule Priority over Scaffold Mapping ──
         # Use full layer plans if available for more accurate toolhead switching
+        # Recopilar los límites para los barridos UV
+        model_bboxes = {}
+        if consolidated_data:
+            model_bboxes["global"] = {
+                "min_x": min([d["bedMinX"] for d in consolidated_data]),
+                "max_x": max([d["bedMaxX"] for d in consolidated_data]),
+                "min_y": min([d["bedMinY"] for d in consolidated_data]),
+                "max_y": max([d["bedMaxY"] for d in consolidated_data])
+            }
+            for d in consolidated_data:
+                model_bboxes[str(d["model_id"])] = {
+                    "min_x": d["bedMinX"], "max_x": d["bedMaxX"],
+                    "min_y": d["bedMinY"], "max_y": d["bedMaxY"]
+                }
+
         sanitizer_actions = layer_plans if layer_plans else layer_actions_raw
         if sanitizer_actions:
             _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
-            _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config)
+            _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config, model_bboxes)
 
         # ── Pore Injection Post-Processing ──
         pore_models = [

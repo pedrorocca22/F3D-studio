@@ -1119,23 +1119,96 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                 </div>
                               )}
                               {zone.processEvent && (
-                                <div className="grid grid-cols-2 gap-3 items-end">
-                                   <div className="space-y-1 flex-1">
-                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">UV Time (s)</span>
-                                      <NumericInput 
-                                        value={zone.processEvent.uvExposureTimeSec || 0}
-                                        onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, uvExposureTimeSec: v } })}
-                                        className="h-7 text-[10px] font-mono"
-                                      />
+                                <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                   <div className="flex items-center justify-between">
+                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-1.5">
+                                         <Icon name="wb_iridescent" className="text-[10px]" /> UV PROCESS CONFIG
+                                      </span>
                                    </div>
-                                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 h-7 px-3 rounded-lg border border-slate-100 dark:border-slate-800">
-                                      <span className="text-[9px] text-slate-500 font-black uppercase tracking-tighter">Pause</span>
-                                      <input 
-                                        type="checkbox" 
-                                        className="accent-primary w-3 h-3"
-                                        checked={!!zone.processEvent.pausePrint}
-                                        onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, pausePrint: e.target.checked } })}
-                                      />
+
+                                   {/* Mode & Pattern */}
+                                   <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Mode</span>
+                                         <select 
+                                           className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
+                                           value={zone.processEvent.mode || 'stationary'}
+                                           onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, mode: e.target.value as any } })}
+                                         >
+                                            <option value="stationary">Stationary</option>
+                                            <option value="sweep">Sweep (Pattern)</option>
+                                         </select>
+                                      </div>
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Pattern</span>
+                                         <select 
+                                           disabled={zone.processEvent.mode !== 'sweep'}
+                                           className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold disabled:opacity-30"
+                                           value={zone.processEvent.pattern || 'zigzag'}
+                                           onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, pattern: e.target.value as any } })}
+                                         >
+                                            <option value="zigzag">Zigzag</option>
+                                            <option value="concentric">Concentric</option>
+                                            <option value="infill_mimic">Infill Mimic</option>
+                                         </select>
+                                      </div>
+                                   </div>
+
+                                   {/* Power & Scan Speed */}
+                                   <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Power (%)</span>
+                                         <NumericInput 
+                                           value={zone.processEvent.powerPercentage ?? 100}
+                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, powerPercentage: v } })}
+                                           className="h-7 text-[10px] font-mono"
+                                         />
+                                      </div>
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Scan Speed (mm/s)</span>
+                                         <NumericInput 
+                                           disabled={zone.processEvent.mode !== 'sweep'}
+                                           value={zone.processEvent.scanSpeedMmS ?? 20}
+                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, scanSpeedMmS: v } })}
+                                           className="h-7 text-[10px] font-mono"
+                                         />
+                                      </div>
+                                   </div>
+
+                                   {/* Spacing & Z-Offset */}
+                                   <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Spacing (mm)</span>
+                                         <NumericInput 
+                                           disabled={zone.processEvent.mode !== 'sweep'}
+                                           value={zone.processEvent.lineSpacingMm ?? 1.0}
+                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, lineSpacingMm: v } })}
+                                           className="h-7 text-[10px] font-mono"
+                                           step={0.1}
+                                         />
+                                      </div>
+                                      <div className="space-y-1">
+                                         <span className="text-[8px] text-slate-400 uppercase font-black">Z-Hop (mm)</span>
+                                         <NumericInput 
+                                           value={zone.processEvent.zOffsetMm ?? 2.0}
+                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, zOffsetMm: v } })}
+                                           className="h-7 text-[10px] font-mono"
+                                           step={0.1}
+                                         />
+                                      </div>
+                                   </div>
+
+                                   {/* Trigger Selector */}
+                                   <div className="space-y-1 mt-1">
+                                      <span className="text-[8px] text-slate-400 uppercase font-black">Trigger Mode</span>
+                                      <select 
+                                        className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
+                                        value={zone.processEvent.trigger || 'after_layer'}
+                                        onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, trigger: e.target.value as any } })}
+                                      >
+                                         <option value="after_layer">After each layer</option>
+                                         <option value="after_segment">After entire zone</option>
+                                      </select>
                                    </div>
                                 </div>
                               )}

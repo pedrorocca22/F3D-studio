@@ -353,6 +353,12 @@ export interface UVCrosslinkSettings {
   exposureTimeSec: number;
   scanSpeedMmS?: number;
   pausePrint: boolean;
+  mode?: 'stationary' | 'sweep';
+  pattern?: 'zigzag' | 'concentric' | 'infill_mimic';
+  powerPercentage?: number;
+  lineSpacingMm?: number;
+  zOffsetMm?: number;
+  trigger?: 'after_layer' | 'after_segment';
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +432,13 @@ export interface ZZone {
     uvExposureTimeSec?: number;
     doseTargetMjCm2?: number;
     pausePrint?: boolean;
+    scanSpeedMmS?: number;
+    mode?: 'stationary' | 'sweep';
+    pattern?: 'zigzag' | 'concentric' | 'infill_mimic';
+    powerPercentage?: number;
+    lineSpacingMm?: number;
+    zOffsetMm?: number;
+    trigger?: 'after_layer' | 'after_segment';
   };
 
   label?: string;

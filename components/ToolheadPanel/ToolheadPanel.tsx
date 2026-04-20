@@ -433,43 +433,123 @@ export const LayerActionRow: React.FC<{
                 )}
 
                 {action.kind === 'process_event' && (
-                    <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                                <label className="text-[8px] text-slate-400 uppercase font-black">UV Exposure (s)</label>
-                                <input
-                                    type="number" min={0.1} step={0.5}
-                                    value={action.uvSettings?.exposureTimeSec ?? 5}
-                                    onChange={e => onUpdate({ 
-                                        ...action, 
-                                        uvSettings: { 
-                                            ...action.uvSettings, 
-                                            exposureTimeSec: +e.target.value, 
-                                            pausePrint: action.uvSettings?.pausePrint ?? true, 
-                                            doseTargetMjCm2: action.uvSettings?.doseTargetMjCm2 ?? 0 
-                                        }
-                                    })}
-                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
-                                />
+                    <div className="space-y-4">
+                        {/* UV Settings Group */}
+                        <div className="space-y-2 bg-slate-50 border border-outline-variant/10 p-2 rounded-lg">
+                            <label className="text-[8px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-1.5">
+                                <Icon name="wb_iridescent" className="text-xs" /> UV CURING SETTINGS
+                            </label>
+                            
+                            {/* Mode & Pattern */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Mode</label>
+                                    <select
+                                        value={action.uvSettings?.mode || 'stationary'}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, mode: e.target.value as any }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none"
+                                    >
+                                        <option value="stationary">STATIONARY</option>
+                                        <option value="sweep">SWEEP (PATTERN)</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Pattern</label>
+                                    <select
+                                        value={action.uvSettings?.pattern || 'zigzag'}
+                                        disabled={action.uvSettings?.mode !== 'sweep'}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, pattern: e.target.value as any }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none disabled:opacity-30"
+                                    >
+                                        <option value="zigzag">ZIGZAG</option>
+                                        <option value="concentric">CONCENTRIC</option>
+                                        <option value="infill_mimic">INFILL MIMIC</option>
+                                    </select>
+                                </div>
                             </div>
+
+                            {/* Power & Speed */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Power (%)</label>
+                                    <input
+                                        type="number" min={0} max={100}
+                                        value={action.uvSettings?.powerPercentage ?? 100}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, powerPercentage: +e.target.value }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Scan Speed (mm/s)</label>
+                                    <input
+                                        type="number" min={1}
+                                        value={action.uvSettings?.scanSpeedMmS ?? 20}
+                                        disabled={action.uvSettings?.mode !== 'sweep'}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, scanSpeedMmS: +e.target.value }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none disabled:opacity-30"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Spacing & Z-Offset */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Line Spacing (mm)</label>
+                                    <input
+                                        type="number" min={0.1} step={0.1}
+                                        value={action.uvSettings?.lineSpacingMm ?? 1.0}
+                                        disabled={action.uvSettings?.mode !== 'sweep'}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, lineSpacingMm: +e.target.value }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none disabled:opacity-30"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[7px] text-slate-400 uppercase font-black">Z-Hop Offset (mm)</label>
+                                    <input
+                                        type="number" min={0} step={0.1}
+                                        value={action.uvSettings?.zOffsetMm ?? 2.0}
+                                        onChange={e => onUpdate({
+                                            ...action,
+                                            uvSettings: { ...action.uvSettings!, zOffsetMm: +e.target.value }
+                                        })}
+                                        className="w-full bg-white border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Trigger Mode */}
                             <div className="space-y-1">
-                                <label className="text-[8px] text-slate-400 uppercase font-black">Dose (mJ)</label>
-                                <input
-                                    type="number" min={0} step={1}
-                                    value={action.uvSettings?.doseTargetMjCm2 ?? 0}
-                                    onChange={e => onUpdate({ 
-                                        ...action, 
-                                        uvSettings: { 
-                                            ...action.uvSettings!, 
-                                            doseTargetMjCm2: +e.target.value, 
-                                            exposureTimeSec: action.uvSettings?.exposureTimeSec ?? 5, 
-                                            pausePrint: action.uvSettings?.pausePrint ?? true 
-                                        }
+                                <label className="text-[7px] text-slate-400 uppercase font-black">Trigger Mode</label>
+                                <select
+                                    value={action.uvSettings?.trigger || 'after_layer'}
+                                    onChange={e => onUpdate({
+                                        ...action,
+                                        uvSettings: { ...action.uvSettings!, trigger: e.target.value as any }
                                     })}
-                                    className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
-                                />
+                                    className="w-full bg-white border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none"
+                                >
+                                    <option value="after_layer">AFTER LAYER</option>
+                                    <option value="after_segment">AFTER SEGMENT</option>
+                                </select>
                             </div>
                         </div>
+
+                        {/* Macros Group */}
                         <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                                 <label className="text-[8px] text-slate-400 uppercase font-black">Pre-Macro</label>
