@@ -208,24 +208,24 @@ Píldoras de `text-[9px]` con poco contraste. Serían más usables con iconos y 
 
 | ID | Tipo | Descripción | Esfuerzo | Impacto | Estado |
 |----|------|-------------|----------|---------|--------|
-| BUG-01 | 🔴 Bug | `onPrint` no conectado | Bajo | Alto | Pendiente |
-| BUG-02 | 🔴 Bug | Doble escalado Z en `calculatedTotalLayers` | Bajo | Alto | Pendiente |
-| BUG-03 | 🔴 Bug | Polling sin timeout | Bajo | Medio | Pendiente |
-| BUG-04 | 🟡 Arch | `MULTIWELL_SPECS` duplicado | Bajo | Bajo | Pendiente |
-| BUG-05 | 🔴 Bug | Dead code `PrintMonitor` | Mínimo | Bajo | Pendiente |
-| BUG-06 | 🟡 Arch | URLs hardcodeadas | Bajo | Medio | Pendiente |
+| BUG-01 | 🔴 Bug | `onPrint` no conectado | Bajo | Alto | ✅ Aplicado |
+| BUG-02 | 🔴 Bug | Doble escalado Z en `calculatedTotalLayers` | Bajo | Alto | ✅ Aplicado |
+| BUG-03 | 🔴 Bug | Polling sin timeout | Bajo | Medio | ✅ Aplicado |
+| BUG-04 | 🟡 Arch | `MULTIWELL_SPECS` duplicado | Bajo | Bajo | ✅ Aplicado |
+| BUG-05 | 🔴 Bug | Dead code `PrintMonitor` | Mínimo | Bajo | ✅ Aplicado |
+| BUG-06 | 🟡 Arch | URLs hardcodeadas | Bajo | Medio | ✅ Aplicado |
 | ARCH-01 | 🟡 Arch | Refactorizar `LayersPanel.tsx` | Alto | Medio | Pendiente |
 | UX-01 | 🟢 UX | Persistencia en `localStorage` | Medio | Alto | Pendiente |
 | UX-07 | 🟢 UX | Undo/Redo básico | Alto | Alto | Pendiente |
 | UI-A | 🎨 UI | Header más generoso y legible | Bajo | Medio | ✅ Aplicado |
 | UI-B | 🎨 UI | Paleta toolhead más diferenciada | Bajo | Medio | ✅ Aplicado |
-| UI-C | 🎨 UI | Fondo viewport canvas oscuro | Bajo | Bajo | ✅ Aplicado |
+| UI-C | 🎨 UI | Fondo viewport canvas oscuro | Bajo | Bajo | ❌ Descartado |
 | UI-D | 🎨 UI | Border-radius tarjetas modelo | Bajo | Bajo | ✅ Aplicado |
 | UI-E | 🎨 UI | Animación acordeones | Bajo | Medio | ✅ Aplicado |
 | UI-F | 🎨 UI | NumericInput hover/focus | Bajo | Bajo | ✅ Aplicado |
 | UI-G | 🎨 UI | Empty state Viewport | Bajo | Medio | ✅ Aplicado |
 | UI-I | 🎨 UI | PrintMonitor colores design system | Bajo | Bajo | ✅ Aplicado |
-| UI-J | 🎨 UI | Indicador modo G-code | Bajo | Medio | ✅ Aplicado |
+| UI-J | 🎨 UI | Indicador modo G-code | Bajo | Medio | ❌ Descartado |
 | UI-L | 🎨 UI | Pestañas Inspector más legibles | Bajo | Bajo | ✅ Aplicado |
 
 ---

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { BACKEND_URL } from '../config';
 
 interface HeaderProps {
   darkMode: boolean;
@@ -31,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     const check = async () => {
       try {
-        const r = await fetch('http://127.0.0.1:8000/moonraker/status', { signal: AbortSignal.timeout(3000) });
+        const r = await fetch(`${BACKEND_URL}/moonraker/status`, { signal: AbortSignal.timeout(3000) });
         if (r.ok) {
           const d = await r.json();
           const state = d?.print?.state ?? 'idle';

@@ -14,6 +14,8 @@ import { resolveLayerPlans } from './utils/planResolver';
 import { HelpWiki, HelpTopic } from './components/HelpWiki/HelpWiki';
 // FIX #4: Import centralized MULTIWELL_SPECS — eliminates the local duplicate defined inside handleSlice
 import { MULTIWELL_SPECS } from './constants/wellplate';
+// FIX #6: Centralized backend URL — change once, works everywhere
+import { BACKEND_URL } from './config';
 
 // Helper to convert File to ArrayBuffer
 const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
@@ -618,7 +620,7 @@ export default function App() {
 
     try {
       console.log("[executeSlice] Sending FDM slice request...");
-      const resp = await fetch('http://127.0.0.1:8000/fdm/slice', {
+      const resp = await fetch(`${BACKEND_URL}/fdm/slice`, {
         method: 'POST',
         body: formData,
       });
@@ -631,12 +633,19 @@ export default function App() {
       setCurrentJobId(jobId);
       setSliceProgress('PrusaSlicer is processing...');
 
-      // Poll /job/<id>/progress
+      // Poll /job/<id>/progress — with 10 min timeout (BUG-03)
       let layerCount = 0;
       await new Promise<void>((resolve, reject) => {
+        let attempts = 0;
+        const MAX_ATTEMPTS = 750; // 10 min @ 800ms
         const poll = setInterval(async () => {
+          if (++attempts > MAX_ATTEMPTS) {
+            clearInterval(poll);
+            reject(new Error('Slice timeout: backend did not respond after 10 minutes'));
+            return;
+          }
           try {
-            const pRes = await fetch(`http://127.0.0.1:8000/job/${jobId}/progress`);
+            const pRes = await fetch(`${BACKEND_URL}/job/${jobId}/progress`);
             if (!pRes.ok) {
               console.warn("[executeSlice] Progress poll failed (404?), continuing...");
               return;
@@ -651,7 +660,7 @@ export default function App() {
               clearInterval(poll);
               console.log("[executeSlice] Job done, fetching manifest...");
 
-              const mRes = await fetch(`http://127.0.0.1:8000/fdm/job/${jobId}/manifest`);
+              const mRes = await fetch(`${BACKEND_URL}/fdm/job/${jobId}/manifest`);
               if (mRes.ok) {
                 const manifest = await mRes.json();
                 layerCount = manifest.layer_count ?? 0;
@@ -838,9 +847,11 @@ export default function App() {
   };
 
 
-  const maxModelHeight = Math.max(...models.map(m => (m.size?.z ?? 0) * (m.transform.scale.z ?? 1)), 0);
-  const calculatedTotalLayers = maxModelHeight > 0 
-    ? Math.ceil(maxModelHeight / (globalSettings.layerHeight / 1000)) 
+  // BUG-02 FIX: m.size.z already includes scale (computed by onUpdateModelSize in Viewport).
+  // Multiplying by scale.z again was causing double-scaling when Z-scale ≠ 1.
+  const maxModelHeight = Math.max(...models.map(m => m.size?.z ?? 0), 0);
+  const calculatedTotalLayers = maxModelHeight > 0
+    ? Math.ceil(maxModelHeight / (globalSettings.layerHeight / 1000))
     : 100;
 
   return (
@@ -895,7 +906,25 @@ export default function App() {
           slicePercent={slicePercent}
           sliceMessage={sliceProgress}
           hasGCode={!!gcodePreviewJob}
-          onPrint={() => console.log("Printing job:", gcodePreviewJob?.jobId)}
+          // BUG-01 FIX: connected to the real Moonraker print endpoint
+          onPrint={async () => {
+            if (!gcodePreviewJob?.jobId) return;
+            try {
+              const res = await fetch(`${BACKEND_URL}/moonraker/print/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_id: gcodePreviewJob.jobId }),
+              });
+              if (!res.ok) {
+                const msg = await res.text();
+                alert(`Print failed: ${msg}`);
+              } else {
+                console.log('[onPrint] Job sent to Moonraker:', gcodePreviewJob.jobId);
+              }
+            } catch (err) {
+              alert(`Connection error: ${(err as Error).message}`);
+            }
+          }}
           jobId={currentJobId}
         />
 
@@ -917,7 +946,7 @@ export default function App() {
             zZones={zZones}
             gcodeJob={gcodePreviewJob ? {
               jobId: gcodePreviewJob.jobId,
-              gcodeUrl: `http://127.0.0.1:8000/fdm/job/${gcodePreviewJob.jobId}/gcode`,
+            gcodeUrl: `${BACKEND_URL}/fdm/job/${gcodePreviewJob.jobId}/gcode`,
               nozzleDiameter: gcodePreviewJob.nozzleDiameter
             } : null}
             onExitGCode={() => setGcodePreviewJob(null)}

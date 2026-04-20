@@ -4,7 +4,8 @@ import { Canvas, useLoader, useThree, ThreeEvent, useFrame } from '@react-three/
 import { OrbitControls, ContactShadows, useCursor, TransformControls, Environment, Grid, Text } from '@react-three/drei';
 import { STLLoader } from 'three-stdlib';
 import * as THREE from 'three';
-import { TransformData, ModelData, AdvancedSliceSettings, SliceSegment, GlobalSettings, Modifier } from '../../types';
+import { SceneObject, GlobalSettings, ModelData, TransformData, AdvancedSliceSettings, ZZone, ToolheadConfig, Modifier } from '../../types';
+import { MULTIWELL_SPECS } from '../../constants/wellplate';
 import { ModifiersPanel } from './ModifiersPanel';
 import { ThreeElements } from '@react-three/fiber';
 import { useGCodeLoader, GCodeScene, ColorMode, LINE_TYPE_COLOR, LINE_TYPE_LABELS, TOOLHEAD_COLOR } from '../GCodePreview/GCodePreview';
@@ -118,14 +119,7 @@ const ModelInfoPanel: React.FC<{ model: ModelData; adhesionOffset: number }> = (
   );
 };
 
-
-// Procedural Build Plate Visuals (Parametric)
-const MULTIWELL_SPECS = {
-  '6': { cols: 3, rows: 2, pitch: 39.1, dia: 34.8 },
-  '12': { cols: 4, rows: 3, pitch: 26.1, dia: 22.1 },
-  '24': { cols: 6, rows: 4, pitch: 19.3, dia: 15.62 },
-  '48': { cols: 8, rows: 6, pitch: 13.0, dia: 11.0 },
-};
+// MULTIWELL_SPECS imported from ../../constants/wellplate (BUG-04 fix — no longer duplicated here)
 
 const BuildPlate = ({ globalSettings }: { globalSettings: GlobalSettings }) => {
   const bed = globalSettings.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
