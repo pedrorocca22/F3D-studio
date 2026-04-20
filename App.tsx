@@ -200,19 +200,35 @@ export default function App() {
   };
 
   const handleDeleteModel = (id: string) => {
-    const model = models.find(m => m.id === id);
-    if (!model) return;
+    const modelToDelete = models.find(m => m.id === id);
+    if (!modelToDelete) return;
 
-    const hasAssociatedZones = zZones.some(z => z.modelScope === id);
-    const message = hasAssociatedZones 
-      ? `Are you sure you want to delete "${model.name}"? This will also permanently remove all Z-Zones and custom configurations associated with this model.`
-      : `Are you sure you want to delete "${model.name}"?`;
+    // Determine if we have configurations that would be lost
+    const hasSpecificZones = zZones.some(z => z.modelScope === id);
+    const hasGlobalZones = zZones.some(z => z.modelScope === 'all');
+    const isOnlyModel = models.length === 1;
+
+    let message = `Are you sure you want to delete "${modelToDelete.name}"?`;
+    
+    if (hasSpecificZones || (isOnlyModel && hasGlobalZones)) {
+      message = `⚠️ WARNING: DETECTED ACTIVE CONFIGURATIONS\n\nDeleting "${modelToDelete.name}" will permanently remove all associated Z-Zones and process parameters.\n\nWould you like to proceed with the deletion and reset these configurations?`;
+    }
 
     if (window.confirm(message)) {
+      // 1. Remove the model
       setModels(prev => prev.filter(m => m.id !== id));
       
-      // Also cleanup any Z-Zones specific to this model
-      setZZones(prev => prev.filter(z => z.modelScope !== id));
+      // 2. Remove associated configurations
+      setZZones(prev => {
+        // Remove zones explicitly scoped to this model
+        let nextZones = prev.filter(z => z.modelScope !== id);
+        
+        // If it's the only model, we reset everything to avoid "ghost" configs for the next model
+        if (isOnlyModel) {
+          return [];
+        }
+        return nextZones;
+      });
 
       if (selectedModelId === id) {
         setSelectedModelId(null);
