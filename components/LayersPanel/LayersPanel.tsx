@@ -1025,8 +1025,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     </div>
                   )}
                   {zZones.sort((a,b) => a.zStartMm - b.zStartMm).map((zone, idx) => (
-                    <div key={zone.id} className="relative pl-4 border-l-2 border-slate-200 dark:border-slate-800 pb-2 last:pb-0">
-                      <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-700 border border-white dark:border-slate-900" />
+                    <div key={zone.id} className="mb-2 last:mb-0">
                       <div className="bg-white dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-2.5 space-y-2.5 shadow-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 overflow-hidden flex-1">
@@ -1499,30 +1498,38 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
       {/* VALIDATION MESSAGE */}
       {validationError && (
-        <div className="mx-4 mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2">
-          <Icon name="warning" className="text-red-500 text-sm" />
-          <span className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-tight">{validationError}</span>
+        <div className="mx-3 mb-2 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2">
+          <Icon name="warning" className="text-red-500 text-sm flex-shrink-0" />
+          <span className="text-[11px] text-red-700 dark:text-red-400 font-medium">{validationError}</span>
         </div>
       )}
 
       {/* STEPPER WIZARD FOOTER */}
-      <div className="p-4 border-t border-border-light bg-surface-container-low flex items-center justify-between z-10 flex-shrink-0">
+      <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-surface-dark flex items-center justify-between z-10 flex-shrink-0 gap-2">
           <button 
              disabled={activeStep === 1}
              onClick={() => {
                setValidationError(null);
                setActiveStep(activeStep - 1);
              }}
-             className="px-4 py-2 bg-white border border-outline-variant/30 font-bold text-xs uppercase tracking-tight disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-2"
+             className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium text-[11px] rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
           >
-              <Icon name="arrow_back" className="text-sm" /> BACK
+              <Icon name="arrow_back" className="text-[12px]" /> Back
           </button>
-          
+
+          {/* Step indicator pills */}
+          <div className="flex items-center gap-1">
+            {[1,2,3,4,5,6].map(s => (
+              <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${
+                s === activeStep ? 'w-4 bg-primary' : s < activeStep ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-slate-200 dark:bg-slate-700'
+              }`} />
+            ))}
+          </div>
+
           {activeStep < 6 ? (
               <button 
                  onClick={() => {
                     if (activeStep === 1) {
-                      // Validate if at least one toolhead is assigned to a slot
                       const hasTool = toolheads.some(t => t.slot !== undefined);
                       if (!hasTool) {
                         setValidationError("Assign at least one toolhead to a machine slot to continue.");
@@ -1538,11 +1545,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     setValidationError(null);
                     setActiveStep(activeStep === 6 ? 6 : activeStep + 1);
                  }}
-                 className="px-6 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-none transition-colors uppercase tracking-widest flex items-center gap-2"
+                 className="px-4 py-1.5 bg-primary hover:bg-primary-dark text-white font-medium text-[11px] rounded-md transition-colors flex items-center gap-1.5"
               >
-                  NEXT <Icon name="arrow_forward" className="text-sm" />
+                  Next <Icon name="arrow_forward" className="text-[12px]" />
               </button>
-) : (
+          ) : (
               <button
                 onClick={() => {
                   if (hasGCode && onPrint) {
@@ -1551,11 +1558,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     onSlice();
                   }
                 }}
-                className={`flex-1 ml-4 py-2 px-4 text-xs font-bold transition-all uppercase tracking-widest flex items-center justify-center gap-2 overflow-hidden relative shadow-none ${hasGCode
-                  ? 'bg-[#1e4620] hover:bg-[#153418] text-white'
-                  : isSlicing
-                    ? 'bg-slate-200 text-slate-400 cursor-wait'
-                    : 'bg-red-500 hover:bg-red-600 text-white'
+                className={`flex-1 py-1.5 px-4 text-[11px] font-medium rounded-md transition-all flex items-center justify-center gap-2 overflow-hidden relative ${
+                  hasGCode
+                    ? 'bg-primary hover:bg-primary-dark text-white'
+                    : isSlicing
+                      ? 'bg-slate-100 text-slate-400 cursor-wait'
+                      : 'bg-primary hover:bg-primary-dark text-white'
                 }`}
               >
                 {isSlicing && (
@@ -1564,14 +1572,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     style={{ width: `${Math.round(slicePercent * 100)}%` }}
                   />
                 )}
-
                 <span className="relative z-10">
                   {hasGCode
-                    ? 'EXECUTE PRINT'
+                    ? 'Execute print'
                     : isSlicing
-                      ? `SLICING... ${Math.round(slicePercent * 100)}%`
-                      : 'BUILD'}
+                      ? `Slicing… ${Math.round(slicePercent * 100)}%`
+                      : 'Build'}
                 </span>
+                {!isSlicing && <Icon name={hasGCode ? 'play_arrow' : 'build'} className="text-[13px] relative z-10" />}
               </button>
           )}
       </div>

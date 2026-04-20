@@ -6,12 +6,20 @@ interface HeaderProps {
   toggleDarkMode: () => void;
   onSaveProject: () => void;
   onLoadProject: () => void;
-
   onOpenWifi?: () => void;
   onOpenPrinterStatus?: () => void;
   activeStep: number;
   setActiveStep: (step: number) => void;
 }
+
+const STEPS = [
+  { id: 1, label: 'Environment' },
+  { id: 2, label: 'Models' },
+  { id: 3, label: 'Mapping' },
+  { id: 4, label: 'Settings' },
+  { id: 5, label: 'Advance' },
+  { id: 6, label: 'Slice' },
+];
 
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
@@ -27,8 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
         if (r.ok) {
           const d = await r.json();
           const state = d?.print?.state ?? 'idle';
-          if (state === 'printing') setPrinterState('printing');
-          else setPrinterState('ready');
+          setPrinterState(state === 'printing' ? 'printing' : 'ready');
         } else {
           setPrinterState('error');
         }
@@ -42,90 +49,107 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const stateColor: Record<string, string> = {
-    unknown: 'bg-slate-400',
-    ready: 'bg-primary',
+    unknown:  'bg-slate-300',
+    ready:    'bg-primary',
     printing: 'bg-amber-400 animate-pulse',
-    error: 'bg-red-500',
+    error:    'bg-red-400',
   };
   const stateLabel: Record<string, string> = {
-    unknown: 'Connecting…',
-    ready: 'Printer Ready',
+    unknown:  'Connecting…',
+    ready:    'Ready',
     printing: 'Printing',
-    error: 'Offline',
+    error:    'Offline',
   };
 
   return (
     <>
-      {/* Main Header */}
-      <header className="h-10 flex-shrink-0 bg-surface-light dark:bg-surface-dark border-b border-outline-variant/20 text-slate-700 dark:text-slate-300 flex items-center justify-between px-4 z-20 relative">
+      <header className="h-11 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 z-20 relative">
+
         {/* Wordmark */}
-        <div className="flex items-center gap-2 select-none">
-          <span className="font-bold tracking-tight text-xs text-slate-800 dark:text-slate-100">
-            Aura<span className="text-primary font-normal">Biotics</span>
+        <div className="flex items-center gap-2 select-none min-w-[100px]">
+          <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-[9px] font-bold">B</span>
+          </div>
+          <span className="font-semibold text-[13px] text-slate-800 dark:text-slate-100 tracking-tight">
+            Bio<span className="text-primary">FFF</span>
           </span>
         </div>
 
-          {/* Stepper Center - Now purely indicative */}
-          <div className="flex items-center">
-            {[
-              { id: 1, label: 'Environment' },
-              { id: 2, label: 'Models' },
-              { id: 3, label: 'Mapping' },
-              { id: 4, label: 'Settings' },
-              { id: 5, label: 'Advance' },
-              { id: 6, label: 'Slice' }
-            ].map(step => (
-              <div 
+        {/* Stepper — background-state pills, no separators */}
+        <div className="flex items-center gap-1">
+          {STEPS.map((step) => {
+            const isDone   = activeStep > step.id;
+            const isActive = activeStep === step.id;
+            return (
+              <button
                 key={step.id}
-                className={`px-4 h-10 flex items-center text-[10px] font-bold uppercase tracking-widest transition-all duration-200 border-x border-transparent cursor-default ${
-                    activeStep === step.id 
-                    ? 'bg-surface-container-low text-primary border-outline-variant/20 shadow-inner' 
-                    : activeStep > step.id
-                      ? 'text-primary/60'
-                      : 'text-slate-300'
+                onClick={() => setActiveStep(step.id)}
+                className={`px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                  isActive
+                    ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                    : isDone
+                      ? 'bg-primary/10 text-primary hover:bg-primary/15'
+                      : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                {step.label}
-              </div>
-            ))}
-          </div>
+                {isDone && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="check" className="text-[10px]" />
+                    {step.label}
+                  </span>
+                )}
+                {!isDone && step.label}
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* Printer Status chip - ultra compact */}
+        {/* Right actions */}
+        <div className="flex items-center gap-1.5 min-w-[100px] justify-end">
+
+          {/* Printer status */}
           <button
             onClick={onOpenPrinterStatus}
-            className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200/50 dark:border-slate-700/50 bg-transparent dark:bg-transparent hover:bg-slate-50/50 dark:hover:bg-slate-800/30 text-[9px] font-medium text-slate-500 dark:text-slate-400 transition-all btn-transition"
+            className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 text-[10px] font-medium text-slate-500 dark:text-slate-400 transition-all"
           >
-            <span className={`w-1 h-1 rounded-full ${stateColor[printerState]}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${stateColor[printerState]}`} />
             <span className="hidden lg:inline">{stateLabel[printerState]}</span>
           </button>
 
-          <div className="h-3 w-px bg-slate-200/60 dark:bg-slate-700/60" />
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
 
+          {/* Load / Save */}
           <div className="flex items-center gap-0.5">
-            <button onClick={onLoadProject} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
-              <Icon name="folder_open" className="text-[10px]" />
+            <button
+              onClick={onLoadProject}
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-medium transition-colors"
+            >
+              <Icon name="folder_open" className="text-[12px]" />
               <span className="hidden sm:inline">Load</span>
             </button>
-            <button onClick={onSaveProject} className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-500 dark:text-slate-400 text-[9px] font-medium rounded btn-transition">
-              <Icon name="save" className="text-[10px]" />
+            <button
+              onClick={onSaveProject}
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-medium transition-colors"
+            >
+              <Icon name="save" className="text-[12px]" />
               <span className="hidden sm:inline">Save</span>
             </button>
-
           </div>
 
-          <div className="h-3 w-px bg-slate-200/60 dark:bg-slate-700/60 mx-0.5" />
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
 
+          {/* Network */}
           <button
             onClick={onOpenWifi}
-            className="flex items-center gap-1 bg-primary/80 hover:bg-primary text-white px-2 py-0.5 rounded text-[9px] font-medium btn-transition"
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors"
           >
-            <Icon name="wifi" className="text-[10px]" />
+            <Icon name="wifi" className="text-[12px]" />
             <span className="hidden sm:inline">Network</span>
           </button>
 
+          {/* Dark mode toggle */}
           <button
-            className="p-1 rounded hover:bg-slate-100/50 dark:hover:bg-slate-800/30 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 btn-transition"
+            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             onClick={toggleDarkMode}
             title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
