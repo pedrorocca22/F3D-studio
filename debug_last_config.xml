@@ -2,7 +2,7 @@
 <config xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">
  <object id="1" instances_count="1">
   <metadata type="object" key="name" value="Part_1"/>
-  <volume firstid="0" lastid="11">
+  <volume firstid="0" lastid="1711">
    <metadata type="volume" key="name" value="Volume_1"/>
    <metadata type="volume" key="volume_type" value="ModelPart"/>
   </volume>

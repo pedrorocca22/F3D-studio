@@ -63,54 +63,72 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="h-11 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 z-20 relative">
+      <header className="h-14 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-5 z-20 relative">
 
         {/* Wordmark */}
-        <div className="flex items-center gap-2 select-none min-w-[100px]">
-          <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-[9px] font-bold">B</span>
+        <div className="flex items-center gap-2.5 select-none min-w-[110px]">
+          <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary/30">
+            <span className="text-white text-[10px] font-black">B</span>
           </div>
-          <span className="font-semibold text-[13px] text-slate-800 dark:text-slate-100 tracking-tight">
+          <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 tracking-tight">
             Bio<span className="text-primary">FFF</span>
           </span>
         </div>
 
-        {/* Stepper — informative only, navigation via Back/Next */}
-        <div className="flex items-center gap-1">
-          {STEPS.map((step) => {
+        {/* Stepper — continuous segmented banner */}
+        <div className="flex items-stretch h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+          {STEPS.map((step, idx) => {
             const isDone   = activeStep > step.id;
             const isActive = activeStep === step.id;
+            const isLast   = idx === STEPS.length - 1;
             return (
               <div
                 key={step.id}
-                className={`px-3 py-1 rounded-md text-[11px] font-medium select-none transition-all duration-150 ${
-                  isActive
-                    ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                className={`relative flex items-center justify-center px-4 text-[11px] font-semibold select-none transition-all duration-300 overflow-hidden
+                  ${!isLast ? 'border-r border-white/20 dark:border-slate-600/40' : ''}
+                  ${isActive
+                    ? 'bg-primary text-white'
                     : isDone
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 dark:text-slate-600'
-                }`}
+                      ? 'bg-primary/12 dark:bg-primary/15 text-primary/70 dark:text-primary/60'
+                      : 'bg-white dark:bg-slate-800/60 text-slate-300 dark:text-slate-600'
+                  }`}
               >
-                {isDone ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="check" className="text-[10px]" />
-                    {step.label}
+                {/* Shimmer effect on active step */}
+                {isActive && (
+                  <span
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)',
+                      animation: 'stepShimmer 2.2s ease-in-out infinite',
+                    }}
+                  />
+                )}
+                {/* Step number dot for done/future */}
+                {!isActive && (
+                  <span className={`mr-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black border flex-shrink-0
+                    ${isDone
+                      ? 'bg-primary/20 border-primary/30 text-primary'
+                      : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400'
+                    }`}
+                  >
+                    {step.id}
                   </span>
-                ) : step.label}
+                )}
+                <span className="relative z-10 tracking-wide">{step.label}</span>
               </div>
             );
           })}
         </div>
 
         {/* Right actions */}
-        <div className="flex items-center gap-1.5 min-w-[100px] justify-end">
+        <div className="flex items-center gap-2 min-w-[110px] justify-end">
 
           {/* Printer status */}
           <button
             onClick={onOpenPrinterStatus}
-            className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 text-[10px] font-medium text-slate-500 dark:text-slate-400 transition-all"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 text-xs font-medium text-slate-500 dark:text-slate-400 transition-all"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${stateColor[printerState]}`} />
+            <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
             <span className="hidden lg:inline">{stateLabel[printerState]}</span>
           </button>
 
@@ -120,16 +138,16 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-0.5">
             <button
               onClick={onLoadProject}
-              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-medium transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium transition-colors"
             >
-              <Icon name="folder_open" className="text-[12px]" />
+              <Icon name="folder_open" className="text-[13px]" />
               <span className="hidden sm:inline">Load</span>
             </button>
             <button
               onClick={onSaveProject}
-              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-medium transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium transition-colors"
             >
-              <Icon name="save" className="text-[12px]" />
+              <Icon name="save" className="text-[13px]" />
               <span className="hidden sm:inline">Save</span>
             </button>
           </div>
@@ -139,19 +157,19 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Network */}
           <button
             onClick={onOpenWifi}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors"
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm shadow-primary/20"
           >
-            <Icon name="wifi" className="text-[12px]" />
+            <Icon name="wifi" className="text-[13px]" />
             <span className="hidden sm:inline">Network</span>
           </button>
 
           {/* Dark mode toggle */}
           <button
-            className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             onClick={toggleDarkMode}
             title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
-            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[13px]" />
+            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[14px]" />
           </button>
         </div>
       </header>

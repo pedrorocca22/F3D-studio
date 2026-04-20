@@ -128,104 +128,102 @@ export const PrintMonitor: React.FC<PrintMonitorProps> = ({
         return `${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
     };
 
-    const getStateColor = (): string => {
+    const getStateBadge = (): { text: string; cls: string } => {
         switch (status.state) {
-            case 'PRINTING': return '#2f6098';
-            case 'PAUSED': return '#586064';
-            case 'COMPLETED': return '#1e4620';
-            case 'ERROR': return '#b71c1c';
-            default: return '#abb3b7';
+            case 'PRINTING':  return { text: 'STATION ACTIVE',   cls: 'text-primary' };
+            case 'PAUSED':    return { text: 'STATION PAUSED',   cls: 'text-slate-500' };
+            case 'COMPLETED': return { text: 'PROCESS COMPLETE', cls: 'text-green-600 dark:text-green-400' };
+            case 'ERROR':     return { text: 'HARDWARE ERROR',   cls: 'text-red-600 dark:text-red-400' };
+            case 'IDLE':      return { text: 'SYSTEM READY',     cls: 'text-slate-400' };
+            default:          return { text: status.state,       cls: 'text-slate-400' };
         }
     };
 
-    const getStateLabel = (): string => {
+    const getProgressColor = (): string => {
         switch (status.state) {
-            case 'PRINTING': return 'STATION ACTIVE';
-            case 'PAUSED': return 'STATION PAUSED';
-            case 'COMPLETED': return 'PROCESS COMPLETE';
-            case 'ERROR': return 'HARDWARE ERROR';
-            case 'IDLE': return 'SYSTEM READY';
-            default: return status.state;
+            case 'PRINTING':  return 'bg-primary';
+            case 'PAUSED':    return 'bg-slate-400';
+            case 'COMPLETED': return 'bg-green-500';
+            case 'ERROR':     return 'bg-red-500';
+            default:          return 'bg-slate-300';
         }
     };
 
     const isFinished = status.state === 'COMPLETED' || status.state === 'IDLE';
     const isError = status.state === 'ERROR';
+    const badge = getStateBadge();
 
     return (
         <div className="absolute inset-0 z-[60] bg-[#f1f4f6]/80 backdrop-blur-sm flex items-center justify-center">
-            <div className="relative w-full max-w-[440px] bg-white border border-outline-variant/30 shadow-2xl p-0">
+            <div className="relative w-full max-w-[440px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-xl p-0 overflow-hidden">
                 {/* Header Section */}
-                <div className="border-b border-outline-variant/20 p-6 flex justify-between items-start">
+                <div className="border-b border-slate-100 dark:border-slate-800 p-6 flex justify-between items-start">
                     <div>
                         <span className="label-clinical mb-1 block">Production Status</span>
-                        <h2 className="text-xl font-black tracking-tight leading-none" style={{ color: getStateColor() }}>
-                            {getStateLabel()}
+                        <h2 className={`text-xl font-black tracking-tight leading-none ${badge.cls}`}>
+                            {badge.text}
                         </h2>
-                        <span className="text-[10px] text-[#abb3b7] font-mono mt-2 block font-bold">
+                        <span className="text-[10px] text-slate-400 font-mono mt-2 block font-bold">
                             SESSION_ID // {jobId.substring(0, 12).toUpperCase()}
                         </span>
                     </div>
                     <div className="text-right">
-                        <span className="text-3xl font-black tabular-nums tracking-tighter" style={{ color: getStateColor() }}>
+                        <span className={`text-3xl font-black tabular-nums tracking-tighter ${badge.cls}`}>
                             {Math.round(progress)}%
                         </span>
                     </div>
                 </div>
 
-                {/* Progress Bar Tonal */}
-                <div className="h-1 bg-surface-container w-full overflow-hidden">
+                {/* Progress Bar */}
+                <div className="h-1.5 bg-slate-100 dark:bg-slate-800 w-full overflow-hidden">
                     <div
-                        className="h-full transition-all duration-700 ease-out"
-                        style={{
-                            width: `${Math.max(progress, 0.5)}%`,
-                            backgroundColor: getStateColor(),
-                        }}
+                        className={`h-full transition-all duration-700 ease-out ${getProgressColor()} ${status.state === 'PRINTING' ? 'animate-none' : ''}`}
+                        style={{ width: `${Math.max(progress, 0.5)}%` }}
                     />
                 </div>
 
                 {/* Data Grid Section */}
-                <div className="p-6 grid grid-cols-2 gap-px bg-outline-variant/20">
-                    <div className="bg-white p-4">
+                <div className="p-6 grid grid-cols-2 gap-px bg-slate-100 dark:bg-slate-800">
+                    <div className="bg-white dark:bg-slate-900 p-4">
                         <span className="label-clinical opacity-50 block mb-1">Process Layer</span>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-lg font-black">{currentLayer}</span>
-                            <span className="text-xs text-[#abb3b7]">/ {status.total_layers}</span>
+                            <span className="text-lg font-black text-slate-800 dark:text-slate-100">{currentLayer}</span>
+                            <span className="text-xs text-slate-400">/ {status.total_layers}</span>
                         </div>
                     </div>
-                    <div className="bg-white p-4">
+                    <div className="bg-white dark:bg-slate-900 p-4">
                         <span className="label-clinical opacity-50 block mb-1">Active Dose</span>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-lg font-black">{currentLayerData?.exposure_time?.toFixed(1) ?? '—'}</span>
-                            <span className="text-xs text-[#abb3b7]">S</span>
+                            <span className="text-lg font-black text-slate-800 dark:text-slate-100">{currentLayerData?.exposure_time?.toFixed(1) ?? '—'}</span>
+                            <span className="text-xs text-slate-400">S</span>
                         </div>
                     </div>
-                    <div className="bg-white p-4">
+                    <div className="bg-white dark:bg-slate-900 p-4">
                         <span className="label-clinical opacity-50 block mb-1">Temporal Elapsed</span>
-                        <span className="text-lg font-black tabular-nums">{formatTime(elapsedSeconds)}</span>
+                        <span className="text-lg font-black tabular-nums text-slate-800 dark:text-slate-100">{formatTime(elapsedSeconds)}</span>
                     </div>
-                    <div className="bg-white p-4">
-                        <span className="label-clinical opacity-50 block mb-1">Temporal Est. Rem</span>
-                        <span className="text-lg font-black tabular-nums">
+                    <div className="bg-white dark:bg-slate-900 p-4">
+                        <span className="label-clinical opacity-50 block mb-1">Est. Remaining</span>
+                        <span className="text-lg font-black tabular-nums text-slate-800 dark:text-slate-100">
                             {currentLayer > 2 ? formatTime(estimatedRemainingSeconds) : '—'}
                         </span>
                     </div>
                 </div>
 
                 {/* Control Footer */}
-                <div className="p-6 pt-2 flex items-center gap-3">
+                <div className="p-6 pt-4 flex items-center gap-3">
                     {!isFinished && !isError ? (
                         <>
                             <button
                                 onClick={handlePauseResume}
-                                className="flex-1 py-3 border border-outline-variant/30 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                                className="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all"
                             >
                                 {status.state === 'PAUSED' ? 'Resume Session' : 'Hold Session'}
                             </button>
                             <button
                                 onClick={handleStop}
                                 disabled={isStopping}
-                                className="flex-1 py-3 bg-[#b71c1c] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#8e1616] transition-all disabled:opacity-50"
+                                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-sm shadow-red-600/20"
                             >
                                 {isStopping ? 'Terminating...' : 'Abort Process'}
                             </button>
@@ -236,7 +234,7 @@ export const PrintMonitor: React.FC<PrintMonitorProps> = ({
                                 onStopped();
                                 onClose();
                             }}
-                            className="w-full py-4 bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all"
+                            className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-primary/20"
                         >
                             Back to Workspace
                         </button>
@@ -244,7 +242,5 @@ export const PrintMonitor: React.FC<PrintMonitorProps> = ({
                 </div>
             </div>
         </div>
-    );
-};
     );
 };

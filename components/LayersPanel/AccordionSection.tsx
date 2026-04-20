@@ -70,11 +70,16 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
         </div>
       </div>
 
-      {isOpen && children && (
-        <div className="px-4 py-3 space-y-3 bg-white dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700/50">
-          {children}
-        </div>
-      )}
+      <div
+        className={`overflow-hidden transition-all duration-250 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+        style={{ transition: 'max-height 0.25s ease-in-out, opacity 0.2s ease-in-out' }}
+      >
+        {children && (
+          <div className="px-4 py-3 space-y-3 bg-white dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700/50">
+            {children}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

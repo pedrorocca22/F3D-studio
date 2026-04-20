@@ -303,9 +303,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       <div
                         key={model.id}
                         onClick={() => onSelectModel(model.id)}
-                        className={`flex items-stretch border overflow-hidden transition-all select-none h-11 ${
+                        className={`flex items-stretch border rounded-md overflow-hidden transition-all select-none h-11 ${
                           isSelected
-                            ? 'border-primary bg-primary/5'
+                            ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
                         }`}
                       >

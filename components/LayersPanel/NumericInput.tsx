@@ -60,16 +60,16 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   };
 
   return (
-    <div className={`flex items-center bg-[#eaeff1] ${className} transition-colors border-b border-outline-variant/20 h-7`}>
+    <div className={`flex items-center bg-[#eaeff1] dark:bg-slate-800 ${className} transition-all border-b-2 border-outline-variant/20 h-7 hover:border-primary/40 focus-within:border-primary focus-within:bg-primary/5 dark:focus-within:bg-primary/10 rounded-sm group`}>
       <button
         onClick={decrement}
-        className="px-2 h-full hover:bg-[#dbe4e7] text-slate-400 hover:text-primary transition-all btn-transition flex items-center"
+        className="px-2 h-full hover:bg-primary/10 text-slate-400 group-focus-within:text-primary hover:text-primary transition-all btn-transition flex items-center shrink-0"
       >
         <Icon name="remove" className="text-[10px]" />
       </button>
       <div className="relative flex-1 min-w-[2rem] h-full flex items-center">
         <input
-          className="w-full text-center text-[11px] bg-transparent border-none focus:ring-0 py-0 text-slate-700 font-bold outline-none font-mono"
+          className="w-full text-center text-[11px] bg-transparent border-none focus:ring-0 py-0 text-slate-700 dark:text-slate-200 font-bold outline-none font-mono"
           type="text"
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
@@ -84,7 +84,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
       </div>
       <button
         onClick={increment}
-        className="px-2 h-full hover:bg-[#dbe4e7] text-slate-400 hover:text-primary transition-all btn-transition flex items-center"
+        className="px-2 h-full hover:bg-primary/10 text-slate-400 group-focus-within:text-primary hover:text-primary transition-all btn-transition flex items-center shrink-0"
       >
         <Icon name="add" className="text-[10px]" />
       </button>

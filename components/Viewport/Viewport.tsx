@@ -60,12 +60,12 @@ const SEGMENT_COLORS = [
 
 const getSegmentColor = (index: number) => SEGMENT_COLORS[index % SEGMENT_COLORS.length];
 
-// Toolhead colors for 3D preview (Clinical Palette)
+// Toolhead colors for 3D preview — paleta vibrante diferenciada
 export const TOOLHEAD_COLORS: Record<string, string> = {
-  fdm:     '#2f6098', // Clinical Blue
-  syringe: '#586064', // Clinical Gray
-  uv:      '#b71c1c', // Warning Red
-  none:    '#abb3b7', // Neutral Gray
+  fdm:     '#2563eb', // blue-600  — FDM hot-end
+  syringe: '#059669', // emerald-600 — hydrogel syringe
+  uv:      '#7c3aed', // violet-600 — UV crosslinker
+  none:    '#94a3b8', // slate-400  — unassigned
 };
 
 type CameraMode = 'orbit' | 'pan';
@@ -1044,15 +1044,16 @@ export const Viewport: React.FC<ViewportProps> = ({
 
       {/* Main Viewport Area */}
       <div className="flex-1 relative h-full">
+
         {/* Render Canvas */}
-        <div className="absolute inset-3 z-0 rounded-lg overflow-hidden bg-slate-100/30 dark:bg-slate-800/10 transition-all">
+        <div className={`absolute inset-3 z-0 rounded-xl overflow-hidden transition-all shadow-inner bg-slate-100/60 dark:bg-slate-800/20`}>
           <Canvas
             shadows
             camera={{ position: [100, 100, 150], fov: 45, near: 0.01, far: 2000 }}
             onPointerMissed={onMissed}
             gl={{ localClippingEnabled: true }}
           >
-            <fog attach="fog" args={['#f8fafc', 1000, 2000]} />
+            <fog attach="fog" args={['#1a1d22', 1200, 2500]} />
             <ambientLight intensity={0.4} />
             <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow shadow-bias={-0.0001} />
             <Environment preset="city" />
@@ -1081,6 +1082,7 @@ export const Viewport: React.FC<ViewportProps> = ({
 
             {/* STL Models - hidden when GCode is active */}
             <Suspense fallback={null}>
+               {!isGCodeMode && models.length === 0 && null}
                {!isGCodeMode && models.map(model => {
                  const adhesionOffset = (globalSettings.adhesion?.enabled)
                    ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000
@@ -1137,6 +1139,24 @@ export const Viewport: React.FC<ViewportProps> = ({
 
 
 
+          {/* ── Empty state cuando no hay modelos ── */}
+          {!isGCodeMode && models.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
+              <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <Icon name="upload_file" className="text-3xl text-primary/60" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-black text-white/70 uppercase tracking-widest mb-1">No Models Loaded</p>
+                  <p className="text-[10px] text-white/40 font-medium">Drag &amp; drop STL files · or use the panel</p>
+                </div>
+                <div className="flex items-center gap-3 text-[9px] text-white/30 font-mono">
+                  <span className="px-2 py-0.5 bg-white/10 rounded border border-white/10">Step 2 → Load Files</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── GCode exit button (top-right corner) */}
           {isGCodeMode && onExitGCode && (
             <button
@@ -1145,7 +1165,7 @@ export const Viewport: React.FC<ViewportProps> = ({
               className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200/60 dark:hover:border-red-900/30 hover:bg-red-50/80 dark:hover:bg-red-900/10 transition-all btn-transition text-[9px] font-medium uppercase tracking-wide"
             >
               <Icon name="close" className="text-sm" />
-              Exit
+              Exit Preview
             </button>
           )}
 
@@ -1257,20 +1277,30 @@ export const Viewport: React.FC<ViewportProps> = ({
 
       {/* Right Sidebar - Inspector */}
       <div className="w-64 bg-surface-light dark:bg-surface-dark border-l border-slate-200/60 dark:border-slate-800/60 z-30 flex flex-col h-full panel-transition">
-        <div className="px-2.5 py-2 border-b border-slate-200/60 dark:border-slate-800/40">
+        <div className="px-2.5 py-2.5 border-b border-slate-200/60 dark:border-slate-800/40">
           <div className="flex items-center justify-between">
             <div className="flex gap-1">
               <button 
                 onClick={() => setInspectorTab('inspector')}
-                className={`px-2 py-1 text-[9px] font-medium rounded transition-colors ${inspectorTab === 'inspector' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded-md transition-all ${
+                  inspectorTab === 'inspector'
+                    ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
               >
+                <Icon name="tune" className="text-[11px]" />
                 Inspector
               </button>
               <button 
                 onClick={() => setInspectorTab('gcode')}
-                className={`px-2 py-1 text-[9px] font-medium rounded transition-colors ${inspectorTab === 'gcode' ? 'bg-primary text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold rounded-md transition-all ${
+                  inspectorTab === 'gcode'
+                    ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
               >
-                Gcode
+                <Icon name="code" className="text-[11px]" />
+                G-code
               </button>
             </div>
             {inspectorTab === 'inspector' && (
