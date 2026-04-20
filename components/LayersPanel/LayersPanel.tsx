@@ -1073,22 +1073,23 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           </div>
                         </div>
 
+                        {/* Section Toggle Pills */}
                         <div className="pt-1 flex gap-2">
                            <button 
                              onClick={() => handleUpdateZZone(zone.id, { featureOverride: zone.featureOverride ? undefined : { toolhead: 'fdm', targetFeatures: ['all'] } })}
-                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.featureOverride ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.featureOverride ? 'bg-teal-500 border-teal-500 text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
                            >
                              Tool
                            </button>
                            <button 
                              onClick={() => handleUpdateZZone(zone.id, { parameterOverride: zone.parameterOverride ? undefined : { fdm: {} } })}
-                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.parameterOverride ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.parameterOverride ? 'bg-violet-500 border-violet-500 text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
                            >
-                             Param
+                             Params
                            </button>
                            <button 
                              onClick={() => handleUpdateZZone(zone.id, { processEvent: zone.processEvent ? undefined : { uvExposureTimeSec: 5, doseTargetMjCm2: 50, pausePrint: false } })}
-                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.processEvent ? 'bg-primary border-primary text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
+                             className={`flex-1 text-[8px] py-1 rounded-md border transition-all font-black uppercase tracking-widest ${zone.processEvent ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900'}`}
                            >
                              Event
                            </button>
@@ -1096,11 +1097,16 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         
                         {/* Detail Overrides */}
                         {(zone.featureOverride || zone.parameterOverride || zone.processEvent) && (
-                           <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                           <div className="mt-1 space-y-2">
+
+                              {/* TOOL SECTION */}
                               {zone.featureOverride && (
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Zone Tool Strategy</span>
+                                <div className="rounded-lg border border-teal-200 dark:border-teal-900/60 overflow-hidden">
+                                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-teal-50 dark:bg-teal-900/20">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                                      <span className="text-[8px] text-teal-700 dark:text-teal-400 uppercase font-black tracking-widest">Tool Override</span>
+                                    </div>
                                     <button 
                                       onClick={() => {
                                         const isScaffold = !!zone.featureOverride?.scaffoldTools;
@@ -1110,200 +1116,204 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                           handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, scaffoldTools: DEFAULT_SCAFFOLD_TOOLS } });
                                         }
                                       }}
-                                      className={`text-[8px] px-1.5 py-0.5 rounded border font-black uppercase tracking-tighter ${!!zone.featureOverride.scaffoldTools ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800'}`}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border font-black uppercase tracking-tighter ${!!zone.featureOverride.scaffoldTools ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-teal-600 border-teal-300 dark:bg-transparent'}`}
                                     >
                                       {!!zone.featureOverride.scaffoldTools ? 'SCAFFOLD_ON' : 'SINGLE_HEAD'}
                                     </button>
                                   </div>
-                                  
-                                  {!zone.featureOverride.scaffoldTools ? (
-                                    <ToolheadSelect 
-                                      className="w-full h-8 text-[10px]"
-                                      value={zone.featureOverride.toolhead || 'fdm'}
-                                      onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
-                                      toolheads={toolheads}
-                                    />
-                                  ) : (
-                                    <div className="space-y-1.5 p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
-                                      {SCAFFOLD_FEATURE_META.map(feat => (
-                                         <div key={feat.key} className="flex items-center justify-between gap-2">
-                                            <span className="text-[8px] text-slate-500 font-bold uppercase truncate">{feat.label}</span>
-                                            <ToolheadSelect
-                                              value={zone.featureOverride?.scaffoldTools?.[feat.key] || 'fdm'}
-                                              onChange={v => {
-                                                handleUpdateZZone(zone.id, { 
-                                                  featureOverride: { 
-                                                    ...zone.featureOverride!, 
-                                                    scaffoldTools: { ...(zone.featureOverride?.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS), [feat.key]: v } 
-                                                  } 
-                                                });
-                                              }}
-                                              className="w-20"
-                                              toolheads={toolheads}
-                                            />
-                                         </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  <div className="p-2.5">
+                                    {!zone.featureOverride.scaffoldTools ? (
+                                      <ToolheadSelect 
+                                        className="w-full h-8 text-[10px]"
+                                        value={zone.featureOverride.toolhead || 'fdm'}
+                                        onChange={v => handleUpdateZZone(zone.id, { featureOverride: { ...zone.featureOverride!, toolhead: v } })}
+                                        toolheads={toolheads}
+                                      />
+                                    ) : (
+                                      <div className="space-y-1.5 p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
+                                        {SCAFFOLD_FEATURE_META.map(feat => (
+                                           <div key={feat.key} className="flex items-center justify-between gap-2">
+                                              <span className="text-[8px] text-slate-500 font-bold uppercase truncate">{feat.label}</span>
+                                              <ToolheadSelect
+                                                value={zone.featureOverride?.scaffoldTools?.[feat.key] || 'fdm'}
+                                                onChange={v => {
+                                                  handleUpdateZZone(zone.id, { 
+                                                    featureOverride: { 
+                                                      ...zone.featureOverride!, 
+                                                      scaffoldTools: { ...(zone.featureOverride?.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS), [feat.key]: v } 
+                                                    } 
+                                                  });
+                                                }}
+                                                className="w-20"
+                                                toolheads={toolheads}
+                                              />
+                                           </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
+
+                              {/* PARAMETERS SECTION */}
                               {zone.parameterOverride && (
-                                <div className="space-y-2.5">
-                                  <div className="grid grid-cols-2 gap-3">
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Layer Height (µm)</span>
-                                        <NumericInput 
-                                          value={zone.parameterOverride.fdm?.layerHeightMm ? (zone.parameterOverride.fdm.layerHeightMm * 1000) : (globalSettings.layerHeight || 200)}
-                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), layerHeightMm: v / 1000 } } })}
-                                          className="h-7 text-[10px]"
-                                          step={10}
-                                        />
-                                     </div>
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
-                                        <NumericInput 
-                                          value={zone.parameterOverride.fdm?.infillPercent ?? 15}
-                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPercent: v } } })}
-                                          className="h-7 text-[10px]"
-                                        />
-                                     </div>
+                                <div className="rounded-lg border border-violet-200 dark:border-violet-900/60 overflow-hidden">
+                                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-50 dark:bg-violet-900/20">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                                    <span className="text-[8px] text-violet-700 dark:text-violet-400 uppercase font-black tracking-widest">Parameter Override</span>
                                   </div>
-                                  <div className="grid grid-cols-1">
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
-                                        <select 
-                                          className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-slate-50 dark:bg-slate-900 outline-none px-1 font-bold"
-                                          value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
-                                          onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
-                                        >
-                                           <option value="rectilinear">Rectilinear</option>
-                                           <option value="grid">Grid</option>
-                                           <option value="gyroid">Gyroid</option>
-                                           <option value="honeycomb">Honeycomb</option>
-                                           <option value="triangles">Triangles</option>
-                                        </select>
-                                     </div>
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-2">
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Walls</span>
-                                        <NumericInput 
-                                          value={zone.parameterOverride.fdm?.wallCount ?? 3}
-                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), wallCount: v } } })}
-                                          className="h-7 text-[10px]"
-                                        />
-                                     </div>
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Top L.</span>
-                                        <NumericInput 
-                                          value={zone.parameterOverride.fdm?.topSolidLayers ?? 3}
-                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), topSolidLayers: v } } })}
-                                          className="h-7 text-[10px]"
-                                        />
-                                     </div>
-                                     <div className="space-y-1">
-                                        <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Bot L.</span>
-                                        <NumericInput 
-                                          value={zone.parameterOverride.fdm?.bottomSolidLayers ?? 3}
-                                          onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), bottomSolidLayers: v } } })}
-                                          className="h-7 text-[10px]"
-                                        />
-                                     </div>
+                                  <div className="p-2.5 space-y-2.5">
+                                    <div className="grid grid-cols-2 gap-3">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Layer Height (µm)</span>
+                                          <NumericInput 
+                                            value={zone.parameterOverride.fdm?.layerHeightMm ? (zone.parameterOverride.fdm.layerHeightMm * 1000) : (globalSettings.layerHeight || 200)}
+                                            onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), layerHeightMm: v / 1000 } } })}
+                                            className="h-7 text-[10px]"
+                                            step={10}
+                                          />
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill %</span>
+                                          <NumericInput 
+                                            value={zone.parameterOverride.fdm?.infillPercent ?? 15}
+                                            onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPercent: v } } })}
+                                            className="h-7 text-[10px]"
+                                          />
+                                       </div>
+                                    </div>
+                                    <div className="grid grid-cols-1">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Pattern</span>
+                                          <select 
+                                            className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-slate-50 dark:bg-slate-900 outline-none px-1 font-bold"
+                                            value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
+                                            onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
+                                          >
+                                             <option value="rectilinear">Rectilinear</option>
+                                             <option value="grid">Grid</option>
+                                             <option value="gyroid">Gyroid</option>
+                                             <option value="honeycomb">Honeycomb</option>
+                                             <option value="triangles">Triangles</option>
+                                          </select>
+                                       </div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Walls</span>
+                                          <NumericInput 
+                                            value={zone.parameterOverride.fdm?.wallCount ?? 3}
+                                            onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), wallCount: v } } })}
+                                            className="h-7 text-[10px]"
+                                          />
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Top L.</span>
+                                          <NumericInput 
+                                            value={zone.parameterOverride.fdm?.topSolidLayers ?? 3}
+                                            onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), topSolidLayers: v } } })}
+                                            className="h-7 text-[10px]"
+                                          />
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Bot L.</span>
+                                          <NumericInput 
+                                            value={zone.parameterOverride.fdm?.bottomSolidLayers ?? 3}
+                                            onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), bottomSolidLayers: v } } })}
+                                            className="h-7 text-[10px]"
+                                          />
+                                       </div>
+                                    </div>
                                   </div>
                                 </div>
                               )}
+
+                              {/* EVENT SECTION */}
                               {zone.processEvent && (
-                                <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                                   <div className="flex items-center justify-between">
-                                      <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest flex items-center gap-1.5">
-                                         <Icon name="wb_iridescent" className="text-[10px]" /> UV PROCESS CONFIG
-                                      </span>
-                                   </div>
-
-                                   {/* Mode & Pattern */}
-                                   <div className="grid grid-cols-2 gap-2">
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Mode</span>
-                                         <select 
-                                           className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
-                                           value={zone.processEvent.mode || 'stationary'}
-                                           onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, mode: e.target.value as any } })}
-                                         >
-                                            <option value="stationary">Stationary</option>
-                                            <option value="sweep">Sweep (Pattern)</option>
-                                         </select>
-                                      </div>
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Pattern</span>
-                                         <select 
-                                           disabled={zone.processEvent.mode !== 'sweep'}
-                                           className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold disabled:opacity-30"
-                                           value={zone.processEvent.pattern || 'zigzag'}
-                                           onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, pattern: e.target.value as any } })}
-                                         >
-                                            <option value="zigzag">Zigzag</option>
-                                            <option value="concentric">Concentric</option>
-                                            <option value="infill_mimic">Infill Mimic</option>
-                                         </select>
-                                      </div>
-                                   </div>
-
-                                   {/* Power & Scan Speed */}
-                                   <div className="grid grid-cols-2 gap-2">
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Power (%)</span>
-                                         <NumericInput 
-                                           value={zone.processEvent.powerPercentage ?? 100}
-                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, powerPercentage: v } })}
-                                           className="h-7 text-[10px] font-mono"
-                                         />
-                                      </div>
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Scan Speed (mm/s)</span>
-                                         <NumericInput 
-                                           disabled={zone.processEvent.mode !== 'sweep'}
-                                           value={zone.processEvent.scanSpeedMmS ?? 20}
-                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, scanSpeedMmS: v } })}
-                                           className="h-7 text-[10px] font-mono"
-                                         />
-                                      </div>
-                                   </div>
-
-                                   {/* Spacing & Z-Offset */}
-                                   <div className="grid grid-cols-2 gap-2">
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Spacing (mm)</span>
-                                         <NumericInput 
-                                           disabled={zone.processEvent.mode !== 'sweep'}
-                                           value={zone.processEvent.lineSpacingMm ?? 1.0}
-                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, lineSpacingMm: v } })}
-                                           className="h-7 text-[10px] font-mono"
-                                           step={0.1}
-                                         />
-                                      </div>
-                                      <div className="space-y-1">
-                                         <span className="text-[8px] text-slate-400 uppercase font-black">Z-Hop (mm)</span>
-                                         <NumericInput 
-                                           value={zone.processEvent.zOffsetMm ?? 2.0}
-                                           onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, zOffsetMm: v } })}
-                                           className="h-7 text-[10px] font-mono"
-                                           step={0.1}
-                                         />
-                                      </div>
-                                   </div>
-
-                                   {/* Trigger Selector */}
-                                   <div className="space-y-1 mt-1">
-                                      <span className="text-[8px] text-slate-400 uppercase font-black">Trigger Mode</span>
-                                      <select 
-                                        className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
-                                        value={zone.processEvent.trigger || 'after_layer'}
-                                        onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, trigger: e.target.value as any } })}
-                                      >
-                                         <option value="after_layer">After each layer</option>
-                                         <option value="after_segment">After entire zone</option>
-                                      </select>
-                                   </div>
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 overflow-hidden">
+                                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 dark:bg-amber-900/20">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                    <span className="text-[8px] text-amber-700 dark:text-amber-400 uppercase font-black tracking-widest">UV Process Event</span>
+                                  </div>
+                                  <div className="p-2.5 space-y-2.5">
+                                    <div className="grid grid-cols-2 gap-2">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Mode</span>
+                                          <select 
+                                            className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
+                                            value={zone.processEvent.mode || 'stationary'}
+                                            onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, mode: e.target.value as any } })}
+                                          >
+                                             <option value="stationary">Stationary</option>
+                                             <option value="sweep">Sweep (Pattern)</option>
+                                          </select>
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Pattern</span>
+                                          <select 
+                                            disabled={zone.processEvent.mode !== 'sweep'}
+                                            className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold disabled:opacity-30"
+                                            value={zone.processEvent.pattern || 'zigzag'}
+                                            onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, pattern: e.target.value as any } })}
+                                          >
+                                             <option value="zigzag">Zigzag</option>
+                                             <option value="concentric">Concentric</option>
+                                             <option value="infill_mimic">Infill Mimic</option>
+                                          </select>
+                                       </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Power (%)</span>
+                                          <NumericInput 
+                                            value={zone.processEvent.powerPercentage ?? 100}
+                                            onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, powerPercentage: v } })}
+                                            className="h-7 text-[10px] font-mono"
+                                          />
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Scan Speed (mm/s)</span>
+                                          <NumericInput 
+                                            disabled={zone.processEvent.mode !== 'sweep'}
+                                            value={zone.processEvent.scanSpeedMmS ?? 20}
+                                            onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, scanSpeedMmS: v } })}
+                                            className="h-7 text-[10px] font-mono"
+                                          />
+                                       </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Spacing (mm)</span>
+                                          <NumericInput 
+                                            disabled={zone.processEvent.mode !== 'sweep'}
+                                            value={zone.processEvent.lineSpacingMm ?? 1.0}
+                                            onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, lineSpacingMm: v } })}
+                                            className="h-7 text-[10px] font-mono"
+                                            step={0.1}
+                                          />
+                                       </div>
+                                       <div className="space-y-1">
+                                          <span className="text-[8px] text-slate-400 uppercase font-black">Z-Hop (mm)</span>
+                                          <NumericInput 
+                                            value={zone.processEvent.zOffsetMm ?? 2.0}
+                                            onChange={v => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, zOffsetMm: v } })}
+                                            className="h-7 text-[10px] font-mono"
+                                            step={0.1}
+                                          />
+                                       </div>
+                                    </div>
+                                    <div className="space-y-1 mt-1">
+                                       <span className="text-[8px] text-slate-400 uppercase font-black">Trigger Mode</span>
+                                       <select 
+                                         className="w-full h-7 rounded border border-slate-200 dark:border-slate-800 text-[10px] bg-white dark:bg-slate-900 outline-none px-1 font-bold"
+                                         value={zone.processEvent.trigger || 'after_layer'}
+                                         onChange={e => handleUpdateZZone(zone.id, { processEvent: { ...zone.processEvent!, trigger: e.target.value as any } })}
+                                       >
+                                          <option value="after_layer">After each layer</option>
+                                          <option value="after_segment">After entire zone</option>
+                                       </select>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                            </div>
