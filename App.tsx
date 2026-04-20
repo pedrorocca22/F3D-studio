@@ -200,9 +200,23 @@ export default function App() {
   };
 
   const handleDeleteModel = (id: string) => {
-    setModels(prev => prev.filter(m => m.id !== id));
-    if (selectedModelId === id) {
-      setSelectedModelId(null);
+    const model = models.find(m => m.id === id);
+    if (!model) return;
+
+    const hasAssociatedZones = zZones.some(z => z.modelScope === id);
+    const message = hasAssociatedZones 
+      ? `Are you sure you want to delete "${model.name}"? This will also permanently remove all Z-Zones and custom configurations associated with this model.`
+      : `Are you sure you want to delete "${model.name}"?`;
+
+    if (window.confirm(message)) {
+      setModels(prev => prev.filter(m => m.id !== id));
+      
+      // Also cleanup any Z-Zones specific to this model
+      setZZones(prev => prev.filter(z => z.modelScope !== id));
+
+      if (selectedModelId === id) {
+        setSelectedModelId(null);
+      }
     }
   };
 
