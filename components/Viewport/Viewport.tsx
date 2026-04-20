@@ -1142,16 +1142,16 @@ export const Viewport: React.FC<ViewportProps> = ({
           {/* ── Empty state cuando no hay modelos ── */}
           {!isGCodeMode && models.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-              <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+              <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-white/90 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/60 shadow-lg shadow-slate-200/50 dark:shadow-black/30">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Icon name="upload_file" className="text-3xl text-primary/60" />
+                  <Icon name="upload_file" className="text-3xl text-primary/70" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[13px] font-black text-white/70 uppercase tracking-widest mb-1">No Models Loaded</p>
-                  <p className="text-[10px] text-white/40 font-medium">Drag &amp; drop STL files · or use the panel</p>
+                  <p className="text-[13px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-1">No Models Loaded</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Drag &amp; drop STL files · or use the panel</p>
                 </div>
-                <div className="flex items-center gap-3 text-[9px] text-white/30 font-mono">
-                  <span className="px-2 py-0.5 bg-white/10 rounded border border-white/10">Step 2 → Load Files</span>
+                <div className="flex items-center gap-3 text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+                  <span className="px-2 py-0.5 bg-primary/8 dark:bg-primary/10 text-primary/70 rounded-md border border-primary/20">Step 2 → Load Files</span>
                 </div>
               </div>
             </div>
