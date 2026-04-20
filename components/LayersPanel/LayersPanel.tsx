@@ -1649,16 +1649,25 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                   const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                   if (!spec) return null;
                   
+                  const occupiedWells = new Set(models
+                    .map(m => m.transform.wellAssignment?.wellId)
+                    .filter(Boolean) as string[]);
+
                   const rows = [];
                   for (let r = 0; r < spec.rows; r++) {
                     const cols = [];
                     for (let c = 0; c < spec.cols; c++) {
                       const wellId = String.fromCharCode(65 + r) + (c + 1);
                       const isSelected = selectedCloneWells.has(wellId);
+                      const isOccupied = occupiedWells.has(wellId);
+                      
                       cols.push(
                         <button
                           key={wellId}
+                          disabled={isOccupied}
+                          title={isOccupied ? "Well already occupied by another model" : undefined}
                           onClick={() => {
+                            if (isOccupied) return;
                             setSelectedCloneWells(prev => {
                               const next = new Set(prev);
                               if (next.has(wellId)) next.delete(wellId);
@@ -1668,9 +1677,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           }}
                           className={`
                             relative ${spec.cols > 6 ? 'w-8 h-8 text-[8px]' : 'w-10 h-10 text-[10px]'} rounded-full border-2 transition-all flex items-center justify-center font-bold
-                            ${isSelected 
-                              ? 'bg-primary/20 border-primary text-primary shadow-[0_0_10px_rgba(22,163,74,0.2)] scale-110' 
-                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-400 hover:border-primary/50 hover:text-primary hover:scale-[1.05]'}
+                            ${isOccupied
+                                ? 'bg-slate-200 border-slate-300 text-slate-400 dark:bg-slate-700/50 dark:border-slate-700 dark:text-slate-500 cursor-not-allowed opacity-60'
+                                : isSelected 
+                                  ? 'bg-primary/20 border-primary text-primary shadow-[0_0_10px_rgba(22,163,74,0.2)] scale-110' 
+                                  : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-400 hover:border-primary/50 hover:text-primary hover:scale-[1.05]'
+                            }
                           `}
                         >
                           {wellId}
@@ -1693,9 +1705,12 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       const format = globalSettings.printBed?.multiwellFormat ?? 24;
                       const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                       const all = new Set<string>();
+                      const occupiedWells = new Set(models.map(m => m.transform.wellAssignment?.wellId).filter(Boolean) as string[]);
+                      
                       for (let r = 0; r < spec.rows; r++) {
                         for (let c = 0; c < spec.cols; c++) {
-                          all.add(String.fromCharCode(65 + r) + (c + 1));
+                          const w = String.fromCharCode(65 + r) + (c + 1);
+                          if (!occupiedWells.has(w)) all.add(w);
                         }
                       }
                       setSelectedCloneWells(all);
