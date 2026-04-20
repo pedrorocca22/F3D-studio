@@ -537,62 +537,56 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     const availableTools = toolheads.filter(t => !t.slot || t.slot === slotIndex);
                     
                     return (
-                      <div key={slotIndex} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">Slot {slotIndex + 1}</span>
+                      <div key={slotIndex} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase flex-shrink-0">Slot {slotIndex + 1}</span>
+                          
+                          <select
+                            value={assignedTool?.id || ''}
+                            onChange={e => {
+                              const toolId = e.target.value;
+                              if (toolId) {
+                                const toolToAssign = toolheads.find(t => t.id === toolId);
+                                if (toolToAssign) {
+                                  onUpdateToolheads(toolheads.map(t => {
+                                    if (t.id === toolId) return { ...t, slot: slotIndex };
+                                    return t;
+                                  }));
+                                }
+                              }
+                            }}
+                            className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-1 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary min-w-0"
+                          >
+                            <option value="">-- Empty --</option>
+                            {toolheads.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.id === 'fdm' ? 'FDM HEAD' : t.id === 'syringe' ? 'HYDROGEL HEAD' : 'UV HEAD'}
+                              </option>
+                            ))}
+                          </select>
+
                           {assignedTool && (
-                            <button 
-                              onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined } : t))}
-                              className="text-[8px] text-red-500 hover:text-red-700"
-                            >
-                              Remove
-                            </button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                               <button
+                                  onClick={() => setToolheadSettingsOpen(toolheadSettingsOpen === assignedTool.id ? null : assignedTool.id)}
+                                  className={`p-1 rounded transition-colors ${toolheadSettingsOpen === assignedTool.id ? 'bg-primary/10 text-primary' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400'}`}
+                                  title="Settings"
+                                >
+                                  <Icon name="settings" className="text-[14px]" />
+                                </button>
+                                <button 
+                                  onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined } : t))}
+                                  className="p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:dark:bg-red-900/30 rounded transition-colors"
+                                  title="Remove Tool"
+                                >
+                                  <Icon name="close" className="text-[14px]" />
+                                </button>
+                            </div>
                           )}
                         </div>
                         
-                        <select
-                          value={assignedTool?.id || ''}
-                          onChange={e => {
-                            const toolId = e.target.value;
-                            if (toolId) {
-                              // Find the tool being moved
-                              const toolToAssign = toolheads.find(t => t.id === toolId);
-                              if (toolToAssign) {
-                                // Remove from current slot if any, then assign to new slot
-                                onUpdateToolheads(toolheads.map(t => {
-                                  if (t.id === toolId) return { ...t, slot: slotIndex };
-                                  return t;
-                                }));
-                              }
-                            }
-                          }}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          <option value="">-- Empty --</option>
-                          {toolheads.map(t => (
-                            <option key={t.id} value={t.id}>
-                              {t.id === 'fdm' ? 'FDM HEAD' : t.id === 'syringe' ? 'HYDROGEL HEAD' : 'UV HEAD'}
-                            </option>
-                          ))}
-                        </select>
-                        
-                        {assignedTool && (
-                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[8px] text-slate-400 uppercase">
-                                {assignedTool.id === 'fdm' ? 'FDM Settings' : assignedTool.id === 'syringe' ? 'Hydrogel Settings' : 'UV Settings'}
-                              </span>
-                              {(assignedTool.id === 'fdm' || assignedTool.id === 'syringe') && (
-                                <button
-                                  onClick={() => setToolheadSettingsOpen(toolheadSettingsOpen === assignedTool.id ? null : assignedTool.id)}
-                                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
-                                >
-                                  <Icon name="settings" className="text-[14px] text-slate-500" />
-                                </button>
-                              )}
-                            </div>
-                            
-                            {(toolheadSettingsOpen === assignedTool.id || !assignedTool.id) && (
+                        {assignedTool && toolheadSettingsOpen === assignedTool.id && (
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-1 duration-200">
                               <>
                                 {assignedTool.id === 'fdm' && (
                                   <div className="space-y-2">
@@ -673,11 +667,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                   </div>
                                 )}
                               </>
-                            )}
-                        </div>
-                      )}
-                    </div>
-                  );
+                          </div>
+                        )}
+                      </div>
+                    );
                 })}
                 </div>
               </AccordionSection>
