@@ -7,7 +7,7 @@
       <option opt_key="perimeters">3</option>
       <option opt_key="top_solid_layers">3</option>
       <option opt_key="bottom_solid_layers">3</option>
-      <option opt_key="layer_height">0.1</option>
+      <option opt_key="layer_height">0.2</option>
       <option opt_key="extruder">0</option>
       <option opt_key="perimeter_extruder">2</option>
       <option opt_key="infill_extruder">2</option>
@@ -20,7 +20,7 @@
       <option opt_key="perimeters">3</option>
       <option opt_key="top_solid_layers">3</option>
       <option opt_key="bottom_solid_layers">3</option>
-      <option opt_key="layer_height">0.3</option>
+      <option opt_key="layer_height">0.2</option>
       <option opt_key="extruder">0</option>
       <option opt_key="perimeter_extruder">1</option>
       <option opt_key="infill_extruder">1</option>

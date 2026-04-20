@@ -71,8 +71,9 @@ export const Header: React.FC<HeaderProps> = ({
               { id: 1, label: 'Environment' },
               { id: 2, label: 'Models' },
               { id: 3, label: 'Mapping' },
-              { id: 4, label: 'Configuration' },
-              { id: 5, label: 'Slice' }
+              { id: 4, label: 'Settings' },
+              { id: 5, label: 'Advance' },
+              { id: 6, label: 'Slice' }
             ].map(step => (
               <div 
                 key={step.id}
