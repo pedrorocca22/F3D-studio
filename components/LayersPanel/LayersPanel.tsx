@@ -1376,24 +1376,97 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                     {models.length === 0 && <p className="text-[10px] text-slate-400">No models loaded</p>}
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Z-Zones Schedule ({zZones.length} zones)</h3>
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Process Roadmap (Z-Height)</h3>
+                    
                     {zZones.length > 0 ? (
-                        <div className="space-y-2">
-                            {zZones.sort((a,b) => a.zStartMm - b.zStartMm).map((zone, i) => (
-                                <div key={zone.id || i} className="flex items-center justify-between text-[10px]">
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-16 font-mono text-slate-500">{zone.zStartMm}-{zone.zEndMm}mm</span>
-                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-colors ${(zone.featureOverride?.toolhead || 'fdm') === 'syringe' ? 'bg-slate-200 dark:bg-slate-700' : (zone.featureOverride?.toolhead || 'fdm') === 'uv' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
-                                            {zone.featureOverride?.toolhead || 'fdm'}
-                                        </span>
-                                    </div>
-                                    <span className="text-slate-400 truncate max-w-[80px]">{zone.label || 'Zone'}</span>
+                        <div className="flex gap-6">
+                            {/* Vertical Visual Indicator Bar */}
+                            <div className="w-6 bg-slate-100 dark:bg-slate-800 rounded-lg relative overflow-hidden flex flex-col-reverse h-80 border border-slate-200 dark:border-slate-700 shrink-0">
+                                {zZones.map((zone) => {
+                                    const totalH = Math.max(...zZones.map(z => z.zEndMm), 1);
+                                    const top = ((zone.zEndMm) / totalH) * 100;
+                                    const bottom = (zone.zStartMm / totalH) * 100;
+                                    const height = top - bottom;
+                                    
+                                    const color = zone.featureOverride?.toolhead === 'uv' ? '#a855f7' :
+                                                 zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6';
+
+                                    return (
+                                        <div 
+                                            key={zone.id}
+                                            className="absolute w-full transition-all duration-500 flex items-center justify-center border-y border-white/20"
+                                            style={{ 
+                                                bottom: `${bottom}%`, 
+                                                height: `${height}%`,
+                                                backgroundColor: color
+                                            }}
+                                        >
+                                            {height > 5 && (
+                                                <span className="text-[7px] text-white font-black rotate-90 leading-none opacity-50 uppercase">
+                                                    {zone.featureOverride?.toolhead || 'T0'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {/* Height Ticks */}
+                                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-1 text-[6px] font-mono text-slate-400 text-center">
+                                    <span>{Math.max(...zZones.map(z => z.zEndMm)).toFixed(0)}</span>
+                                    <span>{Math.max(...zZones.map(z => z.zEndMm)) / 2}</span>
+                                    <span>0</span>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Detailed Configuration Panels */}
+                            <div className="flex-1 space-y-3 overflow-y-auto max-h-80 pr-2">
+                                {zZones.sort((a,b) => b.zStartMm - a.zStartMm).map((zone, i) => (
+                                    <div key={zone.id || i} className="relative pl-3 border-l-2" style={{ borderColor: zone.featureOverride?.toolhead === 'uv' ? '#a855f7' : zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6' }}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{zone.label || `Zone ${i+1}`}</span>
+                                            <span className="text-[9px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 rounded">{zone.zStartMm}-{zone.zEndMm}mm</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {/* Toolhead Info */}
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded">
+                                                <span className="block text-[6px] text-slate-400 uppercase font-bold tracking-widest mb-1">Toolhead Mapping</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: zone.featureOverride?.toolhead === 'uv' ? '#a855f7' : zone.featureOverride?.toolhead === 'syringe' ? '#f59e0b' : '#3b82f6' }}></div>
+                                                    <span className="text-[8px] font-bold uppercase">{zone.featureOverride?.toolhead || 'fdm'}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* UV specific info or generic details */}
+                                            {zone.featureOverride?.toolhead === 'uv' && zone.processEvent ? (
+                                                <div className="bg-purple-50/50 dark:bg-purple-900/10 p-1.5 rounded border border-purple-100 dark:border-purple-800/30">
+                                                    <span className="block text-[6px] text-purple-400 uppercase font-bold tracking-widest mb-1 items-center flex gap-1">
+                                                        <Icon name="wb_sunny" className="text-[8px]" /> UV PROCESS
+                                                    </span>
+                                                    <div className="grid grid-cols-2 gap-x-2 text-[7px] text-slate-600 dark:text-slate-300">
+                                                        <div>PWR: <span className="font-black text-purple-600">{zone.processEvent.powerPercentage ?? 100}%</span></div>
+                                                        <div>SPD: <span className="font-black">{zone.processEvent.scanSpeedMmS ?? 10}mm/s</span></div>
+                                                        <div className="col-span-2 mt-0.5 border-t border-purple-100/50 pt-0.5 opacity-60">
+                                                            TRG: {zone.processEvent.trigger?.replace('_', ' ').toUpperCase()} • {zone.processEvent.mode?.toUpperCase()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded">
+                                                    <span className="block text-[6px] text-slate-400 uppercase font-bold tracking-widest mb-1">Parameter Sets</span>
+                                                    <span className="text-[7px] text-slate-500 italic">Inherited Profile</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        <p className="text-[10px] text-slate-400">No height zones predefined</p>
+                        <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-lg">
+                            <Icon name="layers_clear" className="text-2xl text-slate-200 mb-2" />
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No segments configured</p>
+                        </div>
                     )}
                 </div>
 

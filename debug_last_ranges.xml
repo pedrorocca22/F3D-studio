@@ -9,10 +9,10 @@
       <option opt_key="bottom_solid_layers">3</option>
       <option opt_key="layer_height">0.2</option>
       <option opt_key="extruder">0</option>
-      <option opt_key="perimeter_extruder">1</option>
-      <option opt_key="infill_extruder">1</option>
-      <option opt_key="solid_infill_extruder">1</option>
-      <option opt_key="support_material_extruder">1</option>
+      <option opt_key="perimeter_extruder">2</option>
+      <option opt_key="infill_extruder">2</option>
+      <option opt_key="solid_infill_extruder">2</option>
+      <option opt_key="support_material_extruder">2</option>
     </range>
     <range min_z="5.1000" max_z="20.1000">
       <option opt_key="fill_density">15%</option>
