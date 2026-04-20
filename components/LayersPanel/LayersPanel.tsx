@@ -1368,11 +1368,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
 
                         {/* Columna de Composición Geométrica */}
                         <div className="w-12 relative group">
-                            {/* 1. REPRESENTACIÓN DEL MODELO BASE (Segmento restante) */}
+                            {/* 1. REPRESENTACIÓN DEL MODELO BASE (Default FDM Segment) */}
                             <div 
-                                className="absolute bottom-0 left-0 w-full bg-slate-200 dark:bg-slate-800 border-x border-slate-300 dark:border-slate-700 z-0"
+                                className="absolute bottom-0 left-0 w-full bg-[#14b8a6] border-x border-white/10 z-0"
                                 style={{ height: `${(modelMaxZ / maxZ) * 100}%` }}
-                                title="Volumen total del modelo"
+                                title="Default FDM Volume"
                             />
 
                             {/* 2. OVERLAY DE ZONAS CONFIGURADAS */}
