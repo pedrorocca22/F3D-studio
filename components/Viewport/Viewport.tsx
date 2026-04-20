@@ -952,7 +952,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
-  const [gcodeNozzle, setGcodeNozzle] = useState(gcodeJob?.nozzleDiameter ?? 0.4);
+  const [gcodeNozzle, setGcodeNozzle] = useState(globalSettings.nozzleDiameter || 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
   const isGCodeMode = !!gcodeJob;
 
@@ -969,10 +969,10 @@ export const Viewport: React.FC<ViewportProps> = ({
     }
   }, [gcodeLayer, inspectorTab]);
 
-  // Update nozzle when job changes
+  // Update nozzle when job or global settings change
   useEffect(() => {
-    setGcodeNozzle(gcodeJob?.nozzleDiameter ?? 0.4);
-  }, [gcodeJob]);
+    setGcodeNozzle(globalSettings.nozzleDiameter || 0.4);
+  }, [gcodeJob, globalSettings.nozzleDiameter]);
 
 
 
@@ -1184,21 +1184,6 @@ export const Viewport: React.FC<ViewportProps> = ({
                     /{gcodeParsed.layerCount}
                   </span>
 
-
-                  <div className="h-4 w-px bg-slate-200/60 dark:bg-slate-600/60 shrink-0" />
-
-                  {/* Nozzle */}
-                  <div className="flex items-center gap-1.5 text-[9px] text-slate-500 shrink-0">
-                    <span className="font-medium uppercase">⌀</span>
-                    <input
-                      type="number" min="0.1" max="2.0" step="0.05"
-                      value={gcodeNozzle}
-                      onChange={e => setGcodeNozzle(parseFloat(e.target.value) || 0.4)}
-                      className="w-10 px-0.5 py-0.5 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/60 rounded-md text-center text-[10px] font-mono text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-primary/30 outline-none"
-                    />
-                    <span className="font-medium uppercase text-slate-400">mm</span>
-                  </div>
-
                   <div className="h-4 w-px bg-slate-200/60 dark:bg-slate-600/60 shrink-0" />
 
                   {/* Travel toggle */}
@@ -1251,20 +1236,6 @@ export const Viewport: React.FC<ViewportProps> = ({
                       </div>
                     </div>
                   </div>
-
-                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-600 shrink-0" />
-
-                  {/* G-code download */}
-                  {gcodeUrl && (
-                    <a
-                      href={gcodeUrl}
-                      download="print.gcode"
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-primary text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-600 transition-all uppercase shrink-0"
-                    >
-                      <Icon name="download" className="text-sm" />
-                      G-code
-                    </a>
-                  )}
                 </>
               )}
             </div>
@@ -1484,10 +1455,12 @@ export const Viewport: React.FC<ViewportProps> = ({
                   <div className="flex items-center gap-1 text-[9px] font-medium text-slate-400 uppercase tracking-wider">
                     <Icon name="layers" className="text-xs" /> Cross-Section
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={isClipping} onChange={(e) => setIsClipping(e.target.checked)} />
-                    <div className="w-6 h-3.5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-primary/80"></div>
-                  </label>
+                  <button
+                    onClick={() => setIsClipping(!isClipping)}
+                    className={`w-8 h-4 rounded-full relative transition-all shrink-0 ${isClipping ? 'bg-green-500 shadow-sm shadow-green-500/20' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-md ${isClipping ? 'right-0.5' : 'left-0.5'}`} />
+                  </button>
                 </div>
 
                 {isClipping && (
