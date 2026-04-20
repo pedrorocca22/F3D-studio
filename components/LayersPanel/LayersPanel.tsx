@@ -39,6 +39,7 @@ interface LayersPanelProps {
   onUpdateSettings: (data: SliceSettings) => void;
   onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
   onApplySettingsToAll: (data: SliceSettings) => void;
+  onCloneToWells?: (baseModelId: string, wellIds: string[], format: 6 | 12 | 24 | 48) => void;
   isAdvancedSliceMode: boolean;
   onFileUpload: (file: File, isCube?: boolean) => void;
   setIsAdvancedSliceMode: (val: boolean) => void;
@@ -72,7 +73,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
     toolheads, totalLayers, onUpdateToolheads,
     zZones, onUpdateZZones,
     isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId,
-    activeStep, setActiveStep, onOpenHelp
+    activeStep, setActiveStep, onOpenHelp, onCloneToWells
   } = props;
 
   
@@ -101,6 +102,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
 
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  
+  // Clone to wells state
+  const [cloneWellDialogFor, setCloneWellDialogFor] = useState<string | null>(null);
+  const [selectedCloneWells, setSelectedCloneWells] = useState<Set<string>>(new Set());
 
   const toggleModelExpand = (id: string) => {
     setExpandedModels(prev => {
@@ -319,23 +324,42 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                         {/* Well Assignment UI (only for multiwell plate) */}
                         {globalSettings.printBed?.type === 'multiwell_plate' && (
                           <div className="flex items-baseline gap-1 text-[9px] ml-1">
+                            <span className="text-slate-400 font-medium select-none">Well</span>
                             <select
                               value={model.transform.wellAssignment?.wellId ?? 'none'}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => {
+                                e.stopPropagation();
                                 const wellId = e.target.value;
+                                
                                 if (wellId === 'none') {
-                                  onUpdateModel(model.id, { transform: { ...model.transform, wellAssignment: undefined } });
+                                  onUpdateModel(model.id, { 
+                                    transform: { ...model.transform, wellAssignment: undefined } 
+                                  });
                                 } else {
+                                  // 1. Get current format specs
+                                  const format = (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48;
+                                  const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+                                  
+                                  // 2. Calculate row (A, B...) and col (1, 2...)
+                                  const row = wellId.charCodeAt(0) - 65;
+                                  const col = parseInt(wellId.substring(1)) - 1;
+                                  
+                                  // 3. Calculate XY coordinates relative to plate center
+                                  const well_x = (col - (spec.cols - 1) / 2.0) * spec.pitch;
+                                  const well_y = (row - (spec.rows - 1) / 2.0) * spec.pitch;
+
+                                  // 4. Update the model with literal physical translation mapped to well center
                                   onUpdateModel(model.id, { 
                                     transform: { 
                                       ...model.transform, 
-                                      position: { ...model.transform.position, z: 0 },
-                                      wellAssignment: { format: (globalSettings.printBed?.multiwellFormat ?? 24) as 6 | 12 | 24 | 48, wellId } 
+                                      position: { x: well_x, y: well_y, z: 0 }, 
+                                      wellAssignment: { format, wellId } 
                                     } 
                                   });
                                 }
                               }}
-                              className="w-[55px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
+                              className="w-[50px] bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-[10px] font-mono text-slate-700 dark:text-slate-200 outline-none focus:border-primary cursor-pointer"
                             >
                               <option value="none">—</option>
                               {[6, 12, 24, 48].includes(globalSettings.printBed?.multiwellFormat ?? 24)
@@ -346,7 +370,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                                     for (let r = 0; r < spec.rows; r++) {
                                       for (let c = 0; c < spec.cols; c++) {
                                         const wellId = String.fromCharCode(65 + r) + (c + 1);
-                                        wells.push(<option key={wellId}>{wellId}</option>);
+                                        wells.push(<option key={wellId} value={wellId}>{wellId}</option>);
                                       }
                                     }
                                     return wells;
@@ -357,17 +381,37 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                           </div>
                         )}
 
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
-                          className={`p-1 rounded transition-all focus:opacity-100 ${
-                            selectedModelId === model.id
-                              ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
-                              : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
-                          }`}
-                          title="Remove model"
-                        >
-                          <Icon name="close" className="text-sm" />
-                        </button>
+                        <div className="flex items-center">
+                          {globalSettings.printBed?.type === 'multiwell_plate' && (
+                            <button
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setCloneWellDialogFor(model.id); 
+                                setSelectedCloneWells(new Set()); // Reset selections
+                              }}
+                              className={`p-1 mr-1 rounded transition-all focus:opacity-100 ${
+                                selectedModelId === model.id
+                                  ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
+                                  : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-primary hover:bg-primary/10'
+                              }`}
+                              title="Clone model to multiple wells"
+                            >
+                              <Icon name="grid_view" className="text-sm" />
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDeleteModel(model.id); }}
+                            className={`p-1 rounded transition-all focus:opacity-100 ${
+                              selectedModelId === model.id
+                                ? 'opacity-100 text-white/70 hover:text-white hover:bg-white/20'
+                                : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                            }`}
+                            title="Remove model"
+                          >
+                            <Icon name="close" className="text-sm" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
@@ -1583,6 +1627,119 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </button>
           )}
       </div>
+
+      {cloneWellDialogFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-hidden" onClick={() => setCloneWellDialogFor(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 w-[500px] flex flex-col overflow-hidden max-h-[85vh] animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="py-3 px-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest">Clone Model</h3>
+              <button onClick={() => setCloneWellDialogFor(null)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-red-500 transition-colors">
+                <Icon name="close" />
+              </button>
+            </div>
+            
+            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+              <p className="text-[11px] text-slate-500 mb-4 font-medium leading-relaxed">
+                Select the target wells to distribute clones of the selected model. Each clone will automatically inherit all transformation, setting patterns, and feature overrides.
+              </p>
+              
+              <div className="flex flex-col gap-2 relative bg-surface-container dark:bg-slate-800/50 p-4 border border-border-light dark:border-slate-700 rounded-xl shadow-inner">
+                {(() => {
+                  const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                  const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+                  if (!spec) return null;
+                  
+                  const rows = [];
+                  for (let r = 0; r < spec.rows; r++) {
+                    const cols = [];
+                    for (let c = 0; c < spec.cols; c++) {
+                      const wellId = String.fromCharCode(65 + r) + (c + 1);
+                      const isSelected = selectedCloneWells.has(wellId);
+                      cols.push(
+                        <button
+                          key={wellId}
+                          onClick={() => {
+                            setSelectedCloneWells(prev => {
+                              const next = new Set(prev);
+                              if (next.has(wellId)) next.delete(wellId);
+                              else next.add(wellId);
+                              return next;
+                            });
+                          }}
+                          className={`
+                            relative ${spec.cols > 6 ? 'w-8 h-8 text-[8px]' : 'w-10 h-10 text-[10px]'} rounded-full border-2 transition-all flex items-center justify-center font-bold
+                            ${isSelected 
+                              ? 'bg-primary/20 border-primary text-primary shadow-[0_0_10px_rgba(22,163,74,0.2)] scale-110' 
+                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-400 hover:border-primary/50 hover:text-primary hover:scale-[1.05]'}
+                          `}
+                        >
+                          {wellId}
+                        </button>
+                      );
+                    }
+                    rows.push(<div key={r} className="flex gap-2 justify-center">{cols}</div>);
+                  }
+                  return rows;
+                })()}
+              </div>
+
+              <div className="mt-4 flex justify-between items-center px-1">
+                <span className="text-[10px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md uppercase tracking-wider">
+                  <span className="text-primary">{selectedCloneWells.size}</span> wells selected
+                </span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                      const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+                      const all = new Set<string>();
+                      for (let r = 0; r < spec.rows; r++) {
+                        for (let c = 0; c < spec.cols; c++) {
+                          all.add(String.fromCharCode(65 + r) + (c + 1));
+                        }
+                      }
+                      setSelectedCloneWells(all);
+                    }}
+                    className="text-[10px] font-bold text-primary uppercase tracking-widest hover:text-primary-dark transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <button 
+                    onClick={() => setSelectedCloneWells(new Set())}
+                    className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 shrink-0">
+              <button 
+                onClick={() => setCloneWellDialogFor(null)} 
+                className="px-4 py-1.5 text-[11px] text-slate-600 dark:text-slate-300 font-bold uppercase tracking-widest rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (onCloneToWells && selectedCloneWells.size > 0 && cloneWellDialogFor) {
+                    const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                    onCloneToWells(cloneWellDialogFor, Array.from(selectedCloneWells), format as 6 | 12 | 24 | 48);
+                    setCloneWellDialogFor(null);
+                  }
+                }} 
+                disabled={selectedCloneWells.size === 0}
+                className="px-4 py-1.5 text-[11px] text-white bg-primary font-bold uppercase tracking-widest rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-sm"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </aside>
   );
 };

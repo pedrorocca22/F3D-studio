@@ -75,31 +75,29 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Stepper — background-state pills, no separators */}
+        {/* Stepper — informative only, navigation via Back/Next */}
         <div className="flex items-center gap-1">
           {STEPS.map((step) => {
             const isDone   = activeStep > step.id;
             const isActive = activeStep === step.id;
             return (
-              <button
+              <div
                 key={step.id}
-                onClick={() => setActiveStep(step.id)}
-                className={`px-3 py-1 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                className={`px-3 py-1 rounded-md text-[11px] font-medium select-none transition-all duration-150 ${
                   isActive
                     ? 'bg-primary text-white shadow-sm shadow-primary/30'
                     : isDone
-                      ? 'bg-primary/10 text-primary hover:bg-primary/15'
-                      : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-slate-300 dark:text-slate-600'
                 }`}
               >
-                {isDone && (
+                {isDone ? (
                   <span className="inline-flex items-center gap-1.5">
                     <Icon name="check" className="text-[10px]" />
                     {step.label}
                   </span>
-                )}
-                {!isDone && step.label}
-              </button>
+                ) : step.label}
+              </div>
             );
           })}
         </div>

@@ -318,6 +318,40 @@ export default function App() {
     setSelectedModelId(newModel.id);
   };
 
+  const handleCloneToWells = (baseModelId: string, wellIds: string[], format: 6 | 12 | 24 | 48) => {
+    const baseModel = models.find(m => m.id === baseModelId);
+    if (!baseModel) return;
+
+    const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+    if (!spec) return;
+
+    const newModels: ModelData[] = wellIds.map(wellId => {
+      const row = wellId.charCodeAt(0) - 65;
+      const col = parseInt(wellId.substring(1)) - 1;
+      const well_x = (col - (spec.cols - 1) / 2.0) * spec.pitch;
+      const well_y = (row - (spec.rows - 1) / 2.0) * spec.pitch;
+
+      const clonedSegments = baseModel.advancedSettings.segments.map(s => ({ ...s, id: generateUUID() }));
+
+      return {
+        ...baseModel,
+        id: generateUUID(),
+        name: `${baseModel.name} (${wellId})`,      
+        transform: {
+          ...baseModel.transform,
+          position: { x: well_x, y: well_y, z: 0 },
+          wellAssignment: { format, wellId }
+        },
+        advancedSettings: {
+          ...baseModel.advancedSettings,
+          segments: clonedSegments
+        }
+      };
+    });
+
+    setModels(prev => [...prev, ...newModels]);
+  };
+
   const handleArrayModels = (spacing: number) => {
     if (models.length === 0) return;
 
@@ -808,6 +842,7 @@ export default function App() {
           onUpdateSettings={(data) => selectedModelId && handleUpdateSettings(selectedModelId, data)}
           onUpdateAdvancedSettings={(data) => selectedModelId && handleUpdateAdvancedSettings(selectedModelId, data)}
           onApplySettingsToAll={handleApplySettingsToAll}
+          onCloneToWells={handleCloneToWells}
           isAdvancedSliceMode={isAdvancedSliceMode}
           setIsAdvancedSliceMode={setIsAdvancedSliceMode}
           onSlice={handleSlice}
