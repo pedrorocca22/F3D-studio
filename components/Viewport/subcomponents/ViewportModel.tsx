@@ -61,7 +61,7 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
 
   const geometry = useMemo(() => {
     let geo = (result as THREE.BufferGeometry).clone();
-    if (!geo.attributes.normal) geo.computeVertexNormals();
+    geo.computeVertexNormals();
     geo.rotateX(-Math.PI / 2);
     geo.computeBoundingBox();
     if (geo.boundingBox) {
