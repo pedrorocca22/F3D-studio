@@ -195,8 +195,11 @@ const ProjectCard: React.FC<{
                                     {hasUV && (
                                         <div className="mt-1.5 p-1.5 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200/50 dark:border-purple-800/30 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <Icon name="wb_sunny" className="text-[10px] text-purple-600" />
-                                                <span className="text-[8px] font-black text-purple-600 uppercase">UV Crosslinking</span>
+                                                <div className="bg-purple-600 text-white text-[7px] font-black px-1 rounded flex items-center gap-1">
+                                                    <Icon name="bolt" className="text-[8px]" />
+                                                    {(protocol.toolheads || []).find(t => t.id === 'uv')?.wavelengthNm || 365}nm
+                                                </div>
+                                                <span className="text-[8px] font-black text-purple-600 uppercase tracking-tighter">UV Power Set</span>
                                             </div>
                                             <div className="flex gap-2 text-[9px] font-bold text-purple-700 dark:text-purple-400">
                                                 <span>{z.processEvent?.uvExposureTimeSec}s @ {z.processEvent?.uvPowerPercent}%</span>

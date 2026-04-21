@@ -524,6 +524,7 @@ export interface ProjectProtocol {
   models: ModelData[];
   globalSettings: GlobalSettings;
   zZones: ZZone[];
+  toolheads: ToolheadConfig[];
   selectedMaterials: Record<string, string>;
   userMaterials: MaterialProfile[];
   

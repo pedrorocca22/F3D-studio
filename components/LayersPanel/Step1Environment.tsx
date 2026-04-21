@@ -312,35 +312,38 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
 
                 {assignedTool && toolheadSettingsOpen === assignedTool.id && (
                   <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-1 duration-200 space-y-3">
-                    {/* Material Assignment */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                        <Icon name="science" className="text-[11px]" /> Assigned Material
-                      </label>
-                      <select
-                        value={project.selectedMaterials[assignedTool.id] || ''}
-                        onChange={e => project.applyMaterialToToolhead(assignedTool.id, e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase transition-all focus:border-emerald-500 outline-none"
-                      >
-                        <option value="">-- Select Material --</option>
-                        {project.userMaterials
-                          .filter(m => {
-                            if (assignedTool.id === 'fdm') return m.category === 'thermoplastic';
-                            if (assignedTool.id === 'syringe') return m.category === 'hydrogel' || m.category === 'bio-ink' || m.category === 'support';
-                            return true;
-                          })
-                          .map(mat => (
-                            <option key={mat.id} value={mat.id}>{mat.name}</option>
-                          ))
-                        }
-                      </select>
-                      <p className="text-[8px] text-slate-400 italic">Parameters will sync with toolhead settings</p>
-                    </div>
+                    {/* Material Assignment (Hidden for UV) */}
+                    {assignedTool.id !== 'uv' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                          <Icon name="science" className="text-[11px]" /> Assigned Material
+                        </label>
+                        <select
+                          value={project.selectedMaterials[assignedTool.id] || ''}
+                          onChange={e => project.applyMaterialToToolhead(assignedTool.id, e.target.value)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase transition-all focus:border-emerald-500 outline-none"
+                        >
+                          <option value="">-- Select Material --</option>
+                          {project.userMaterials
+                            .filter(m => {
+                              if (assignedTool.id === 'fdm') return m.category === 'thermoplastic';
+                              if (assignedTool.id === 'syringe') return m.category === 'hydrogel' || m.category === 'bio-ink' || m.category === 'support';
+                              return true;
+                            })
+                            .map(mat => (
+                              <option key={mat.id} value={mat.id}>{mat.name}</option>
+                            ))
+                          }
+                        </select>
+                        <p className="text-[8px] text-slate-400 italic">Parameters will sync with toolhead settings</p>
+                      </div>
+                    )}
 
                     <div>
                       {assignedTool.id === 'fdm' && (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
+                           {/* ... existing FDM settings ... */}
+                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[8px] text-slate-400 uppercase block">Nozzle (mm)</label>
                               <NumericInput value={assignedTool.nozzleDiameter || 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t))} step={0.05} />
@@ -374,7 +377,8 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                       )}
                       {assignedTool.id === 'syringe' && (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
+                           {/* ... existing Syringe settings ... */}
+                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[8px] text-slate-400 uppercase block">Needle (mm)</label>
                               <NumericInput value={assignedTool.nozzleDiameterMm || 0.5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
@@ -397,23 +401,35 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                         </div>
                       )}
                       {assignedTool.id === 'uv' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[8px] text-slate-400 uppercase block">Wavelength</label>
-                            <select
-                              value={assignedTool.wavelengthNm || 405}
-                              onChange={e => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: +e.target.value as (365 | 385 | 405) } : t))}
-                              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[9px]"
-                            >
-                              <option value={365}>365 nm</option>
-                              <option value={385}>385 nm</option>
-                              <option value={405}>405 nm</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[8px] text-slate-400 uppercase block">Power (mW)</label>
-                            <NumericInput value={assignedTool.maxPowerMw || 1000} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
-                          </div>
+                        <div className="space-y-3">
+                           <div className="space-y-1.5">
+                              <label className="text-[8px] text-slate-400 uppercase font-black block">UV Wavelength</label>
+                              <div className="flex gap-1.5">
+                                {[365, 385, 405].map(wl => (
+                                  <button
+                                    key={wl}
+                                    onClick={() => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: wl as any } : t))}
+                                    className={`flex-1 py-1 px-1.5 rounded-lg border text-[9px] font-black transition-all ${
+                                      assignedTool.wavelengthNm === wl 
+                                        ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20' 
+                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'
+                                    }`}
+                                  >
+                                    {wl}nm
+                                  </button>
+                                ))}
+                              </div>
+                           </div>
+                           <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black block">Max Power (mW)</label>
+                                <NumericInput value={assignedTool.maxPowerMw || 1000} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[8px] text-slate-400 uppercase font-black block">Default Dose</label>
+                                <NumericInput value={assignedTool.defaultDose || 50} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, defaultDose: v } : t))} />
+                              </div>
+                           </div>
                         </div>
                       )}
                     </div>

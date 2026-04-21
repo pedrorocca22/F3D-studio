@@ -426,6 +426,7 @@ export const useProject = () => {
       models: models.map(m => ({ ...m, file: undefined, url: '' })),
       globalSettings: { ...globalSettings },
       zZones: [...zZones],
+      toolheads: [...toolheads],
       selectedMaterials: { ...selectedMaterials },
       userMaterials: [...userMaterials],
       jobInfo,
