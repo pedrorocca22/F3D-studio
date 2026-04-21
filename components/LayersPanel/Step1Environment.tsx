@@ -4,6 +4,7 @@ import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
 import { GlobalSettings, ToolheadConfig } from '../../types';
 import { HelpTopic } from '../HelpWiki/HelpWiki';
+import { useProjectContext } from '../../contexts/ProjectContext';
 
 interface Step1EnvironmentProps {
   globalSettings: GlobalSettings;
@@ -20,6 +21,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
   onUpdateToolheads,
   onOpenHelp,
 }) => {
+  const { project } = useProjectContext();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     printBed: true,
     heatingBed: false,
@@ -309,8 +311,33 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                 </div>
 
                 {assignedTool && toolheadSettingsOpen === assignedTool.id && (
-                  <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <>
+                  <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-1 duration-200 space-y-3">
+                    {/* Material Assignment */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <Icon name="science" className="text-[11px]" /> Assigned Material
+                      </label>
+                      <select
+                        value={project.selectedMaterials[assignedTool.id] || ''}
+                        onChange={e => project.applyMaterialToToolhead(assignedTool.id, e.target.value)}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase transition-all focus:border-emerald-500 outline-none"
+                      >
+                        <option value="">-- Select Material --</option>
+                        {project.userMaterials
+                          .filter(m => {
+                            if (assignedTool.id === 'fdm') return m.category === 'thermoplastic';
+                            if (assignedTool.id === 'syringe') return m.category === 'hydrogel' || m.category === 'bio-ink' || m.category === 'support';
+                            return true;
+                          })
+                          .map(mat => (
+                            <option key={mat.id} value={mat.id}>{mat.name}</option>
+                          ))
+                        }
+                      </select>
+                      <p className="text-[8px] text-slate-400 italic">Parameters will sync with toolhead settings</p>
+                    </div>
+
+                    <div>
                       {assignedTool.id === 'fdm' && (
                         <div className="space-y-2">
                           <div className="grid grid-cols-2 gap-2">
@@ -389,7 +416,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                           </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   </div>
                 )}
               </div>

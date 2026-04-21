@@ -7,7 +7,9 @@ import {
   ToolheadConfig, 
   TransformData, 
   SliceSettings, 
-  AdvancedSliceSettings 
+  AdvancedSliceSettings,
+  MaterialProfile,
+  MaterialCategory
 } from '../types';
 import { generateUUID } from '../utils';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
@@ -44,6 +46,8 @@ export const useProject = () => {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [zZones, setZZones] = useState<ZZone[]>([]);
   const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
+  
+  const [userMaterials, setUserMaterials] = useState<MaterialProfile[]>(MATERIAL_PRESETS);
   const [selectedMaterials, setSelectedMaterials] = useState<Record<string, string>>({});
   
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
@@ -80,21 +84,62 @@ export const useProject = () => {
     }
   });
 
+  const handleUpdateMaterial = (id: string, updates: Partial<MaterialProfile>) => {
+    setUserMaterials(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+  };
+
+  const handleAddMaterial = (category: MaterialCategory) => {
+    const newMat: MaterialProfile = {
+      id: `mat-${Date.now()}`,
+      name: `New ${category} Material`,
+      category,
+      color: '#cbd5e1', // default slate
+      temp: category === 'thermoplastic' ? 210 : undefined,
+      flowRate: category !== 'thermoplastic' ? 1.0 : undefined,
+      pressure: category !== 'thermoplastic' ? 20 : undefined
+    };
+    setUserMaterials(prev => [...prev, newMat]);
+    return newMat.id;
+  };
+
+  const handleDeleteMaterial = (id: string) => {
+    setUserMaterials(prev => prev.filter(m => m.id !== id));
+    // Also clear from selected materials if used
+    setSelectedMaterials(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        if (next[key] === id) delete next[key];
+      });
+      return next;
+    });
+  };
+
   const applyMaterialToToolhead = (toolheadId: string, materialId: string) => {
-    const material = MATERIAL_PRESETS.find(m => m.id === materialId);
+    const material = userMaterials.find(m => m.id === materialId);
     if (!material) return;
 
     setSelectedMaterials(prev => ({ ...prev, [toolheadId]: materialId }));
 
-    // Auto-update global settings if it is the primary FDM toolhead or if user expects it
-    if (toolheadId === 'fdm') {
-      setGlobalSettings(prev => ({
-        ...prev,
-        nozzleTemperature: material.temp ?? prev.nozzleTemperature,
-        bedTemperature: material.bedTemp ?? prev.bedTemperature,
-        retractionLength: material.retraction ?? prev.retractionLength,
-      }));
-    }
+    // Auto-populate toolhead settings from material
+    setToolheads(prev => prev.map(t => {
+      if (t.id !== toolheadId) return t;
+      
+      if (t.id === 'fdm') {
+        return {
+          ...t,
+          defaultTemperature: material.temp ?? t.defaultTemperature,
+          retractionLength: material.retraction ?? t.retractionLength,
+        };
+      }
+      if (t.id === 'syringe') {
+        return {
+          ...t,
+          flowrateMmPerSec: material.flowRate ?? t.flowrateMmPerSec,
+          pressureKPa: material.pressure ?? t.pressureKPa,
+        };
+      }
+      return t;
+    }));
   };
 
   const handleFileUpload = (file: File, isCube = false) => {
@@ -294,7 +339,7 @@ export const useProject = () => {
         }
         return m;
       }));
-      const projectData = { models: modelsMetadata, globalSettings, zZones, version: "3.5", selectedMaterials };
+      const projectData = { models: modelsMetadata, globalSettings, zZones, version: "3.5", selectedMaterials, userMaterials };
       zip.file("project.json", JSON.stringify(projectData, null, 2));
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
@@ -321,6 +366,7 @@ export const useProject = () => {
       if (projectData.globalSettings) setGlobalSettings(projectData.globalSettings);
       if (projectData.zZones) setZZones(projectData.zZones);
       if (projectData.selectedMaterials) setSelectedMaterials(projectData.selectedMaterials);
+      if (projectData.userMaterials) setUserMaterials(projectData.userMaterials);
       if (projectData.models) {
         const rehydratedModels = await Promise.all(projectData.models.map(async (m: any) => {
           let fileObj = undefined;
@@ -356,7 +402,11 @@ export const useProject = () => {
     toolheads, setToolheads,
     globalSettings, setGlobalSettings,
     selectedMaterials,
+    userMaterials,
     applyMaterialToToolhead,
+    handleUpdateMaterial,
+    handleAddMaterial,
+    handleDeleteMaterial,
     handleFileUpload,
     handleDeleteModel,
     handleUpdateModel,
