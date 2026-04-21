@@ -105,9 +105,10 @@ export const Viewport: React.FC = () => {
             gl={{ localClippingEnabled: true, antialias: true }}
           >
             <color attach="background" args={['#f8fafc']} />
-            <ambientLight intensity={0.8} />
-            <directionalLight position={[100, 100, 100]} intensity={1.0} castShadow />
-            <directionalLight position={[-100, 100, -100]} intensity={0.5} />
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[100, 100, 100]} intensity={1.2} />
+            <directionalLight position={[-100, 100, -100]} intensity={0.8} />
+            <pointLight position={[0, 200, 0]} intensity={0.5} />
 
             <BuildPlate globalSettings={project.globalSettings} />
 

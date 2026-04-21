@@ -22,6 +22,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
     fffQuality: true,
     fffSpeeds: false,
     fffAdhesion: false,
+    fffSupports: false,
     fffCooling: false,
   });
 
@@ -94,30 +95,46 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
       </AccordionSection>
 
       <AccordionSection 
-        title={
-          <div className="flex items-center justify-between w-full pr-2">
-            <span>Adhesion & Shell</span>
-            <button 
-              onClick={(e) => { e.stopPropagation(); onOpenHelp('adhesion'); }}
-              className="p-1 hover:bg-white dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
-            >
-              <Icon name="help_outline" className="text-xs" />
-            </button>
-          </div>
-        } 
+        title="Adhesion"
         isOpen={openSections.fffAdhesion} 
         onToggle={() => toggleSection('fffAdhesion')}
       >
-        <div className="space-y-3">
-           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">Enable Supports:</span>
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3 items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase">Skirts (loops):</span>
+            <NumericInput className="w-full" value={globalSettings.skirtCount || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, skirtCount: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase">Skirt Distance (mm):</span>
+            <NumericInput className="w-full" value={globalSettings.skirtDistance || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, skirtDistance: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 items-center">
+            <span className="text-[10px] text-slate-500 font-bold uppercase">Skirt Height (layers):</span>
+            <NumericInput className="w-full" value={globalSettings.skirtHeight || 1} onChange={v => onUpdateGlobalSettings({ ...globalSettings, skirtHeight: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 items-center pt-1 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="text-[10px] text-slate-500 font-bold uppercase">Brim Width (mm):</span>
+            <NumericInput className="w-full" value={globalSettings.brimWidth || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} />
+          </div>
+        </div>
+      </AccordionSection>
+
+      <AccordionSection 
+        title="Supports"
+        isOpen={openSections.fffSupports} 
+        onToggle={() => toggleSection('fffSupports')}
+      >
+        <div className="space-y-4 py-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500 font-medium">Enable Supports</span>
             <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, supportsEnabled: !globalSettings.supportsEnabled })} className={`w-8 h-4 rounded-full relative transition-colors ${globalSettings.supportsEnabled ? 'bg-primary' : 'bg-slate-300'}`}>
               <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.supportsEnabled ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-3 items-center">
-            <span className="text-xs text-slate-500 font-medium">Brim Width (mm):</span>
-            <NumericInput className="w-full" value={globalSettings.brimWidth || 0} onChange={v => onUpdateGlobalSettings({ ...globalSettings, brimWidth: v })} />
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+            <p className="text-[9px] text-slate-400 leading-relaxed italic">
+              When enabled, scaffold structures will be generated for overhangs based on the toolhead mapping defined in previous steps.
+            </p>
           </div>
         </div>
       </AccordionSection>

@@ -128,6 +128,7 @@ export interface GlobalSettings {
   // Adhesion & Shell
   skirtCount?: number;
   skirtDistance?: number;
+  skirtHeight?: number;
   brimWidth?: number;
   topSolidLayers?: number;
   bottomSolidLayers?: number;

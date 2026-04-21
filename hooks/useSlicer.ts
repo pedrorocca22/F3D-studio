@@ -87,6 +87,7 @@ export const useSlicer = (
     formData.append('nozzle_diameter', String(globalSettings.nozzleDiameter ?? 0.4));
     formData.append('skirt_count', String(globalSettings.skirtCount ?? 1));
     formData.append('skirt_distance', String(globalSettings.skirtDistance ?? 6));
+    formData.append('skirt_height', String(globalSettings.skirtHeight ?? 1));
     formData.append('brim_width', String(globalSettings.brimWidth ?? 0));
     formData.append('top_shell', String(globalSettings.topSolidLayers ?? 3));
     formData.append('bottom_shell', String(globalSettings.bottomSolidLayers ?? 3));

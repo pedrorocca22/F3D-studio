@@ -316,13 +316,13 @@ function TubeSegments({ extrusion, count, jointCount }: { extrusion: ExtrusionDa
 
     return (
         <group>
-            <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} castShadow receiveShadow frustumCulled={false}>
+            <instancedMesh ref={meshRef} args={[undefined, undefined, extrusion.matrices.length]} frustumCulled={false}>
                 <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
-                <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
+                <meshStandardMaterial color={extrusion.color} roughness={0.3} metalness={0} />
             </instancedMesh>
-            <instancedMesh ref={jointRef} args={[undefined, undefined, extrusion.jointMatrices.length]} castShadow receiveShadow frustumCulled={false}>
+            <instancedMesh ref={jointRef} args={[undefined, undefined, extrusion.jointMatrices.length]} frustumCulled={false}>
                 <sphereGeometry args={[0.5, 8, 8]} />
-                <meshStandardMaterial color={extrusion.color} roughness={0.4} metalness={0.1} />
+                <meshStandardMaterial color={extrusion.color} roughness={0.3} metalness={0} />
             </instancedMesh>
         </group>
     );

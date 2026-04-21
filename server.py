@@ -826,6 +826,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "support_material": "1" if supports else "0",
             "skirts": str(form_params.get("skirt_count", "1")),
             "skirt_distance": str(form_params.get("skirt_distance", "6")),
+            "skirt_height": str(form_params.get("skirt_height", "1")),
             "brim_width": str(form_params.get("brim_width", "0")),
             "top_solid_layers": str(form_params.get("top_shell", "3")),
             "bottom_solid_layers": str(form_params.get("bottom_shell", "3")),

@@ -317,7 +317,6 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
               onClick={handleClick}
               onPointerOver={() => isVisible && setHover(true)}
               onPointerOut={() => setHover(false)}
-              castShadow
             >
               <meshPhysicalMaterial
                 ref={materialRef}
