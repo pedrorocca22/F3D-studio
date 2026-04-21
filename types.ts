@@ -200,6 +200,7 @@ export interface ModelData {
   size?: { x: number; y: number; z: number };
   file?: File;
   isCube?: boolean;
+  shapeType?: 'box' | 'cylinder';
   toolhead?: ToolheadId;
   /** Per-feature toolhead mapping for scaffold mode (optional). */
   scaffoldTools?: ScaffoldToolMapping;

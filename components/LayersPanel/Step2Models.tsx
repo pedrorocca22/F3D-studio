@@ -16,6 +16,7 @@ interface Step2ModelsProps {
   onSelectModel: (id: string) => void;
   onDeleteModel: (id: string) => void;
   onFileUpload: (file: File) => void;
+  onCreateBasicShape: (type: 'box' | 'cylinder', params: { w?: number, d?: number, h: number, dia?: number }) => void;
   globalSettings: GlobalSettings;
   onOpenCloneDialog: (modelId: string, initialWellId?: string) => void;
 }
@@ -26,11 +27,17 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
   onSelectModel,
   onDeleteModel,
   onFileUpload,
+  onCreateBasicShape,
   globalSettings,
   onOpenCloneDialog
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  
+  // Basic Shapes State
+  const [shapeParams, setShapeParams] = useState({
+    w: 20, d: 20, h: 5, dia: 20
+  });
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -45,7 +52,7 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
+    <div className="space-y-3 animate-in fade-in slide-in-from-left-1 pb-4">
       {/* Drag & Drop Upload Zone */}
       <input
         type="file"
@@ -65,30 +72,106 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
           const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.stl'));
           files.forEach(f => onFileUpload(f));
         }}
-        className={`relative cursor-pointer border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all duration-200 group ${
+        className={`relative cursor-pointer border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all duration-200 group ${
           isDragOver
             ? 'border-primary bg-primary/5 scale-[1.01]'
             : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }`}
       >
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
           isDragOver ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary'
         }`}>
-          <Icon name={isDragOver ? 'file_download' : 'upload_file'} className="text-2xl" />
+          <Icon name={isDragOver ? 'file_download' : 'upload_file'} className="text-xl" />
         </div>
         <div className="text-center">
-          <p className={`text-[11px] font-black uppercase tracking-widest transition-colors ${
+          <p className={`text-[10px] font-black uppercase tracking-widest transition-colors ${
             isDragOver ? 'text-primary' : 'text-slate-600 dark:text-slate-300 group-hover:text-primary'
           }`}>
             {isDragOver ? 'Drop to Load' : 'Load Files'}
           </p>
-          <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wide">
-            Click or drag & drop · .STL
-          </p>
         </div>
-        {isDragOver && (
-          <div className="absolute inset-0 rounded-xl border-2 border-primary animate-pulse pointer-events-none" />
-        )}
+      </div>
+
+      {/* QUICK PRIMITIVES SECTION */}
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-xl p-3 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Icon name="category" className="text-xs text-slate-400" />
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Procedural Shapes</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {/* PRISM */}
+          <div className="flex flex-col gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+             <div className="flex items-center justify-between px-0.5">
+                <span className="text-[9px] font-black text-slate-400 uppercase">Rect Prism</span>
+                <Icon name="view_in_ar" className="text-[14px] text-primary/50" />
+             </div>
+             <div className="flex gap-1.5">
+                <div className="flex-1 flex flex-col gap-0.5">
+                   <span className="text-[8px] text-slate-400 font-bold uppercase ml-0.5">W</span>
+                   <input 
+                    type="number" value={shapeParams.w} 
+                    onChange={e => setShapeParams(p => ({...p, w: +e.target.value}))}
+                    className="w-full bg-slate-50 dark:bg-slate-800 text-[10px] font-mono p-1 rounded border border-transparent focus:border-primary outline-none" 
+                   />
+                </div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                   <span className="text-[8px] text-slate-400 font-bold uppercase ml-0.5">D</span>
+                   <input 
+                    type="number" value={shapeParams.d} 
+                    onChange={e => setShapeParams(p => ({...p, d: +e.target.value}))}
+                    className="w-full bg-slate-50 dark:bg-slate-800 text-[10px] font-mono p-1 rounded border border-transparent focus:border-primary outline-none" 
+                   />
+                </div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                   <span className="text-[8px] text-slate-400 font-bold uppercase ml-0.5">H</span>
+                   <input 
+                    type="number" value={shapeParams.h} 
+                    onChange={e => setShapeParams(p => ({...p, h: +e.target.value}))}
+                    className="w-full bg-slate-50 dark:bg-slate-800 text-[10px] font-mono p-1 rounded border border-transparent focus:border-primary outline-none" 
+                   />
+                </div>
+             </div>
+             <button 
+                onClick={() => onCreateBasicShape('box', { w: shapeParams.w, d: shapeParams.d, h: shapeParams.h })}
+                className="w-full py-1 text-[9px] font-black uppercase text-white bg-primary rounded hover:bg-primary-dark transition-colors"
+             >
+               Add Prism
+             </button>
+          </div>
+
+          {/* CYLINDER */}
+          <div className="flex flex-col gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+             <div className="flex items-center justify-between px-0.5">
+                <span className="text-[9px] font-black text-slate-400 uppercase">Cylinder</span>
+                <Icon name="change_history" className="text-[14px] text-primary/50 rotate-180" />
+             </div>
+             <div className="flex gap-1.5">
+                <div className="flex-1 flex flex-col gap-0.5">
+                   <span className="text-[8px] text-slate-400 font-bold uppercase ml-0.5">Dia</span>
+                   <input 
+                    type="number" value={shapeParams.dia} 
+                    onChange={e => setShapeParams(p => ({...p, dia: +e.target.value}))}
+                    className="w-full bg-slate-50 dark:bg-slate-800 text-[10px] font-mono p-1 rounded border border-transparent focus:border-primary outline-none" 
+                   />
+                </div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                   <span className="text-[8px] text-slate-400 font-bold uppercase ml-0.5">H</span>
+                   <input 
+                    type="number" value={shapeParams.h} 
+                    onChange={e => setShapeParams(p => ({...p, h: +e.target.value}))}
+                    className="w-full bg-slate-50 dark:bg-slate-800 text-[10px] font-mono p-1 rounded border border-transparent focus:border-primary outline-none" 
+                   />
+                </div>
+             </div>
+             <button 
+                onClick={() => onCreateBasicShape('cylinder', { dia: shapeParams.dia, h: shapeParams.h })}
+                className="w-full py-1 text-[9px] font-black uppercase text-white bg-primary rounded hover:bg-primary-dark transition-colors mt-auto"
+             >
+               Add Cylinder
+             </button>
+          </div>
+        </div>
       </div>
 
       {/* Lista de Modelos — Rediseño Plano y Segmentado */}

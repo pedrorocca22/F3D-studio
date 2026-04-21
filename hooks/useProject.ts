@@ -11,7 +11,7 @@ import {
   MaterialProfile,
   MaterialCategory
 } from '../types';
-import { generateUUID } from '../utils';
+import { generateUUID, generateBoxSTL, generateCylinderSTL } from '../utils';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
 import { MATERIAL_PRESETS } from '../constants/materials';
 
@@ -142,14 +142,16 @@ export const useProject = () => {
     }));
   };
 
-  const handleFileUpload = (file: File, isCube = false) => {
+  const handleFileUpload = (file: File, shapeType?: 'box' | 'cylinder') => {
     const url = URL.createObjectURL(file);
+    const isCube = shapeType === 'box';
     const newModel: ModelData = {
       id: generateUUID(),
       name: file.name,
       url,
       file,
       isCube,
+      shapeType,
       transform: {
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -172,6 +174,18 @@ export const useProject = () => {
 
     setModels(prev => [...prev, newModel]);
     setSelectedModelId(newModel.id);
+  };
+
+  const handleCreateBasicShape = (type: 'box' | 'cylinder', params: { w?: number, d?: number, h: number, dia?: number }) => {
+    const stlContent = type === 'box' 
+      ? generateBoxSTL(params.w || 20, params.d || 20, params.h || 5)
+      : generateCylinderSTL(params.dia || 20, params.h || 5);
+    
+    const blob = new Blob([stlContent], { type: 'text/plain' });
+    const filename = type === 'box' ? `Prism_${Date.now()}.stl` : `Cylinder_${Date.now()}.stl`;
+    const file = new File([blob], filename, { type: 'text/plain' });
+    
+    handleFileUpload(file, type);
   };
 
   const handleDeleteModel = (id: string) => {
@@ -408,6 +422,7 @@ export const useProject = () => {
     handleAddMaterial,
     handleDeleteMaterial,
     handleFileUpload,
+    handleCreateBasicShape,
     handleDeleteModel,
     handleUpdateModel,
     handleTransformChange,

@@ -58,6 +58,7 @@ export const LayersPanel: React.FC = () => {
             onSelectModel={project.setSelectedModelId}
             onDeleteModel={project.handleDeleteModel}
             onFileUpload={project.handleFileUpload}
+            onCreateBasicShape={project.handleCreateBasicShape}
             globalSettings={project.globalSettings}
             onOpenCloneDialog={handleOpenCloneDialog}
           />
