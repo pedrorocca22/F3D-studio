@@ -163,7 +163,7 @@ export const Viewport: React.FC = () => {
           {/* G-Code Loading/Error Status */}
           {isGCodeMode && !gcodeParsed && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm">
-                <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col items-center gap-3 animate-in zoom-in-95">
+                <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex flex-col items-center gap-3 animate-in zoom-in-95">
                     {gcodeError ? (
                         <>
                             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-500">
@@ -207,7 +207,7 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-4 py-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-4 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
               <div className="flex items-center gap-3 shrink-0">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Icon name="layers" className="text-primary text-base" />
@@ -225,17 +225,75 @@ export const Viewport: React.FC = () => {
                 className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
               />
 
-              <button
-                onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                  gcodeColorMode === 'linetype'
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
-                }`}
-              >
-                <Icon name="palette" className="text-sm" />
-                {gcodeColorMode === 'toolhead' ? 'BY TOOL' : 'BY TYPE'}
-              </button>
+              <div className="relative group/legend">
+                <button
+                  onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                    gcodeColorMode === 'linetype'
+                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                  }`}
+                >
+                  <Icon name="palette" className="text-sm" />
+                  {gcodeColorMode === 'toolhead' ? 'BY TOOL' : 'BY TYPE'}
+                </button>
+
+                {/* Floating Legend - Only visible on hover */}
+                <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
+                  <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
+                  <div className="space-y-1.5">
+                    {gcodeColorMode === 'toolhead' ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 px-1 py-0.5">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
+                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T0: FDM (Teal)</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-1 py-0.5">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
+                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T1: Syringe (Amber)</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-1 py-0.5">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
+                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T2: UV (Violet)</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Ext. Perimeter</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#f97316' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Perimeter</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#eab308' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Infill</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#3b82f6' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Bridge</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#a855f7' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Support</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#94a3b8' }} />
+                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Skirt/Brim</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -243,7 +301,7 @@ export const Viewport: React.FC = () => {
       </div>
 
       {/* Right Sidebar - Inspector */}
-      <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col h-full shadow-2xl shadow-black/10">
+      <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col h-full shadow-[0_0_20px_rgba(0,0,0,0.05)]">
         <div className="p-3 border-b border-slate-100 dark:border-slate-800/60">
           <div className="flex p-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/50 dark:border-slate-700/30">
             <button 
