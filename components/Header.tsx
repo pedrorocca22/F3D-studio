@@ -88,33 +88,13 @@ export const Header: React.FC<HeaderProps> = ({
                 className={`relative flex items-center justify-center px-4 text-[11px] font-semibold select-none transition-all duration-300 overflow-hidden
                   ${!isLast ? 'border-r border-white/20 dark:border-slate-600/40' : ''}
                   ${isActive
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-white shadow-[0_2px_10px_-3px_rgba(22,163,74,0.4)]'
                     : isDone
-                      ? 'bg-primary/12 dark:bg-primary/15 text-primary/70 dark:text-primary/60'
+                      ? 'bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400/80 font-bold'
                       : 'bg-white dark:bg-slate-800/60 text-slate-300 dark:text-slate-600'
                   }`}
               >
-                {/* Shimmer effect on active step */}
-                {isActive && (
-                  <span
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)',
-                      animation: 'stepShimmer 2.2s ease-in-out infinite',
-                    }}
-                  />
-                )}
-                {/* Step number dot for done/future */}
-                {!isActive && (
-                  <span className={`mr-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black border flex-shrink-0
-                    ${isDone
-                      ? 'bg-primary/20 border-primary/30 text-primary'
-                      : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400'
-                    }`}
-                  >
-                    {step.id}
-                  </span>
-                )}
+
                 <span className="relative z-10 tracking-wide">{step.label}</span>
               </div>
             );

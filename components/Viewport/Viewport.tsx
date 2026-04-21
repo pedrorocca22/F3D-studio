@@ -1,11 +1,10 @@
 import React, { Suspense, useState, useRef, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ContactShadows, Environment } from '@react-three/drei';
+import { ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { Icon } from '../Icon';
-import { GlobalSettings, ModelData, TransformData, AdvancedSliceSettings, ZZone, Modifier } from '../../types';
-import { useGCodeLoader, GCodeScene, ColorMode, LINE_TYPE_COLOR, LINE_TYPE_LABELS, TOOLHEAD_COLOR } from '../GCodePreview/GCodePreview';
+import { useGCodeLoader, GCodeScene, ColorMode } from '../GCodePreview/GCodePreview';
 
 import './subcomponents/three-types';
 
@@ -23,55 +22,34 @@ import { SceneControls } from './subcomponents/SceneControls';
 // Shared Constants
 import { BUILD_VOLUME, TOOLHEAD_COLORS, clippingPlane } from './constants';
 
-interface ViewportProps {
-  models: ModelData[];
-  selectedModelId: string | null;
-  onSelectModel: (id: string | null) => void;
-  onTransformChange: (id: string, data: TransformData) => void;
-  onUpdateModelSize: (id: string, size: { x: number, y: number, z: number }) => void;
-  onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
-  onUpdateModifiers?: (modifiers: Modifier[]) => void;
-  onCloneModel: (id: string) => void;
-  onArrayModels: (spacing: number) => void;
-  onDeleteModel: (id: string) => void;
+// Contexts
+import { useUIContext } from '../../contexts/UIContext';
+import { useProjectContext } from '../../contexts/ProjectContext';
 
-  isAdvancedSliceMode?: boolean;
-  globalSettings: GlobalSettings;
-  zZones?: ZZone[];
-  // GCode integration
-  gcodeJob?: { jobId: string; gcodeUrl: string; nozzleDiameter?: number } | null;
-  onExitGCode?: () => void;
-}
+import { MaterialPresetPanel } from './subcomponents/MaterialPresetPanel';
 
 type CameraMode = 'orbit' | 'pan';
 
-export const Viewport: React.FC<ViewportProps> = ({
-  models,
-  selectedModelId,
-  onSelectModel,
-  onTransformChange,
-  onUpdateModelSize,
-  onUpdateAdvancedSettings,
-  onCloneModel,
-  onArrayModels,
-  onDeleteModel,
-  isAdvancedSliceMode,
-  globalSettings,
-  zZones = [],
-  gcodeJob = null,
-  onExitGCode,
-}) => {
+export const Viewport: React.FC = () => {
+  const { ui } = useUIContext();
+  const { project, slicer } = useProjectContext();
+
   // ── GCode State ──────────────────────────────────────────
-  const gcodeUrl = gcodeJob?.gcodeUrl ?? null;
+  const gcodeUrl = slicer.gcodePreviewJob ? `${slicer.gcodePreviewJob.jobId}/gcode` : null; 
+  
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
-  const { parsed: gcodeParsed, loading: gcodeLoading, layerLines, allLines, layerMap, gcodeRaw } = useGCodeLoader(gcodeUrl, gcodeLayer);
-  const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode'>('inspector');
+  const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw } = useGCodeLoader(
+    slicer.gcodePreviewJob ? `${slicer.gcodePreviewJob.jobId}` : null, 
+    gcodeLayer
+  );
+  
+  const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode' | 'materials'>('inspector');
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
-  const [gcodeNozzle, setGcodeNozzle] = useState(globalSettings.nozzleDiameter || 0.4);
+  const [gcodeNozzle, setGcodeNozzle] = useState(project.globalSettings.nozzleDiameter || 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
-  const isGCodeMode = !!gcodeJob;
+  const isGCodeMode = !!slicer.gcodePreviewJob;
 
   // ── Viewport State ───────────────────────────────────────
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
@@ -97,8 +75,8 @@ export const Viewport: React.FC<ViewportProps> = ({
   }, [gcodeLayer, inspectorTab]);
 
   useEffect(() => {
-    setGcodeNozzle(globalSettings.nozzleDiameter || 0.4);
-  }, [gcodeJob, globalSettings.nozzleDiameter]);
+    setGcodeNozzle(project.globalSettings.nozzleDiameter || 0.4);
+  }, [slicer.gcodePreviewJob, project.globalSettings.nozzleDiameter]);
 
   useEffect(() => {
     clippingPlane.constant = clippingHeight;
@@ -107,24 +85,22 @@ export const Viewport: React.FC<ViewportProps> = ({
   // ── Handlers ─────────────────────────────────────────────
   const setView = (mode: string) => setViewTrigger(prev => ({ mode, t: prev.t + 1 }));
   const cycleViewMode = () => setViewMode(prev => prev === 'solid' ? 'transparent' : 'solid');
-  const selectedModel = models.find(m => m.id === selectedModelId);
+  const selectedModel = project.models.find(m => m.id === project.selectedModelId);
 
   const sliderMaxHeight = useMemo(() => {
-    if (models.length === 0) return BUILD_VOLUME.height;
-    const maxModelHeight = Math.max(...models.map(m => (m.size?.z || 0) * (m.transform?.scale?.z || 1)), 0);
-    return Math.min(Math.max(maxModelHeight * 1.05, 1), BUILD_VOLUME.height);
-  }, [models]);
+    if (project.models.length === 0) return BUILD_VOLUME.height;
+    const maxZ = Math.max(...project.models.map(m => (m.size?.z || 0) * (m.transform?.scale?.z || 1)), 0);
+    return Math.min(Math.max(maxZ * 1.05, 1), BUILD_VOLUME.height);
+  }, [project.models]);
 
   return (
     <div className="absolute inset-0 bg-white dark:bg-slate-950 overflow-hidden flex">
-      {/* Main Viewport Area */}
       <div className="flex-1 relative h-full">
-        {/* Render Canvas */}
         <div className="absolute inset-0 z-0">
           <Canvas
             shadows
             camera={{ position: [100, 100, 150], fov: 45, near: 0.01, far: 2000 }}
-            onPointerMissed={() => onSelectModel(null)}
+            onPointerMissed={() => project.setSelectedModelId(null)}
             gl={{ localClippingEnabled: true, antialias: true }}
           >
             <color attach="background" args={['#f8fafc']} />
@@ -132,37 +108,37 @@ export const Viewport: React.FC<ViewportProps> = ({
             <directionalLight position={[100, 100, 100]} intensity={1.0} castShadow />
             <directionalLight position={[-100, 100, -100]} intensity={0.5} />
 
-            <BuildPlate globalSettings={globalSettings} />
+            <BuildPlate globalSettings={project.globalSettings} />
 
             <UVProcessPlanes 
-              zZones={zZones} 
-              models={models}
+              zZones={project.zZones} 
+              models={project.models}
               isVisible={isGCodeMode}
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
 
             <Suspense fallback={null}>
-              {!isGCodeMode && models.map(model => (
+              {!isGCodeMode && project.models.map(model => (
                 <ViewportModel
                   key={model.id}
                   {...model}
                   url={model.url}
                   objectTool={objectTool}
                   viewMode={viewMode}
-                  isSelected={model.id === selectedModelId}
+                  isSelected={model.id === project.selectedModelId}
                   isVisible={true}
-                  isDimmed={isAdvancedSliceMode && model.id !== selectedModelId}
-                  isAdvancedMode={!!isAdvancedSliceMode && model.id === selectedModelId}
+                  isDimmed={ui.isAdvancedSliceMode && model.id !== project.selectedModelId}
+                  isAdvancedMode={!!ui.isAdvancedSliceMode && model.id === project.selectedModelId}
                   advancedSettings={model.advancedSettings}
-                  setIsSelected={(val) => val ? onSelectModel(model.id) : null}
+                  setIsSelected={(val) => val ? project.setSelectedModelId(model.id) : null}
                   transformData={model.transform}
-                  onTransformChange={(newData) => onTransformChange(model.id, newData)}
-                  onUpdateSize={(size) => onUpdateModelSize(model.id, size)}
-                  adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
+                  onTransformChange={(newData) => project.handleTransformChange(model.id, newData)}
+                  onUpdateSize={(size) => project.handleUpdateModelSize(model.id, size)}
+                  adhesionOffset={(project.globalSettings.adhesion?.enabled) ? (project.globalSettings.adhesion.layers * project.globalSettings.adhesion.layerHeight) / 1000 : 0}
                   isClipping={isClipping}
                   clippingHeight={clippingHeight}
                   toolheadColor={TOOLHEAD_COLORS[model.toolhead || 'none'] || TOOLHEAD_COLORS.none}
-                  globalSettings={globalSettings}
+                  globalSettings={project.globalSettings}
                   wellAssignment={model.transform.wellAssignment}
                 />
               ))}
@@ -183,8 +159,7 @@ export const Viewport: React.FC<ViewportProps> = ({
             <CameraManager viewTrigger={viewTrigger} focusTarget={focusTarget} />
           </Canvas>
 
-          {/* Empty State */}
-          {!isGCodeMode && models.length === 0 && (
+          {!isGCodeMode && project.models.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
               <div className="flex flex-col items-center gap-6 p-10 rounded-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800 shadow-2xl">
                 <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-inner">
@@ -194,17 +169,13 @@ export const Viewport: React.FC<ViewportProps> = ({
                   <p className="text-[14px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em] mb-2">Workspace Empty</p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Load STL models to begin fabrication process</p>
                 </div>
-                <div className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Step 2: Add Models
-                </div>
               </div>
             </div>
           )}
 
-          {/* GCode Exit Button */}
-          {isGCodeMode && onExitGCode && (
+          {isGCodeMode && (
             <button
-              onClick={onExitGCode}
+              onClick={() => slicer.setGcodePreviewJob(null)}
               className="absolute top-4 right-4 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
             >
               <Icon name="close" className="text-sm" />
@@ -212,7 +183,6 @@ export const Viewport: React.FC<ViewportProps> = ({
             </button>
           )}
 
-          {/* GCode Layer Slider (Bottom) */}
           {isGCodeMode && gcodeParsed && (
             <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-6 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl">
               <div className="flex items-center gap-3 shrink-0">
@@ -232,58 +202,64 @@ export const Viewport: React.FC<ViewportProps> = ({
                 className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
               />
 
-              <div className="flex items-center gap-2 shrink-0">
-                 {/* Legend Popover could go here, simplified for now */}
-                 <button
-                   onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                   className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                     gcodeColorMode === 'linetype'
-                       ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
-                   }`}
-                 >
-                   <Icon name="palette" className="text-sm" />
-                   {gcodeColorMode === 'toolhead' ? 'BY TOOL' : 'BY TYPE'}
-                 </button>
-              </div>
+              <button
+                onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                  gcodeColorMode === 'linetype'
+                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                }`}
+              >
+                <Icon name="palette" className="text-sm" />
+                {gcodeColorMode === 'toolhead' ? 'BY TOOL' : 'BY TYPE'}
+              </button>
             </div>
           )}
         </div>
-
         <CameraControls isGCodeMode={isGCodeMode} setView={setView} />
       </div>
 
       {/* Right Sidebar - Inspector */}
       <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col h-full shadow-2xl shadow-black/10">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800/60">
+          <div className="flex p-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/50 dark:border-slate-700/30">
             <button 
               onClick={() => setInspectorTab('inspector')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                inspectorTab === 'inspector'
-                  ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                inspectorTab === 'inspector' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              <Icon name="tune" className="text-sm" />
               Inspector
             </button>
             <button 
-              onClick={() => setInspectorTab('gcode')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                inspectorTab === 'gcode'
-                  ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+              onClick={() => setInspectorTab('materials')}
+              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                inspectorTab === 'materials' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              <Icon name="code" className="text-sm" />
+              Materials
+            </button>
+            <button 
+              onClick={() => setInspectorTab('gcode')}
+              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                inspectorTab === 'gcode' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
               G-Code
             </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
-          {inspectorTab === 'inspector' ? (
+          {inspectorTab === 'materials' ? (
+            <MaterialPresetPanel />
+          ) : inspectorTab === 'inspector' ? (
             selectedModel ? (
               <>
                 <section className="space-y-3">
@@ -291,14 +267,13 @@ export const Viewport: React.FC<ViewportProps> = ({
                     <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                       <Icon name="info" className="text-[10px]" /> Model Properties
                     </div>
-                    <button onClick={cycleViewMode} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all group">
-                       <div className={`w-2 h-2 rounded-full border-2 ${viewMode === 'solid' ? 'bg-primary border-primary' : 'border-slate-400'}`} />
-                       <span className="text-[9px] font-bold text-slate-400 group-hover:text-primary transition-colors uppercase">{viewMode}</span>
+                    <button onClick={cycleViewMode} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                       <span className="text-[9px] font-bold text-slate-400 uppercase">{viewMode}</span>
                     </button>
                   </div>
                   <ModelInfoPanel
                     model={selectedModel}
-                    adhesionOffset={(globalSettings.adhesion?.enabled) ? (globalSettings.adhesion.layers * globalSettings.adhesion.layerHeight) / 1000 : 0}
+                    adhesionOffset={(project.globalSettings.adhesion?.enabled) ? (project.globalSettings.adhesion.layers * project.globalSettings.adhesion.layerHeight) / 1000 : 0}
                   />
                 </section>
 
@@ -308,10 +283,10 @@ export const Viewport: React.FC<ViewportProps> = ({
                   setObjectTool={setObjectTool}
                   arraySpacing={arraySpacing}
                   setArraySpacing={setArraySpacing}
-                  onArrayModels={onArrayModels}
-                  onCloneModel={onCloneModel}
-                  onTransformChange={onTransformChange}
-                  onDeleteModel={onDeleteModel}
+                  onArrayModels={project.handleArrayModels}
+                  onCloneModel={project.handleCloneModel}
+                  onTransformChange={project.handleTransformChange}
+                  onDeleteModel={project.handleDeleteModel}
                   uniformScale={uniformScale}
                   setUniformScale={setUniformScale}
                 />
@@ -323,24 +298,16 @@ export const Viewport: React.FC<ViewportProps> = ({
                     </div>
                     <button
                       onClick={() => setIsClipping(!isClipping)}
-                      className={`w-9 h-5 rounded-full relative transition-all ${isClipping ? 'bg-primary shadow-lg shadow-primary/30' : 'bg-slate-200 dark:bg-slate-800'}`}
+                      className={`w-9 h-5 rounded-full relative transition-all ${isClipping ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800'}`}
                     >
-                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all shadow-md ${isClipping ? 'right-1' : 'left-1'}`} />
+                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${isClipping ? 'right-1' : 'left-1'}`} />
                     </button>
                   </div>
 
                   {isClipping && (
-                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2 shadow-sm">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">Cutting Plane</span>
-                        <span className="font-mono text-primary font-black text-[11px]">{clippingHeight.toFixed(1)}mm</span>
-                      </div>
+                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2">
                       <input
-                        type="range"
-                        min="0"
-                        max={sliderMaxHeight}
-                        step="0.1"
-                        value={clippingHeight}
+                        type="range" min="0" max={sliderMaxHeight} step="0.1" value={clippingHeight}
                         onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
                         className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-primary"
                       />

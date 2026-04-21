@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import { TransformData, ModelData, SliceSettings, GlobalSettings, AdvancedSliceSettings, ToolheadConfig, ZZone } from '../../types';
-import { HelpTopic } from '../HelpWiki/HelpWiki';
 import { MULTIWELL_SPECS } from '../../constants/wellplate';
 
 // Steps imports
@@ -12,49 +10,15 @@ import { Step4Settings } from './Step4Settings';
 import { Step5Advanced } from './Step5Advanced';
 import { Step6Slice } from './Step6Slice';
 
-interface LayersPanelProps {
-  models: ModelData[];
-  globalSettings: GlobalSettings;
-  onUpdateGlobalSettings: (settings: GlobalSettings) => void;
-  selectedModelId: string | null;
-  onSelectModel: (id: string) => void;
-  onDeleteModel: (id: string) => void;
-  onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
-  onTransformChange: (data: TransformData) => void;
-  onUpdateSettings: (data: SliceSettings) => void;
-  onUpdateAdvancedSettings: (data: AdvancedSliceSettings) => void;
-  onApplySettingsToAll: (data: SliceSettings) => void;
-  onCloneToWells?: (baseModelId: string, wellIds: string[], format: 6 | 12 | 24 | 48) => void;
-  isAdvancedSliceMode: boolean;
-  onFileUpload: (file: File, isCube?: boolean) => void;
-  setIsAdvancedSliceMode: (val: boolean) => void;
-  onSlice: () => void;
-  // Toolhead props
-  toolheads: ToolheadConfig[];
-  totalLayers: number;
-  onUpdateToolheads: (toolheads: ToolheadConfig[]) => void;
-  zZones: ZZone[];
-  onUpdateZZones: (zones: ZZone[]) => void;
-  isSlicing?: boolean;
-  slicePercent?: number;
-  sliceMessage?: string;
-  hasGCode?: boolean;
-  onPrint?: () => void;
-  jobId?: string | null;
-  activeStep: number;
-  setActiveStep: (step: number) => void;
-  onOpenHelp: (topic: HelpTopic) => void;
-}
+// Contexts
+import { useUIContext } from '../../contexts/UIContext';
+import { useProjectContext } from '../../contexts/ProjectContext';
+import { BACKEND_URL } from '../../config';
 
-export const LayersPanel: React.FC<LayersPanelProps> = ({
-  models, globalSettings, onUpdateGlobalSettings, selectedModelId, onSelectModel,
-  onDeleteModel, onUpdateModel, onTransformChange, onUpdateSettings, onUpdateAdvancedSettings,
-  onApplySettingsToAll, isAdvancedSliceMode, setIsAdvancedSliceMode, onSlice, onFileUpload,
-  toolheads, totalLayers, onUpdateToolheads,
-  zZones, onUpdateZZones,
-  isSlicing, slicePercent = 0, sliceMessage = '', hasGCode, onPrint, jobId,
-  activeStep, setActiveStep, onOpenHelp, onCloneToWells
-}) => {
+export const LayersPanel: React.FC = () => {
+  const { ui } = useUIContext();
+  const { project, slicer } = useProjectContext();
+  
   const [validationError, setValidationError] = useState<string | null>(null);
   
   // Clone to wells state
@@ -67,75 +31,75 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   };
 
   const handleApplyToAll = () => {
-    const selectedModel = models.find(m => m.id === selectedModelId);
+    const selectedModel = project.models.find(m => m.id === project.selectedModelId);
     if (!selectedModel) return;
     const currentSettings = selectedModel.settings || { exposureTime: 2.5, lightIntensity: 15 };
-    onApplySettingsToAll(currentSettings);
+    project.handleApplySettingsToAll(currentSettings);
   };
 
   return (
     <aside className="w-[420px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
       
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
-        {activeStep === 1 && (
+        {ui.activeStep === 1 && (
           <Step1Environment
-            globalSettings={globalSettings}
-            onUpdateGlobalSettings={onUpdateGlobalSettings}
-            toolheads={toolheads}
-            onUpdateToolheads={onUpdateToolheads}
-            onOpenHelp={onOpenHelp}
+            globalSettings={project.globalSettings}
+            onUpdateGlobalSettings={project.setGlobalSettings}
+            toolheads={project.toolheads}
+            onUpdateToolheads={project.setToolheads}
+            onOpenHelp={ui.setHelpTopic}
           />
         )}
 
-        {activeStep === 2 && (
+        {ui.activeStep === 2 && (
           <Step2Models
-            models={models}
-            selectedModelId={selectedModelId}
-            onSelectModel={onSelectModel}
-            onDeleteModel={onDeleteModel}
-            onFileUpload={onFileUpload}
-            globalSettings={globalSettings}
+            models={project.models}
+            selectedModelId={project.selectedModelId}
+            onSelectModel={project.setSelectedModelId}
+            onDeleteModel={project.handleDeleteModel}
+            onFileUpload={project.handleFileUpload}
+            globalSettings={project.globalSettings}
             onOpenCloneDialog={handleOpenCloneDialog}
           />
         )}
 
-        {activeStep === 3 && (
+        {ui.activeStep === 3 && (
           <Step3Mapping
-            models={models}
-            selectedModelId={selectedModelId}
-            onSelectModel={onSelectModel}
-            toolheads={toolheads}
-            onUpdateModel={onUpdateModel}
-            globalSettings={globalSettings}
-            totalLayers={totalLayers}
-            zZones={zZones}
+            models={project.models}
+            selectedModelId={project.selectedModelId}
+            onSelectModel={project.setSelectedModelId}
+            toolheads={project.toolheads}
+            onUpdateModel={project.handleUpdateModel}
+            globalSettings={project.globalSettings}
+            totalLayers={project.calculatedTotalLayers}
+            zZones={project.zZones}
           />
         )}
 
-        {activeStep === 4 && (
+        {ui.activeStep === 4 && (
           <Step4Settings
-            globalSettings={globalSettings}
-            onUpdateGlobalSettings={onUpdateGlobalSettings}
-            onOpenHelp={onOpenHelp}
+            globalSettings={project.globalSettings}
+            onUpdateGlobalSettings={project.setGlobalSettings}
+            onOpenHelp={ui.setHelpTopic}
             onApplyToAll={handleApplyToAll}
           />
         )}
 
-        {activeStep === 5 && (
+        {ui.activeStep === 5 && (
           <Step5Advanced
-            zZones={zZones}
-            onUpdateZZones={onUpdateZZones}
-            models={models}
-            toolheads={toolheads}
-            globalSettings={globalSettings}
+            zZones={project.zZones}
+            onUpdateZZones={project.setZZones}
+            models={project.models}
+            toolheads={project.toolheads}
+            globalSettings={project.globalSettings}
           />
         )}
 
-        {activeStep === 6 && (
+        {ui.activeStep === 6 && (
           <Step6Slice
-             models={models}
-             globalSettings={globalSettings}
-             zZones={zZones}
+             models={project.models}
+             globalSettings={project.globalSettings}
+             zZones={project.zZones}
           />
         )}
       </div>
@@ -151,10 +115,10 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       {/* STEPPER WIZARD FOOTER */}
       <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-surface-dark flex items-center justify-between z-10 flex-shrink-0 gap-2">
           <button 
-             disabled={activeStep === 1}
+             disabled={ui.activeStep === 1}
              onClick={() => {
                setValidationError(null);
-               setActiveStep(activeStep - 1);
+               ui.setActiveStep(ui.activeStep - 1);
              }}
              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium text-[11px] rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
           >
@@ -165,29 +129,29 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           <div className="flex items-center gap-1">
             {[1,2,3,4,5,6].map(s => (
               <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${
-                s === activeStep ? 'w-4 bg-primary' : s < activeStep ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-slate-200 dark:bg-slate-700'
+                s === ui.activeStep ? 'w-4 bg-primary' : s < ui.activeStep ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-slate-200 dark:bg-slate-700'
               }`} />
             ))}
           </div>
 
-          {activeStep < 6 ? (
+          {ui.activeStep < 6 ? (
               <button 
                  onClick={() => {
-                    if (activeStep === 1) {
-                      const hasTool = toolheads.some(t => t.slot !== undefined);
+                    if (ui.activeStep === 1) {
+                      const hasTool = project.toolheads.some(t => t.slot !== undefined);
                       if (!hasTool) {
                         setValidationError("Assign at least one toolhead to a machine slot to continue.");
                         return;
                       }
                     }
-                    if (activeStep === 2) {
-                      if (models.length === 0) {
+                    if (ui.activeStep === 2) {
+                      if (project.models.length === 0) {
                         setValidationError("Load at least one model before proceeding.");
                         return;
                       }
                     }
                     setValidationError(null);
-                    setActiveStep(activeStep === 6 ? 6 : activeStep + 1);
+                    ui.setActiveStep(ui.activeStep === 6 ? 6 : ui.activeStep + 1);
                  }}
                  className="px-4 py-1.5 bg-primary hover:bg-primary-dark text-white font-medium text-[11px] rounded-md transition-colors flex items-center gap-1.5"
               >
@@ -196,34 +160,45 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
           ) : (
               <button
                 onClick={() => {
-                  if (hasGCode && onPrint) {
-                    onPrint();
-                  } else if (!isSlicing) {
-                    onSlice();
+                  if (slicer.gcodePreviewJob && !slicer.isSlicing) {
+                    // Start print
+                    (async () => {
+                      if (!slicer.gcodePreviewJob?.jobId) return;
+                      try {
+                        const res = await fetch(`${BACKEND_URL}/moonraker/print/start`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ job_id: slicer.gcodePreviewJob.jobId }),
+                        });
+                        if (!res.ok) alert(`Print failed: ${await res.text()}`);
+                      } catch (err) { alert(`Error: ${(err as Error).message}`); }
+                    })();
+                  } else if (!slicer.isSlicing) {
+                    slicer.handleSlice();
                   }
                 }}
                 className={`flex-1 py-1.5 px-4 text-[11px] font-medium rounded-md transition-all flex items-center justify-center gap-2 overflow-hidden relative ${
-                  hasGCode
+                  slicer.gcodePreviewJob
                     ? 'bg-primary hover:bg-primary-dark text-white'
-                    : isSlicing
+                    : slicer.isSlicing
                       ? 'bg-slate-100 text-slate-400 cursor-wait'
                       : 'bg-primary hover:bg-primary-dark text-white'
                 }`}
               >
-                {isSlicing && (
+                {slicer.isSlicing && (
                   <div
                     className="absolute left-0 top-0 h-full bg-black/10 transition-all duration-300"
-                    style={{ width: `${Math.round(slicePercent * 100)}%` }}
+                    style={{ width: `${Math.round(slicer.slicePercent * 100)}%` }}
                   />
                 )}
                 <span className="relative z-10">
-                  {hasGCode
+                  {slicer.gcodePreviewJob
                     ? 'Execute print'
-                    : isSlicing
-                      ? `Slicing… ${Math.round(slicePercent * 100)}%`
+                    : slicer.isSlicing
+                      ? `Slicing… ${Math.round(slicer.slicePercent * 100)}%`
                       : 'Build'}
                 </span>
-                {!isSlicing && <Icon name={hasGCode ? 'play_arrow' : 'build'} className="text-[13px] relative z-10" />}
+                {!slicer.isSlicing && <Icon name={slicer.gcodePreviewJob ? 'play_arrow' : 'build'} className="text-[13px] relative z-10" />}
               </button>
           )}
       </div>
@@ -245,14 +220,14 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               
               <div className="flex flex-col gap-2 relative bg-surface-container dark:bg-slate-800/50 p-4 border border-border-light dark:border-slate-700 rounded-xl shadow-inner">
                 {(() => {
-                  const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                  const format = project.globalSettings.printBed?.multiwellFormat ?? 24;
                   const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                   if (!spec) return null;
                   const baseModelWell = cloneWellDialogFor 
-                    ? models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
+                    ? project.models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
                     : undefined;
                     
-                  const occupiedWells = new Set(models
+                  const occupiedWells = new Set(project.models
                     .map(m => m.transform.wellAssignment?.wellId)
                     .filter(w => w && w !== baseModelWell) as string[]);
 
@@ -305,13 +280,13 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                 <div className="flex gap-2">
                   <button 
                     onClick={() => {
-                      const format = globalSettings.printBed?.multiwellFormat ?? 24;
+                      const format = project.globalSettings.printBed?.multiwellFormat ?? 24;
                       const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
                       const all = new Set<string>();
                       const baseModelWell = cloneWellDialogFor 
-                        ? models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
+                        ? project.models.find(m => m.id === cloneWellDialogFor)?.transform.wellAssignment?.wellId 
                         : undefined;
-                      const occupiedWells = new Set(models
+                      const occupiedWells = new Set(project.models
                         .map(m => m.transform.wellAssignment?.wellId)
                         .filter(w => w && w !== baseModelWell) as string[]);
                       
@@ -347,9 +322,9 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               </button>
               <button 
                 onClick={() => {
-                  if (onCloneToWells && cloneWellDialogFor) {
-                    const format = globalSettings.printBed?.multiwellFormat ?? 24;
-                    onCloneToWells(cloneWellDialogFor, Array.from(selectedCloneWells), format as 6 | 12 | 24 | 48);
+                  if (project.handleCloneToWells && cloneWellDialogFor) {
+                    const format = project.globalSettings.printBed?.multiwellFormat ?? 24;
+                    project.handleCloneToWells(cloneWellDialogFor, Array.from(selectedCloneWells), format as 6 | 12 | 24 | 48);
                     setCloneWellDialogFor(null);
                   }
                 }} 

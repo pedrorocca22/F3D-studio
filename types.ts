@@ -1,12 +1,17 @@
-
-// =============================================================================
-//  BioFFF Studio — Type Definitions
-//  Migrated from DLP3 Bioprinter. Adds FDM multi-toolhead interfaces.
-// =============================================================================
-
 // ---------------------------------------------------------------------------
-//  DLP3 Legacy Types (kept for backward compatibility with existing job files)
+//  LEGACY — DLP3 Inheritance (Marked for future deprecation)
 // ---------------------------------------------------------------------------
+
+/** @deprecated Use BioFFF toolhead settings instead. Kept for project compatibility. */
+export interface LegacyDLPSettings {
+  exposureTime: number;
+  lightIntensity: number;
+  exposureMode?: 'time' | 'dose';
+  targetDose?: number;
+  peelSpeed?: number;
+  retractSpeed?: number;
+  separationDistance?: number;
+}
 
 export interface LayerSection {
   id: string;
@@ -16,14 +21,6 @@ export interface LayerSection {
   bottomLimit: string;
   exposureTime: string;
   layersCount?: number;
-}
-
-export interface SliceSettings {
-  exposureTime: number;
-  lightIntensity: number;
-  exposureMode?: 'time' | 'dose';
-  targetDose?: number;
-  modifiers?: Modifier[];
 }
 
 export interface SliceSegment {
@@ -55,6 +52,34 @@ export interface AdhesionSettings {
   transitionLayers: number;
   exposureMode?: 'time' | 'dose';
   targetDose?: number;
+}
+
+// ---------------------------------------------------------------------------
+//  BioFFF Core — Materials & Presets
+// ---------------------------------------------------------------------------
+
+export type MaterialCategory = 'thermoplastic' | 'hydrogel' | 'bio-ink' | 'support' | 'reagent';
+
+export interface MaterialProfile {
+  id: string;
+  name: string;
+  category: MaterialCategory;
+  color: string;
+  // FDM specific
+  temp?: number;
+  bedTemp?: number;
+  retraction?: number;
+  speedMultiplier?: number;
+  // Syringe specific
+  flowRate?: number;
+  pressure?: number;
+  // UV specific
+  doseMjCm2?: number;
+  intensityPercent?: number;
+}
+
+export interface SliceSettings extends Partial<LegacyDLPSettings> {
+  modifiers?: Modifier[];
 }
 
 export interface ThermodynamicSettings {
