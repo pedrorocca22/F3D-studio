@@ -323,10 +323,9 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
                 ref={materialRef}
                 onBeforeCompile={onBeforeCompile}
                 color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : (isDimmed ? "#94a3b8" : toolheadColor))}
-                roughness={isDimmed ? 1.0 : 0.4}
-                reflectivity={isDimmed ? 0.0 : 0.5}
-                clearcoat={isDimmed ? 0.0 : 1.0}
-                metalness={0.1}
+                roughness={0.6}
+                metalness={0}
+                clearcoat={0}
                 transparent={viewMode === 'transparent'}
                 opacity={viewMode === 'transparent' ? 0.4 : 1.0}
                 side={THREE.DoubleSide}

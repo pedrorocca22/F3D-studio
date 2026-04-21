@@ -116,21 +116,21 @@ export const Viewport: React.FC<ViewportProps> = ({
   }, [models]);
 
   return (
-    <div className="absolute inset-0 bg-slate-50 dark:bg-slate-950 overflow-hidden flex">
+    <div className="absolute inset-0 bg-white dark:bg-slate-950 overflow-hidden flex">
       {/* Main Viewport Area */}
       <div className="flex-1 relative h-full">
         {/* Render Canvas */}
-        <div className="absolute inset-3 z-0 rounded-2xl overflow-hidden transition-all shadow-2xl bg-slate-100/40 dark:bg-slate-900/40 border border-slate-200/50 dark:border-slate-800/50">
+        <div className="absolute inset-0 z-0">
           <Canvas
             shadows
             camera={{ position: [100, 100, 150], fov: 45, near: 0.01, far: 2000 }}
             onPointerMissed={() => onSelectModel(null)}
             gl={{ localClippingEnabled: true, antialias: true }}
           >
-            <fog attach="fog" args={['#1a1d22', 1200, 2500]} />
-            <ambientLight intensity={0.4} />
-            <directionalLight position={[50, 50, 50]} intensity={1.0} castShadow shadow-bias={-0.0001} />
-            <Environment preset="city" />
+            <color attach="background" args={['#f8fafc']} />
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[100, 100, 100]} intensity={1.0} castShadow />
+            <directionalLight position={[-100, 100, -100]} intensity={0.5} />
 
             <BuildPlate globalSettings={globalSettings} />
 
@@ -178,7 +178,7 @@ export const Viewport: React.FC<ViewportProps> = ({
               />
             )}
 
-            <ContactShadows position={[0, 0, 0]} opacity={0.4} scale={200} blur={2} far={4} color="#000000" />
+            <ContactShadows position={[0, -0.01, 0]} opacity={0.2} scale={400} blur={2.5} far={10} color="#000000" />
             <SceneControls cameraMode={cameraMode} zoomTrigger={zoomTrigger} />
             <CameraManager viewTrigger={viewTrigger} focusTarget={focusTarget} />
           </Canvas>
