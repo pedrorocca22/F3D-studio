@@ -417,25 +417,30 @@ export const useProject = () => {
     } catch(e) { return []; }
   });
 
-  const handleSaveToGallery = (name: string, author: string, jobInfo?: any) => {
+  const handleSaveToGallery = (name: string, author: string, jobInfo?: any, notes?: string) => {
     const newProtocol: ProjectProtocol = {
       id: generateUUID(),
       name: name || `Protocol ${savedProtocols.length + 1}`,
       author: author || 'Unknown User',
       createdAt: new Date().toISOString(),
-      // We don't save Blobs/Files in localStorage, just the metadata for now.
-      // For re-printing, the jobInfo (jobId) is enough.
       models: models.map(m => ({ ...m, file: undefined, url: '' })),
       globalSettings: { ...globalSettings },
       zZones: [...zZones],
       selectedMaterials: { ...selectedMaterials },
       userMaterials: [...userMaterials],
-      jobInfo
+      jobInfo,
+      notes
     };
     const next = [newProtocol, ...savedProtocols];
     setSavedProtocols(next);
     localStorage.setItem('biofff_protocols', JSON.stringify(next));
     return newProtocol.id;
+  };
+
+  const handleUpdateProtocolNotes = (id: string, notes: string) => {
+    const next = savedProtocols.map(p => p.id === id ? { ...p, notes } : p);
+    setSavedProtocols(next);
+    localStorage.setItem('biofff_protocols', JSON.stringify(next));
   };
 
   const handleLoadProtocol = (protocol: ProjectProtocol) => {
@@ -463,6 +468,7 @@ export const useProject = () => {
     userMaterials,
     savedProtocols,
     handleSaveToGallery,
+    handleUpdateProtocolNotes,
     handleLoadProtocol, // Open project from gallery
     handleDeleteProtocol,
     applyMaterialToToolhead,

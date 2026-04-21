@@ -534,4 +534,5 @@ export interface ProjectProtocol {
     filamentUsedMm?: number;
     layerCount: number;
   };
+  notes?: string;
 }

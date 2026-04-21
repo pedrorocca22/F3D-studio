@@ -7,7 +7,7 @@ interface Step6SliceProps {
   globalSettings: GlobalSettings;
   zZones: ZZone[];
   jobInfo?: { jobId: string; estimatedTimeSec: number; filamentUsedMm?: number; layerCount: number; };
-  onSaveToGallery: (name: string, author: string, jobInfo: any) => void;
+  onSaveToGallery: (name: string, author: string, jobInfo: any, notes?: string) => void;
 }
 
 export const Step6Slice: React.FC<Step6SliceProps> = ({
@@ -18,7 +18,8 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
   onSaveToGallery
 }) => {
   const [author, setAuthor] = React.useState('');
-  const [protocolName, setProtocolName] = React.useState(`Protocol_${new Date().toISOString().slice(0, 10)}`);
+  const [protocolName, setProtocolName] = React.useState(`PRT-${new Date().toISOString().replace(/T/, '-').replace(/:/g, '').slice(0, 16)}`);
+  const [notes, setNotes] = React.useState('');
   const [isSaved, setIsSaved] = React.useState(false);
   // 1. Calculamos la altura física real de los modelos cargados (Segmento base)
   const modelMaxZ = models.length > 0 
@@ -221,15 +222,25 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
                 </div>
              </div>
              
+             <div className="space-y-1.5 pt-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter ml-1">Initial Build Notes</p>
+                <textarea 
+                    placeholder="Observations, experimental conditions, or specific goals for this build..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full h-16 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-[10px] text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 focus:ring-1 focus:ring-primary/20 outline-none resize-none placeholder:italic"
+                />
+             </div>
+             
              <button 
                 onClick={() => {
-                   onSaveToGallery(protocolName || 'Untitled Protocol', author || 'Default User', jobInfo);
+                   onSaveToGallery(protocolName || 'Untitled Protocol', author || 'Default User', jobInfo, notes);
                    setIsSaved(true);
                 }}
-                className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-400 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group"
+                className="w-full bg-primary text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group shadow-sm shadow-primary/20"
              >
                 <Icon name="archive" className="text-xs group-hover:scale-110 transition-transform" />
-                Archive this Protocol
+                Archive & Lock Protocol
              </button>
           </div>
         )}
