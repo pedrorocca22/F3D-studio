@@ -199,7 +199,7 @@ export const Viewport: React.FC = () => {
           {isGCodeMode && (
             <button
               onClick={() => slicer.setGcodePreviewJob(null)}
-              className="absolute top-4 right-4 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+              className="absolute top-6 right-6 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-[0_4px_12px_rgba(239,68,68,0.35)] hover:shadow-[0_4px_16px_rgba(239,68,68,0.45)] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
             >
               <Icon name="close" className="text-sm" />
               Exit Preview
@@ -207,7 +207,7 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-6 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-4 py-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl">
               <div className="flex items-center gap-3 shrink-0">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Icon name="layers" className="text-primary text-base" />
@@ -222,7 +222,7 @@ export const Viewport: React.FC = () => {
                 type="range" min={0} max={gcodeParsed.layerCount} step={1}
                 value={gcodeLayer}
                 onChange={e => setGcodeLayer(+e.target.value)}
-                className="flex-1 h-1.5 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
+                className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
               />
 
               <button
