@@ -9,6 +9,7 @@ export const useAppUI = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
+  const [currentView, setCurrentView] = useState<'editor' | 'gallery'>('editor');
 
   // Sync dark mode with HTML class
   useEffect(() => {
@@ -37,6 +38,8 @@ export const useAppUI = () => {
     isAdvancedSliceMode,
     setIsAdvancedSliceMode,
     isSlicePreviewMode,
-    setIsSlicePreviewMode
+    setIsSlicePreviewMode,
+    currentView,
+    setCurrentView
   };
 };

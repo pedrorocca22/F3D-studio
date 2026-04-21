@@ -9,7 +9,8 @@ import {
   SliceSettings, 
   AdvancedSliceSettings,
   MaterialProfile,
-  MaterialCategory
+  MaterialCategory,
+  ProjectProtocol
 } from '../types';
 import { generateUUID, generateBoxSTL, generateCylinderSTL } from '../utils';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
@@ -409,6 +410,49 @@ export const useProject = () => {
     return maxZ > 0 ? Math.ceil(maxZ / (globalSettings.layerHeight / 1000)) : 100;
   }, [models, globalSettings.layerHeight]);
 
+  const [savedProtocols, setSavedProtocols] = useState<ProjectProtocol[]>(() => {
+    try {
+        const saved = localStorage.getItem('biofff_protocols');
+        return saved ? JSON.parse(saved) : [];
+    } catch(e) { return []; }
+  });
+
+  const handleSaveToGallery = (name: string, author: string, jobInfo?: any) => {
+    const newProtocol: ProjectProtocol = {
+      id: generateUUID(),
+      name: name || `Protocol ${savedProtocols.length + 1}`,
+      author: author || 'Unknown User',
+      createdAt: new Date().toISOString(),
+      // We don't save Blobs/Files in localStorage, just the metadata for now.
+      // For re-printing, the jobInfo (jobId) is enough.
+      models: models.map(m => ({ ...m, file: undefined, url: '' })),
+      globalSettings: { ...globalSettings },
+      zZones: [...zZones],
+      selectedMaterials: { ...selectedMaterials },
+      userMaterials: [...userMaterials],
+      jobInfo
+    };
+    const next = [newProtocol, ...savedProtocols];
+    setSavedProtocols(next);
+    localStorage.setItem('biofff_protocols', JSON.stringify(next));
+    return newProtocol.id;
+  };
+
+  const handleLoadProtocol = (protocol: ProjectProtocol) => {
+    setGlobalSettings(protocol.globalSettings);
+    setZZones(protocol.zZones);
+    setSelectedMaterials(protocol.selectedMaterials);
+    setUserMaterials(protocol.userMaterials);
+    setModels(protocol.models);
+    if (protocol.models.length > 0) setSelectedModelId(protocol.models[0].id);
+  };
+
+  const handleDeleteProtocol = (id: string) => {
+    const next = savedProtocols.filter(p => p.id !== id);
+    setSavedProtocols(next);
+    localStorage.setItem('biofff_protocols', JSON.stringify(next));
+  };
+
   return {
     models, setModels,
     selectedModelId, setSelectedModelId,
@@ -417,6 +461,10 @@ export const useProject = () => {
     globalSettings, setGlobalSettings,
     selectedMaterials,
     userMaterials,
+    savedProtocols,
+    handleSaveToGallery,
+    handleLoadProtocol, // Open project from gallery
+    handleDeleteProtocol,
     applyMaterialToToolhead,
     handleUpdateMaterial,
     handleAddMaterial,

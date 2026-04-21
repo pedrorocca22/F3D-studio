@@ -11,6 +11,8 @@ interface HeaderProps {
   onOpenPrinterStatus?: () => void;
   activeStep: number;
   setActiveStep: (step: number) => void;
+  currentView: 'editor' | 'gallery';
+  setCurrentView: (view: 'editor' | 'gallery') => void;
 }
 
 const STEPS = [
@@ -25,7 +27,8 @@ const STEPS = [
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
   onOpenWifi, onOpenPrinterStatus,
-  activeStep, setActiveStep
+  activeStep, setActiveStep,
+  currentView, setCurrentView
 }) => {
   const [printerState, setPrinterState] = useState<'unknown' | 'ready' | 'printing' | 'error'>('unknown');
 
@@ -111,6 +114,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
             <span className="hidden lg:inline">{stateLabel[printerState]}</span>
+          </button>
+
+          {/* New Protocol Archive Button */}
+          <button
+            onClick={() => setCurrentView(currentView === 'gallery' ? 'editor' : 'gallery')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-black uppercase tracking-tighter transition-all shadow-sm
+                ${currentView === 'gallery' 
+                    ? 'bg-primary text-white shadow-primary/20' 
+                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary/40'}`}
+          >
+            <Icon name="archive" className="text-[13px]" />
+            <span className="hidden lg:inline">Archive</span>
           </button>
 
           <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />

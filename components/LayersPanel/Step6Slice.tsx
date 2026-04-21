@@ -6,13 +6,20 @@ interface Step6SliceProps {
   models: ModelData[];
   globalSettings: GlobalSettings;
   zZones: ZZone[];
+  jobInfo?: { jobId: string; estimatedTimeSec: number; filamentUsedMm?: number; layerCount: number; };
+  onSaveToGallery: (name: string, author: string, jobInfo: any) => void;
 }
 
 export const Step6Slice: React.FC<Step6SliceProps> = ({
   models,
   globalSettings,
   zZones,
+  jobInfo,
+  onSaveToGallery
 }) => {
+  const [author, setAuthor] = React.useState('');
+  const [protocolName, setProtocolName] = React.useState(`Protocol_${new Date().toISOString().slice(0, 10)}`);
+  const [isSaved, setIsSaved] = React.useState(false);
   // 1. Calculamos la altura física real de los modelos cargados (Segmento base)
   const modelMaxZ = models.length > 0 
     ? Math.max(...models.map(m => (m.transform.position.z || 0) + (m.size?.z || 0)))
@@ -171,11 +178,61 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
             </div>
         </div>
 
-        <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 text-center animate-pulse">
-            <p className="text-[10px] text-primary font-black uppercase tracking-widest">
-                Configuration Locked • Ready to Slice
+        {/* BUILD LOCK STATUS */}
+        <div className={`p-3 rounded-xl border text-center transition-all duration-500 ${isSaved ? 'bg-green-500/10 border-green-500/20' : 'bg-primary/5 border-primary/10 animate-pulse'}`}>
+            <p className={`text-[10px] font-black uppercase tracking-widest ${isSaved ? 'text-green-600' : 'text-primary'}`}>
+                {isSaved ? '✓ Protocol Archived Successfully' : 'Configuration Locked • Ready to Slice'}
             </p>
         </div>
+
+        {/* ARCHIVE ACTION PANEL */}
+        {jobInfo && !isSaved && (
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 mt-4 space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                        <Icon name="tag" className="text-primary text-[12px]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Protocol Name</p>
+                        <input 
+                            type="text" 
+                            placeholder="Protocol X..."
+                            value={protocolName}
+                            onChange={(e) => setProtocolName(e.target.value)}
+                            className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none truncate"
+                        />
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                        <Icon name="person" className="text-primary text-[12px]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Researcher</p>
+                        <input 
+                            type="text" 
+                            placeholder="Name..."
+                            value={author}
+                            onChange={(e) => setAuthor(e.target.value)}
+                            className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-0 outline-none truncate"
+                        />
+                    </div>
+                </div>
+             </div>
+             
+             <button 
+                onClick={() => {
+                   onSaveToGallery(protocolName || 'Untitled Protocol', author || 'Default User', jobInfo);
+                   setIsSaved(true);
+                }}
+                className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-400 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group"
+             >
+                <Icon name="archive" className="text-xs group-hover:scale-110 transition-transform" />
+                Archive this Protocol
+             </button>
+          </div>
+        )}
     </div>
   );
 };

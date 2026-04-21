@@ -4,6 +4,7 @@ import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
 import { HelpWiki } from './components/HelpWiki/HelpWiki';
+import { ProjectGallery } from './components/Gallery/ProjectGallery';
 
 // Contexts
 import { useUIContext } from './contexts/UIContext';
@@ -52,22 +53,27 @@ export default function App() {
         onOpenWifi={() => ui.setIsWifiOpen(true)}
         activeStep={ui.activeStep}
         setActiveStep={ui.setActiveStep}
+        currentView={ui.currentView}
+        setCurrentView={ui.setCurrentView}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
-        <LayersPanel />
-
-        <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
-          <Viewport />
-
-          {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
-
-          {ui.isDragging && (
-            <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
-              <span className="text-sm font-medium">Drop STL file here</span>
-            </div>
-          )}
-        </main>
+        {ui.currentView === 'gallery' ? (
+          <ProjectGallery />
+        ) : (
+          <>
+            <LayersPanel />
+            <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
+              <Viewport />
+              {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
+              {ui.isDragging && (
+                <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
+                  <span className="text-sm font-medium">Drop STL file here</span>
+                </div>
+              )}
+            </main>
+          </>
+        )}
       </div>
 
       <HelpWiki topic={ui.helpTopic} onClose={() => ui.setHelpTopic(null)} />

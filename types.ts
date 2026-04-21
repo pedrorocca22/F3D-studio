@@ -513,3 +513,25 @@ export interface MoonrakerStatus {
   extruder_temp?: number;
   bed_temp?: number;
 }
+export interface ProjectProtocol {
+  id: string;
+  name: string;
+  author: string;
+  createdAt: string;
+  thumbnail?: string;
+  
+  // Snapshotted project state
+  models: ModelData[];
+  globalSettings: GlobalSettings;
+  zZones: ZZone[];
+  selectedMaterials: Record<string, string>;
+  userMaterials: MaterialProfile[];
+  
+  // Slicing result
+  jobInfo?: {
+    jobId: string;
+    estimatedTimeSec: number;
+    filamentUsedMm?: number;
+    layerCount: number;
+  };
+}

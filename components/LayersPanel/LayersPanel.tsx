@@ -101,6 +101,8 @@ export const LayersPanel: React.FC = () => {
              models={project.models}
              globalSettings={project.globalSettings}
              zZones={project.zZones}
+             jobInfo={slicer.gcodePreviewJob}
+             onSaveToGallery={project.handleSaveToGallery}
           />
         )}
       </div>
