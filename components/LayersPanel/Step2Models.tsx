@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Icon } from '../Icon';
 import { ModelData, GlobalSettings } from '../../types';
-import { TOOLHEAD_COLORS } from '../Viewport/Viewport';
+import { TOOLHEAD_COLORS } from '../Viewport/constants';
 
 const TOOLHEAD_LABELS: Record<string, string> = {
   fdm: 'FDM',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import { ModelData, GlobalSettings, ToolheadConfig, ZZone } from '../../types';
-import { TOOLHEAD_COLORS } from '../Viewport/Viewport';
+import { TOOLHEAD_COLORS } from '../Viewport/constants';
 import { SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS, ToolheadSelect } from '../ToolheadPanel/ToolheadPanel';
 import { NumericInput } from './NumericInput';
 
