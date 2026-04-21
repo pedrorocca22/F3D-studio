@@ -333,6 +333,7 @@ export interface FDMPrintSettings {
   zHopEnabled: boolean;
   zHopHeightMm: number;
   fillAngle?: number;
+  extrusionMultiplier?: number;
 }
 
 export interface SyringePrintSettings {
@@ -391,6 +392,7 @@ export interface LayerAction {
   layerFrom: number;
   layerTo: number;
   modelId?: string | 'all';
+  priority?: number;
   kind: 'feature_override' | 'parameter_override' | 'process_event';
   targetFeatures?: ('perimeter' | 'infill' | 'solidInfill' | 'support' | 'all')[];
   toolOverride?: ToolheadId;

@@ -82,6 +82,11 @@ export interface ParsedGCode {
     usedToolheads: Set<string>;
     layerHeights: number[]; // Mapping of layer index (1-based) to Z height
 }
+/** Interface for the current layer's raw G-code lines */
+export interface LayerLines {
+    lines: string[];
+    lineStartIndex: number;
+}
 
 interface ExtrusionData {
     color: string;

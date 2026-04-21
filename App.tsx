@@ -96,16 +96,16 @@ export default function App() {
       id: 'fdm', label: 'FDM Hot-end', klipper_tool: 'T0', installed: false,
       nozzleDiameter: 0.4, filamentDiameter: 1.75, maxTemperature: 280,
       defaultTemperature: 210, retractionLength: 1.0, retractionSpeed: 45
-    } as FDMToolheadConfig,
+    },
     {
       id: 'syringe', label: 'Hydrogel Syringe', klipper_tool: 'T1', installed: false,
       syringeVolumeMl: 5, nozzleDiameterMm: 0.4, flowRateUlPerMm: 0.8,
       pressurizationSteps: 10, retractionSteps: 5, actuatorType: 'mechanical'
-    } as SyringeToolheadConfig,
+    },
     {
       id: 'uv', label: 'UV Crosslinker', klipper_tool: 'T2', installed: false,
-      wavelengthNm: 365, maxPowerMw: 100, defaultDose: 50, defaultExposureTime: 5, mode: 'fixed'
-    } as UVToolheadConfig,
+      wavelengthNm: 365 as const, maxPowerMw: 100, defaultDose: 50, defaultExposureTime: 5, mode: 'fixed'
+    },
   ];
   const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
   const [zZones, setZZones] = useState<ZZone[]>([]);
@@ -531,7 +531,7 @@ export default function App() {
 
     formData.append('layer_height', layerH);
     formData.append('first_layer_height', firstLayerH);
-    formData.append('toolheads', JSON.stringify(globalSettings.toolheads));
+    formData.append('toolheads', JSON.stringify(toolheads));
     formData.append('nozzle_temp', String(globalSettings.nozzleTemperature ?? 210));
     formData.append('bed_temp', String(globalSettings.bedTemperature ?? 60));
     formData.append('infill', String(globalSettings.infill ?? 15));

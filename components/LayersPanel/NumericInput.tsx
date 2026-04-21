@@ -9,6 +9,7 @@ interface NumericInputProps {
   min?: number;
   max?: number;
   suffix?: string;
+  disabled?: boolean;
 }
 
 export const NumericInput: React.FC<NumericInputProps> = ({
@@ -18,7 +19,8 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   step = 1,
   min,
   max,
-  suffix = ""
+  suffix = "",
+  disabled = false
 }) => {
   // Local state to handle typing without forcing validation on every keystroke
   const [localValue, setLocalValue] = useState<string>(value.toString());
@@ -60,9 +62,10 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   };
 
   return (
-    <div className={`flex items-center bg-[#eaeff1] dark:bg-slate-800 ${className} transition-all border-b-2 border-outline-variant/20 h-7 hover:border-primary/40 focus-within:border-primary focus-within:bg-primary/5 dark:focus-within:bg-primary/10 rounded-sm group`}>
+    <div className={`flex items-center bg-[#eaeff1] dark:bg-slate-800 ${className} transition-all border-b-2 border-outline-variant/20 h-7 ${disabled ? 'opacity-50 pointer-events-none' : 'hover:border-primary/40 focus-within:border-primary focus-within:bg-primary/5 dark:focus-within:bg-primary/10'} rounded-sm group`}>
       <button
         onClick={decrement}
+        disabled={disabled}
         className="px-2 h-full hover:bg-primary/10 text-slate-400 group-focus-within:text-primary hover:text-primary transition-all btn-transition flex items-center shrink-0"
       >
         <Icon name="remove" className="text-[10px]" />
@@ -72,6 +75,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
           className="w-full text-center text-[11px] bg-transparent border-none focus:ring-0 py-0 text-slate-700 dark:text-slate-200 font-bold outline-none font-mono"
           type="text"
           value={localValue}
+          disabled={disabled}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
