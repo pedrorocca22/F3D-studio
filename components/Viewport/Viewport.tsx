@@ -41,6 +41,7 @@ export const Viewport: React.FC = () => {
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
   const [gcodeMoveIndex, setGcodeMoveIndex] = useState<number>(0);
   const [isGCodePlaying, setIsGCodePlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
 
   const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw, loading: gcodeLoading, error: gcodeError } = useGCodeLoader(
     gcodeUrl, 
@@ -58,24 +59,37 @@ export const Viewport: React.FC = () => {
           const layerMoveCount = Math.max(1, layerEnd - layerStart);
           
           if (prev >= layerMoveCount) {
-             setIsGCodePlaying(false);
-             return layerMoveCount;
+             // AUTO-ADVANCE LAYER
+             if (gcodeLayer < gcodeParsed.layerCount) {
+                 setGcodeLayer(l => l + 1);
+                 return 0; // Start of next layer
+             } else {
+                 setIsGCodePlaying(false);
+                 return layerMoveCount;
+             }
           }
-          return Math.min(prev + Math.ceil(layerMoveCount / 200), layerMoveCount); // Progressive speed
+          // Increment based on speed. layerMoveCount / 200 is base.
+          const baseStep = Math.max(1, Math.ceil(layerMoveCount / 300));
+          const step = baseStep * playbackSpeed;
+          return Math.min(prev + step, layerMoveCount);
         });
       }, 30);
     }
     return () => clearInterval(interval);
-  }, [isGCodePlaying, gcodeLayer, gcodeParsed]);
+  }, [isGCodePlaying, gcodeLayer, gcodeParsed, playbackSpeed]);
 
-  // Reset move index when layer changes
+  // Handle manual layer changes - stop playback if playing? 
+  // Actually Prusa just keeps playing on the new layer if you slide it. 
+  // But we need to reset move index IF not playing or if jumping layers.
+  // The previous effect already handles resetting move index to END when layer changes.
+  // I should modify it to only reset to END if NOT playing.
   useEffect(() => {
-    if (gcodeParsed) {
+    if (gcodeParsed && !isGCodePlaying) {
       const layerStart = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
       const layerEnd = gcodeParsed.layerMoveIndices[gcodeLayer + 1] || gcodeParsed.moves.length;
       setGcodeMoveIndex(layerEnd - layerStart);
     }
-  }, [gcodeLayer, gcodeParsed]);
+  }, [gcodeLayer, gcodeParsed]); // Removed isGCodePlaying from deps to avoid jumpy starts
 
   const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode' | 'materials'>('inspector');
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
@@ -269,6 +283,8 @@ export const Viewport: React.FC = () => {
                         const end = gcodeParsed.layerMoveIndices[gcodeLayer+1] || gcodeParsed.moves.length;
                         if (gcodeMoveIndex >= (end - start)) {
                             setGcodeMoveIndex(0);
+                            // If we were at the very end of the model, wrap to start
+                            if (gcodeLayer >= gcodeParsed.layerCount) setGcodeLayer(1);
                         }
                         setIsGCodePlaying(!isGCodePlaying);
                     }}
@@ -276,7 +292,18 @@ export const Viewport: React.FC = () => {
                    >
                      <Icon name={isGCodePlaying ? 'pause' : 'play_arrow'} className="text-xs" />
                    </button>
-                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Moves</span>
+                   
+                   <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 ml-1">
+                      {[1, 2, 4, 8].map(s => (
+                        <button 
+                          key={s} 
+                          onClick={() => setPlaybackSpeed(s)}
+                          className={`px-1.5 py-0.5 text-[8px] font-black rounded transition-all ${playbackSpeed === s ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          {s}x
+                        </button>
+                      ))}
+                   </div>
                 </div>
                 
                 {(() => {
