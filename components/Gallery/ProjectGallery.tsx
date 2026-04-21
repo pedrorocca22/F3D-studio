@@ -125,35 +125,89 @@ const ProjectCard: React.FC<{
                     </div>
                 </div>
 
+                {/* GLOBAL PROCESS STRATEGY */}
+                <div className="shrink-0">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <Icon name="settings" className="text-[10px]" /> Global Process Strategy
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/20 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-col"><span className="text-[8px] text-slate-400 uppercase">Layer</span><span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{protocol.globalSettings.layerHeight}µm</span></div>
+                        <div className="flex flex-col"><span className="text-[8px] text-slate-400 uppercase">Infill</span><span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{protocol.globalSettings.infill}% {protocol.globalSettings.infillPattern}</span></div>
+                        <div className="flex flex-col"><span className="text-[8px] text-slate-400 uppercase">Temp</span><span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{protocol.globalSettings.nozzleTemperature}°C / {protocol.globalSettings.bedTemperature}°C</span></div>
+                    </div>
+                </div>
+
                 {/* STRATIGRAPHY (Z-ZONES) DETAIL */}
                 <div className="flex-1 flex flex-col min-h-0">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                        <Icon name="layers" className="text-[10px]" /> Stratigraphy (Z-Zones)
+                        <Icon name="layers" className="text-[10px]" /> Technical Stratigraphy
                     </p>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
-                        {protocol.zZones.length === 0 ? (
-                            <div className="text-[10px] text-slate-400 bg-slate-50 dark:bg-slate-800/20 p-2 rounded-lg italic text-center border border-dashed border-slate-200 dark:border-slate-700">
-                                Global Profile Control Only
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2">
+                        {/* BASE PROFILE ITEM */}
+                        <div className="bg-slate-50/50 dark:bg-slate-800/10 p-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 opacity-60">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase">Base Profile (T0-FDM)</span>
+                                <span className="text-[8px] font-mono text-slate-400">Full Z Range</span>
                             </div>
-                        ) : (
-                            protocol.zZones.map(z => {
-                                const fdm = z.parameterOverride?.fdm;
-                                return (
-                                    <div key={z.id} className="bg-slate-50 dark:bg-slate-800/30 p-2 rounded-lg border-l-2 border-primary/40 space-y-1">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 truncate pr-2 uppercase italic">{z.label || 'Segment'}</span>
-                                            <span className="text-[9px] font-mono font-bold text-primary bg-primary/5 px-1 rounded">{z.zStartMm}-{z.zEndMm}mm</span>
+                            <div className="flex gap-3 text-[8px] text-slate-400 font-bold uppercase">
+                                <span>Walls: {protocol.globalSettings.perimeters}</span>
+                                <span>Speed: {protocol.globalSettings.perimeterSpeed}mm/s</span>
+                                <span>Skirt: {protocol.globalSettings.skirtCount}x</span>
+                            </div>
+                        </div>
+
+                        {protocol.zZones.map(z => {
+                            const fdm = z.parameterOverride?.fdm;
+                            const hasUV = z.processEvent && (z.processEvent.uvExposureTimeSec ?? 0) > 0;
+                            const tool = z.featureOverride?.toolhead || 'fdm';
+                            const toolColor = tool === 'syringe' ? 'border-amber-500/40 text-amber-600' : tool === 'uv' ? 'border-purple-500/40 text-purple-600' : 'border-primary/40 text-primary';
+
+                            return (
+                                <div key={z.id} className={`bg-white dark:bg-slate-800/40 p-2.5 rounded-xl border-l-[3px] shadow-sm space-y-2 ${toolColor}`}>
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase italic tracking-tight">{z.label || 'Segment'}</span>
+                                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full border ${toolColor} uppercase`}>{tool}</span>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1 border-t border-slate-100 dark:border-slate-700/50 pt-1">
-                                            <div className="flex justify-between text-[9px]"><span className="text-slate-400">Tool:</span><span className="font-bold text-slate-500 uppercase">{z.featureOverride?.toolhead || 'FDM'}</span></div>
-                                            <div className="flex justify-between text-[9px]"><span className="text-slate-400">Infill:</span><span className="font-bold text-slate-500">{fdm?.infillPercent ?? protocol.globalSettings.infill}%</span></div>
-                                            <div className="flex justify-between text-[9px]"><span className="text-slate-400">Walls:</span><span className="font-bold text-slate-500">{fdm?.wallCount ?? protocol.globalSettings.perimeters}</span></div>
-                                            <div className="flex justify-between text-[9px]"><span className="text-slate-400">Speed:</span><span className="font-bold text-slate-500">{fdm?.perimeterSpeed ?? protocol.globalSettings.perimeterSpeed}mm/s</span></div>
+                                        <span className="text-[9px] font-mono font-black text-slate-400">{z.zStartMm}-{z.zEndMm}mm</span>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-700/50">
+                                        <div className="flex items-center justify-between text-[9px]">
+                                            <span className="text-slate-400">Infill Structure</span>
+                                            <span className="font-bold text-slate-600 dark:text-slate-300">{fdm?.infillPercent ?? protocol.globalSettings.infill}% • {fdm?.infillPattern ?? protocol.globalSettings.infillPattern}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[9px]">
+                                            <span className="text-slate-400">Shell Perimeters</span>
+                                            <span className="font-bold text-slate-600 dark:text-slate-300">{fdm?.wallCount ?? protocol.globalSettings.perimeters} loops</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[9px]">
+                                            <span className="text-slate-400">Process Speed</span>
+                                            <span className="font-bold text-slate-600 dark:text-slate-300">{fdm?.perimeterSpeed ?? protocol.globalSettings.perimeterSpeed} mm/s</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[9px]">
+                                            <span className="text-slate-400">Layer Logic</span>
+                                            <span className="font-bold text-slate-600 dark:text-slate-300 truncate">Sync Layer-by-Layer</span>
                                         </div>
                                     </div>
-                                );
-                            })
-                        )}
+
+                                    {/* UV Process Detail */}
+                                    {hasUV && (
+                                        <div className="mt-1.5 p-1.5 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200/50 dark:border-purple-800/30 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Icon name="wb_sunny" className="text-[10px] text-purple-600" />
+                                                <span className="text-[8px] font-black text-purple-600 uppercase">UV Crosslinking</span>
+                                            </div>
+                                            <div className="flex gap-2 text-[9px] font-bold text-purple-700 dark:text-purple-400">
+                                                <span>{z.processEvent?.uvExposureTimeSec}s @ {z.processEvent?.uvPowerPercent}%</span>
+                                                <span className="opacity-40">|</span>
+                                                <span className="capitalize text-[8px]">{z.processEvent?.trigger?.replace('_', ' ')}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
 
