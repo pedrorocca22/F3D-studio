@@ -1,16 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <objects>
   <object id="1">
-    <range min_z="0.0000" max_z="5.1000">
+    <range min_z="0.0000" max_z="3.1000">
+      <option opt_key="fill_density">15%</option>
+      <option opt_key="fill_pattern">gyroid</option>
+      <option opt_key="perimeters">3</option>
+      <option opt_key="top_solid_layers">3</option>
+      <option opt_key="bottom_solid_layers">3</option>
+      <option opt_key="layer_height">0.2</option>
+      <option opt_key="extruder">0</option>
+      <option opt_key="perimeter_extruder">2</option>
+      <option opt_key="infill_extruder">2</option>
+      <option opt_key="solid_infill_extruder">2</option>
+      <option opt_key="support_material_extruder">2</option>
+    </range>
+    <range min_z="3.1000" max_z="10.1000">
       <option opt_key="fill_density">15%</option>
       <option opt_key="fill_pattern">grid</option>
       <option opt_key="perimeters">3</option>
-      <option opt_key="top_solid_layers">0</option>
+      <option opt_key="top_solid_layers">3</option>
       <option opt_key="bottom_solid_layers">3</option>
       <option opt_key="layer_height">0.2</option>
       <option opt_key="extruder">0</option>
       <option opt_key="perimeter_extruder">1</option>
-      <option opt_key="infill_extruder">2</option>
+      <option opt_key="infill_extruder">1</option>
       <option opt_key="solid_infill_extruder">1</option>
       <option opt_key="support_material_extruder">1</option>
     </range>

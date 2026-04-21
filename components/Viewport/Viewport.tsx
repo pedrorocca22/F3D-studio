@@ -330,18 +330,76 @@ export const Viewport: React.FC = () => {
                     );
                 })()}
 
-                <div className="relative group/legend ml-2 flex gap-2">
-                  <button
-                    onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
-                      gcodeColorMode === 'linetype'
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
-                    }`}
-                  >
-                    <Icon name="palette" className="text-[12px]" />
-                    {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
-                  </button>
+                <div className="ml-2 flex gap-2">
+                  <div className="relative group/legend">
+                    <button
+                      onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                        gcodeColorMode === 'linetype'
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                      }`}
+                    >
+                      <Icon name="palette" className="text-[12px]" />
+                      {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
+                    </button>
+
+                    <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
+                      <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
+                      <div className="space-y-1.5">
+                        {gcodeColorMode === 'toolhead' ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 px-1 py-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
+                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T0: FDM</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-1 py-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
+                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T1: Syringe</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-1 py-0.5">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
+                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T2: UV</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                             {/* ... details ... */}
+                             <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Ext. Perimeter</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#f97316' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Perimeter</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#eab308' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Infill</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#3b82f6' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Bridge</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#a855f7' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Support</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#94a3b8' }} />
+                                <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Skirt/Brim</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                   <button
                     onClick={() => setGcodeRenderMode(m => m === 'solid' ? 'wire' : 'solid')}
@@ -355,61 +413,6 @@ export const Viewport: React.FC = () => {
                     <Icon name={gcodeRenderMode === 'solid' ? "view_in_ar" : "polyline"} className="text-[12px]" />
                     {gcodeRenderMode === 'solid' ? 'SOLID' : 'WIRE'}
                   </button>
-
-                  <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
-                    <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
-                    <div className="space-y-1.5">
-                      {gcodeColorMode === 'toolhead' ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 px-1 py-0.5">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
-                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T0: FDM</span>
-                          </div>
-                          <div className="flex items-center gap-2 px-1 py-0.5">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
-                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T1: Syringe</span>
-                          </div>
-                          <div className="flex items-center gap-2 px-1 py-0.5">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
-                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T2: UV</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Ext. Perimeter</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#f97316' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Perimeter</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#eab308' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Infill</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#3b82f6' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Bridge</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#a855f7' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Support</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#94a3b8' }} />
-                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Skirt/Brim</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
