@@ -72,6 +72,7 @@ interface Move {
     layer: number;
     toolhead: string;
     lineType: string;   // PrusaSlicer "; TYPE:xxx" value
+    moveIndex: number;
 }
 
 export interface ParsedGCode {
@@ -81,6 +82,7 @@ export interface ParsedGCode {
     usedLineTypes: Set<string>;
     usedToolheads: Set<string>;
     layerHeights: number[]; // Mapping of layer index (1-based) to Z height
+    layerMoveIndices: number[]; // Index of the first move of each layer in the moves array
 }
 /** Interface for the current layer's raw G-code lines */
 export interface LayerLines {
@@ -94,12 +96,14 @@ interface ExtrusionData {
     jointMatrices: THREE.Matrix4[];
     countsByLayer: number[];
     jointCountsByLayer: number[];
+    moveIndices: number[]; // moveIndex for each instance to allow sub-layer filtering
 }
 
 interface GeometryData {
     extrusions: ExtrusionData[];
     travelPoints: Float32Array;
     travelCountsByLayer: number[];
+    travelMoveIndices: number[];
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
@@ -119,8 +123,10 @@ export function parseGCode(raw: string): ParsedGCode {
     const bbox = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: 0, maxZ: -Infinity };
     const usedLineTypes = new Set<string>();
     const usedToolheads = new Set<string>(['T0']);
+    const layerMoveIndices: number[] = [];
 
-    for (const rawLine of lines) {
+    for (let i = 0; i < lines.length; i++) {
+        const rawLine = lines[i];
         // Read PrusaSlicer TYPE comment BEFORE stripping inline comments
         const typeMatch = rawLine.match(/;\s*TYPE\s*:\s*(.+)/i);
         if (typeMatch) {
@@ -163,11 +169,12 @@ export function parseGCode(raw: string): ParsedGCode {
             else { extrude = eVal > prevE; prevE = eVal; }
         }
 
+        const prevLayer = currentLayer;
         // Assign layer only when actual material is being extruded (ignores Z-hops)
         if (extrude) {
             let found = false;
-            for (let i = 0; i < knownZ.length; i++) {
-                if (Math.abs(knownZ[i] - nz) < 0.005) { found = true; currentLayer = i + 1; break; }
+            for (let j = 0; j < knownZ.length; j++) {
+                if (Math.abs(knownZ[j] - nz) < 0.005) { found = true; currentLayer = j + 1; break; }
             }
             if (!found) {
                 knownZ.push(nz);
@@ -175,9 +182,14 @@ export function parseGCode(raw: string): ParsedGCode {
                 currentLayer = knownZ.findIndex(z => Math.abs(z - nz) < 0.005) + 1;
             }
             if (currentLayer > maxSeenLayer) maxSeenLayer = currentLayer;
+            
+            // Record the first move index for this layer
+            if (currentLayer > prevLayer && layerMoveIndices[currentLayer] === undefined) {
+                layerMoveIndices[currentLayer] = moves.length;
+            }
         }
 
-        moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead, lineType: activeLineType });
+        moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead, lineType: activeLineType, moveIndex: i });
 
         if (extrude) {
             bbox.minX = Math.min(bbox.minX, nx); bbox.maxX = Math.max(bbox.maxX, nx);
@@ -190,10 +202,18 @@ export function parseGCode(raw: string): ParsedGCode {
 
     if (!isFinite(bbox.minX)) { bbox.minX = 0; bbox.maxX = 100; bbox.minY = 0; bbox.maxY = 100; }
     
+    // Fill gaps in layerMoveIndices
+    for (let i = 1; i <= maxSeenLayer; i++) {
+        if (layerMoveIndices[i] === undefined) {
+            layerMoveIndices[i] = layerMoveIndices[i-1] || 0;
+        }
+    }
+    layerMoveIndices[maxSeenLayer + 1] = moves.length;
+
     // Map of layer index to physical Z height
     const layerHeights = [0, ...knownZ]; // layer 1 is knownZ[0], etc.
 
-    return { moves, layerCount: maxSeenLayer, bbox, usedLineTypes, usedToolheads, layerHeights };
+    return { moves, layerCount: maxSeenLayer, bbox, usedLineTypes, usedToolheads, layerHeights, layerMoveIndices };
 }
 
 // ── Geometry builder ──────────────────────────────────────────────────────────
@@ -209,16 +229,19 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
 
     const buckets: Record<string, THREE.Matrix4[]> = {};
     const jointBuckets: Record<string, THREE.Matrix4[]> = {};
+    const moveIndexBuckets: Record<string, number[]> = {};
     const countsByLayer: Record<string, number[]> = {};
     const jointCountsByLayer: Record<string, number[]> = {};
 
     for (const c of allColors) {
         countsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
         jointCountsByLayer[c] = new Array(parsed.layerCount + 1).fill(0);
+        moveIndexBuckets[c] = [];
     }
 
     const travelCountsByLayer = new Array(parsed.layerCount + 1).fill(0);
     const travelList: number[] = [];
+    const travelMoveIndices: number[] = [];
 
     let prev: Move | null = null;
     const currentCounts: Record<string, number> = {};
@@ -231,7 +254,7 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
     let currentTravelCount = 0;
     let currentLayerTracking = 0;
 
-    const addTube = (key: string, p1: THREE.Vector3, p2: THREE.Vector3) => {
+    const addTube = (key: string, p1: THREE.Vector3, p2: THREE.Vector3, originalMoveIndex: number) => {
         const diff = new THREE.Vector3().subVectors(p2, p1);
         const len = diff.length();
         if (len < 0.0001) return;
@@ -242,6 +265,7 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
 
         if (!buckets[key]) buckets[key] = [];
         buckets[key].push(mat);
+        moveIndexBuckets[key].push(originalMoveIndex);
         currentCounts[key] = buckets[key].length;
 
         // Sphere joint at the end of segment for continuity
@@ -251,7 +275,8 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
         currentJointCounts[key] = jointBuckets[key].length;
     };
 
-    for (const m of parsed.moves) {
+    for (let i = 0; i < parsed.moves.length; i++) {
+        const m = parsed.moves[i];
         while (currentLayerTracking < m.layer && currentLayerTracking <= parsed.layerCount) {
             for (const k of allColors) {
                 countsByLayer[k][currentLayerTracking] = currentCounts[k];
@@ -265,9 +290,10 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
             const p1 = new THREE.Vector3(prev.x, prev.z, prev.y);
             const p2 = new THREE.Vector3(m.x, m.z, m.y);
             if (m.extrude) {
-                addTube(getColor(m), p1, p2);
+                addTube(getColor(m), p1, p2, i);
             } else {
                 travelList.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+                travelMoveIndices.push(i, i); // Two points per segment
                 currentTravelCount += 2;
             }
         }
@@ -289,13 +315,30 @@ function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: C
         jointMatrices: jointBuckets[color] || [],
         countsByLayer: countsByLayer[color],
         jointCountsByLayer: jointCountsByLayer[color] || [],
+        moveIndices: moveIndexBuckets[color],
     }));
 
-    return { extrusions, travelPoints: new Float32Array(travelList), travelCountsByLayer };
+    return { extrusions, travelPoints: new Float32Array(travelList), travelCountsByLayer, travelMoveIndices };
+}
+
+function findInstanceCount(moveIndices: number[], maxMove: number) {
+    if (!moveIndices || moveIndices.length === 0) return 0;
+    let low = 0, high = moveIndices.length - 1;
+    let index = -1;
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (moveIndices[mid] <= maxMove) {
+            index = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return index + 1;
 }
 
 // ── TubeSegments renderer ─────────────────────────────────────────────────────
-function TubeSegments({ extrusion, count, jointCount }: { extrusion: ExtrusionData; count: number; jointCount: number }) {
+function TubeSegments({ extrusion, count }: { extrusion: ExtrusionData; count: number }) {
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const jointRef = useRef<THREE.InstancedMesh>(null);
 
@@ -312,7 +355,7 @@ function TubeSegments({ extrusion, count, jointCount }: { extrusion: ExtrusionDa
     }, [extrusion.jointMatrices]);
 
     useEffect(() => { if (meshRef.current) meshRef.current.count = count; }, [count]);
-    useEffect(() => { if (jointRef.current) jointRef.current.count = jointCount; }, [jointCount]);
+    useEffect(() => { if (jointRef.current) jointRef.current.count = count; }, [count]); // Joint count matches segment count
 
     return (
         <group>
@@ -345,34 +388,50 @@ function TravelSegments({ points, count, visible }: { points: Float32Array; coun
 
 // ── GCodeScene (embedded in Viewport's Canvas) ────────────────────────────────
 export function GCodeScene({
-    parsed, upToLayer, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead'
+    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead'
 }: {
-    parsed: ParsedGCode; upToLayer: number;
+    parsed: ParsedGCode; upToLayer: number; upToMoveIndex?: number;
     nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
 }) {
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
 
     const centerOffset = useMemo(() => {
-        // Bed is 100x100, centered at (0,0) in Viewport. 
-        // G-code coordinates are 0..100.
         return { x: -50, y: -50 };
     }, []);
 
     const safeLayer = Math.min(Math.max(0, upToLayer), parsed.layerCount);
+    
+    // Determine the global move index limit
+    // If upToMoveIndex is provided, it's relative to the start of 'upToLayer'
+    const absoluteMoveLimit = useMemo(() => {
+        if (upToMoveIndex === undefined) return parsed.moves.length;
+        const layerStart = parsed.layerMoveIndices[safeLayer] || 0;
+        const layerEnd = parsed.layerMoveIndices[safeLayer + 1] || parsed.moves.length;
+        const layerMoveCount = layerEnd - layerStart;
+        return layerStart + Math.floor(upToMoveIndex);
+    }, [parsed, safeLayer, upToMoveIndex]);
 
     return (
         <group position={[centerOffset.x, 0, centerOffset.y]}>
-            {geoData.extrusions.map((ext, i) => (
-                <TubeSegments
-                    key={`${colorMode}-${ext.color}-${i}`}
-                    extrusion={ext}
-                    count={ext.countsByLayer[safeLayer]}
-                    jointCount={ext.jointCountsByLayer[safeLayer]}
-                />
-            ))}
+            {geoData.extrusions.map((ext, i) => {
+                const count = upToMoveIndex !== undefined 
+                    ? findInstanceCount(ext.moveIndices, absoluteMoveLimit)
+                    : ext.countsByLayer[safeLayer];
+
+                return (
+                    <TubeSegments
+                        key={`${colorMode}-${ext.color}-${i}`}
+                        extrusion={ext}
+                        count={count}
+                    />
+                );
+            })}
             <TravelSegments
                 points={geoData.travelPoints}
-                count={geoData.travelCountsByLayer[safeLayer]}
+                count={upToMoveIndex !== undefined 
+                    ? findInstanceCount(geoData.travelMoveIndices, absoluteMoveLimit)
+                    : geoData.travelCountsByLayer[safeLayer]
+                }
                 visible={showTravel}
             />
         </group>

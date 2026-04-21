@@ -39,11 +39,44 @@ export const Viewport: React.FC = () => {
   const gcodeUrl = slicer.gcodePreviewJob ? `${BACKEND_URL}/fdm/job/${slicer.gcodePreviewJob.jobId}/gcode` : null; 
   
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
+  const [gcodeMoveIndex, setGcodeMoveIndex] = useState<number>(0);
+  const [isGCodePlaying, setIsGCodePlaying] = useState<boolean>(false);
+
   const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw, loading: gcodeLoading, error: gcodeError } = useGCodeLoader(
     gcodeUrl, 
     gcodeLayer
   );
-  
+
+  // Playback timer
+  useEffect(() => {
+    let interval: any;
+    if (isGCodePlaying && gcodeParsed) {
+      interval = setInterval(() => {
+        setGcodeMoveIndex(prev => {
+          const layerStart = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
+          const layerEnd = gcodeParsed.layerMoveIndices[gcodeLayer + 1] || gcodeParsed.moves.length;
+          const layerMoveCount = Math.max(1, layerEnd - layerStart);
+          
+          if (prev >= layerMoveCount) {
+             setIsGCodePlaying(false);
+             return layerMoveCount;
+          }
+          return Math.min(prev + Math.ceil(layerMoveCount / 200), layerMoveCount); // Progressive speed
+        });
+      }, 30);
+    }
+    return () => clearInterval(interval);
+  }, [isGCodePlaying, gcodeLayer, gcodeParsed]);
+
+  // Reset move index when layer changes
+  useEffect(() => {
+    if (gcodeParsed) {
+      const layerStart = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
+      const layerEnd = gcodeParsed.layerMoveIndices[gcodeLayer + 1] || gcodeParsed.moves.length;
+      setGcodeMoveIndex(layerEnd - layerStart);
+    }
+  }, [gcodeLayer, gcodeParsed]);
+
   const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode' | 'materials'>('inspector');
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
@@ -115,7 +148,7 @@ export const Viewport: React.FC = () => {
             <UVProcessPlanes 
               zZones={project.zZones} 
               models={project.models}
-              isVisible={false}
+              isVisible={isGCodeMode}
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
 
@@ -150,6 +183,7 @@ export const Viewport: React.FC = () => {
               <GCodeScene
                 parsed={gcodeParsed}
                 upToLayer={gcodeLayer}
+                upToMoveIndex={gcodeMoveIndex}
                 nozzleDiameter={gcodeNozzle}
                 showTravel={gcodeShowTravel}
                 colorMode={gcodeColorMode}
@@ -208,90 +242,131 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-6 px-4 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Icon name="layers" className="text-primary text-base" />
+            <div className="absolute bottom-6 left-6 right-6 z-30 flex flex-col gap-2 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+              {/* LAYERS ROW */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 shrink-0 w-24">
+                  <Icon name="layers" className="text-primary text-sm" />
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Layers</span>
                 </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Layer Index</p>
-                  <p className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-200 leading-none">{gcodeLayer} <span className="opacity-30">/ {gcodeParsed.layerCount}</span></p>
+                <input
+                  type="range" min={0} max={gcodeParsed.layerCount} step={1}
+                  value={gcodeLayer}
+                  onChange={e => setGcodeLayer(+e.target.value)}
+                  className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
+                />
+                <div className="shrink-0 w-20 text-right">
+                  <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">{gcodeLayer} <span className="opacity-30">/ {gcodeParsed.layerCount}</span></span>
                 </div>
               </div>
 
-              <input
-                type="range" min={0} max={gcodeParsed.layerCount} step={1}
-                value={gcodeLayer}
-                onChange={e => setGcodeLayer(+e.target.value)}
-                className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
-              />
+              {/* MOVES/PLAYBACK ROW */}
+              <div className="flex items-center gap-4 py-1 border-t border-slate-100 dark:border-slate-800/50 mt-1 pt-2">
+                <div className="flex items-center gap-2 shrink-0 w-24">
+                   <button 
+                    onClick={() => {
+                        const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
+                        const end = gcodeParsed.layerMoveIndices[gcodeLayer+1] || gcodeParsed.moves.length;
+                        if (gcodeMoveIndex >= (end - start)) {
+                            setGcodeMoveIndex(0);
+                        }
+                        setIsGCodePlaying(!isGCodePlaying);
+                    }}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isGCodePlaying ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary'}`}
+                   >
+                     <Icon name={isGCodePlaying ? 'pause' : 'play_arrow'} className="text-xs" />
+                   </button>
+                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Moves</span>
+                </div>
+                
+                {(() => {
+                    const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
+                    const end = gcodeParsed.layerMoveIndices[gcodeLayer+1] || gcodeParsed.moves.length;
+                    const max = Math.max(0, end - start);
+                    return (
+                        <>
+                            <input
+                                type="range" min={0} max={max} step={1}
+                                value={gcodeMoveIndex}
+                                onChange={e => {
+                                    setGcodeMoveIndex(+e.target.value);
+                                    if (isGCodePlaying) setIsGCodePlaying(false);
+                                }}
+                                className="flex-1 h-1 accent-emerald-500 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
+                            />
+                            <div className="shrink-0 w-20 text-right">
+                                <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">{gcodeMoveIndex} <span className="opacity-30">/ {max}</span></span>
+                            </div>
+                        </>
+                    );
+                })()}
 
-              <div className="relative group/legend">
-                <button
-                  onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                    gcodeColorMode === 'linetype'
-                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
-                  }`}
-                >
-                  <Icon name="palette" className="text-sm" />
-                  {gcodeColorMode === 'toolhead' ? 'BY TOOL' : 'BY TYPE'}
-                </button>
+                <div className="relative group/legend ml-2">
+                  <button
+                    onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                      gcodeColorMode === 'linetype'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                    }`}
+                  >
+                    <Icon name="palette" className="text-[12px]" />
+                    {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
+                  </button>
 
-                {/* Floating Legend - Only visible on hover */}
-                <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
-                  <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
-                  <div className="space-y-1.5">
-                    {gcodeColorMode === 'toolhead' ? (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 px-1 py-0.5">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
-                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T0: FDM (Teal)</span>
-                        </div>
-                        <div className="flex items-center gap-2 px-1 py-0.5">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
-                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T1: Syringe (Amber)</span>
-                        </div>
-                        <div className="flex items-center gap-2 px-1 py-0.5">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
-                          <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">T2: UV (Violet)</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Ext. Perimeter</span>
+                  <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
+                    <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
+                    <div className="space-y-1.5">
+                      {gcodeColorMode === 'toolhead' ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 px-1 py-0.5">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
+                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T0: FDM</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#f97316' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Perimeter</span>
+                          <div className="flex items-center gap-2 px-1 py-0.5">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
+                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T1: Syringe</span>
+                          </div>
+                          <div className="flex items-center gap-2 px-1 py-0.5">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
+                            <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T2: UV</span>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#eab308' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Infill</span>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#ef4444' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Ext. Perimeter</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#f97316' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Perimeter</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#3b82f6' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Bridge</span>
+                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#eab308' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Infill</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#3b82f6' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Bridge</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 px-1 py-0.5 rounded transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#a855f7' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Support</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#94a3b8' }} />
+                              <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300">Skirt/Brim</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between gap-4 px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#a855f7' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Support</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#94a3b8' }} />
-                            <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">Skirt/Brim</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
