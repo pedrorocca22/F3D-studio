@@ -386,12 +386,44 @@ function TravelSegments({ points, count, visible }: { points: Float32Array; coun
     );
 }
 
+// ── Wireframe renderer ────────────────────────────────────────────────────────
+function WireSegments({ extrusion, count }: { extrusion: ExtrusionData; count: number }) {
+    const geoRef = useRef<THREE.BufferGeometry>(null);
+
+    // Build the points for wireframe
+    const points = useMemo(() => {
+        const pts = new Float32Array(extrusion.matrices.length * 6); // 2 points * 3 coords
+        for (let i = 0; i < extrusion.matrices.length; i++) {
+            const mat = extrusion.matrices[i];
+            const p1 = new THREE.Vector3(0, -0.5, 0).applyMatrix4(mat);
+            const p2 = new THREE.Vector3(0, 0.5, 0).applyMatrix4(mat);
+            pts[i * 6 + 0] = p1.x; pts[i * 6 + 1] = p1.y; pts[i * 6 + 2] = p1.z;
+            pts[i * 6 + 3] = p2.x; pts[i * 6 + 4] = p2.y; pts[i * 6 + 5] = p2.z;
+        }
+        return pts;
+    }, [extrusion.matrices]);
+
+    useEffect(() => {
+        if (geoRef.current) geoRef.current.setDrawRange(0, count * 2);
+    }, [count]);
+
+    return (
+        <lineSegments>
+            <bufferGeometry ref={geoRef}>
+                <bufferAttribute attach="attributes-position" array={points} itemSize={3} count={points.length / 3} />
+            </bufferGeometry>
+            <lineBasicMaterial color={extrusion.color} linewidth={1} />
+        </lineSegments>
+    );
+}
+
 // ── GCodeScene (embedded in Viewport's Canvas) ────────────────────────────────
 export function GCodeScene({
-    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead'
+    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead', renderMode = 'solid'
 }: {
     parsed: ParsedGCode; upToLayer: number; upToMoveIndex?: number;
     nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
+    renderMode?: 'solid' | 'wire';
 }) {
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
 
@@ -418,9 +450,19 @@ export function GCodeScene({
                     ? findInstanceCount(ext.moveIndices, absoluteMoveLimit)
                     : ext.countsByLayer[safeLayer];
 
+                if (renderMode === 'wire') {
+                    return (
+                        <WireSegments
+                            key={`wire-${colorMode}-${ext.color}-${i}`}
+                            extrusion={ext}
+                            count={count}
+                        />
+                    );
+                }
+
                 return (
                     <TubeSegments
-                        key={`${colorMode}-${ext.color}-${i}`}
+                        key={`solid-${colorMode}-${ext.color}-${i}`}
                         extrusion={ext}
                         count={count}
                     />

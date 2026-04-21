@@ -119,13 +119,13 @@ export const Header: React.FC<HeaderProps> = ({
           {/* New Protocol Archive Button */}
           <button
             onClick={() => setCurrentView(currentView === 'gallery' ? 'editor' : 'gallery')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-black uppercase tracking-tighter transition-all shadow-sm
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-black tracking-tighter transition-all shadow-sm
                 ${currentView === 'gallery' 
                     ? 'bg-primary text-white shadow-primary/20' 
                     : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary/40'}`}
           >
             <Icon name="archive" className="text-[13px]" />
-            <span className="hidden lg:inline">Archive</span>
+            <span className="hidden lg:inline">archive</span>
           </button>
 
           <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />

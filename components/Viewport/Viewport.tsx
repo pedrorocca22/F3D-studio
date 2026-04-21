@@ -97,6 +97,7 @@ export const Viewport: React.FC = () => {
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
   const [gcodeNozzle, setGcodeNozzle] = useState(project.globalSettings.nozzleDiameter || 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
+  const [gcodeRenderMode, setGcodeRenderMode] = useState<'solid' | 'wire'>('solid');
   const isGCodeMode = !!slicer.gcodePreviewJob;
 
   // ── Viewport State ───────────────────────────────────────
@@ -201,6 +202,7 @@ export const Viewport: React.FC = () => {
                 nozzleDiameter={gcodeNozzle}
                 showTravel={gcodeShowTravel}
                 colorMode={gcodeColorMode}
+                renderMode={gcodeRenderMode}
               />
             )}
 
@@ -328,17 +330,30 @@ export const Viewport: React.FC = () => {
                     );
                 })()}
 
-                <div className="relative group/legend ml-2">
+                <div className="relative group/legend ml-2 flex gap-2">
                   <button
                     onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
                     className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
                       gcodeColorMode === 'linetype'
                         ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                     }`}
                   >
                     <Icon name="palette" className="text-[12px]" />
                     {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
+                  </button>
+
+                  <button
+                    onClick={() => setGcodeRenderMode(m => m === 'solid' ? 'wire' : 'solid')}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                      gcodeRenderMode === 'wire'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                    }`}
+                    title={gcodeRenderMode === 'solid' ? "Switch to Wireframe" : "Switch to Solid"}
+                  >
+                    <Icon name={gcodeRenderMode === 'solid' ? "view_in_ar" : "polyline"} className="text-[12px]" />
+                    {gcodeRenderMode === 'solid' ? 'SOLID' : 'WIRE'}
                   </button>
 
                   <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
