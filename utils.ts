@@ -19,12 +19,18 @@ export function generateUUID(): string {
 export function generateBoxSTL(w: number, d: number, h: number): string {
   const x = w / 2, y = d / 2;
   const faces = [
-    { n: "0 0 -1", tris: [[[-x, -y, 0], [x, y, 0], [x, -y, 0]], [[-x, -y, 0], [-x, y, 0], [x, y, 0]]] }, // Bottom
-    { n: "0 0 1", tris: [[[-x, -y, h], [x, -y, h], [x, y, h]], [[-x, -y, h], [x, y, h], [-x, y, h]]] }, // Top
-    { n: "-1 0 0", tris: [[[-x, -y, 0], [-x, y, 0], [-x, y, h]], [[-x, -y, 0], [-x, y, h], [-x, -y, h]]] }, // Front
-    { n: "1 0 0", tris: [[[x, -y, 0], [x, -y, h], [x, y, h]], [[x, -y, 0], [x, y, h], [x, y, 0]]] }, // Back
-    { n: "0 -1 0", tris: [[[-x, -y, 0], [-x, -y, h], [x, -y, h]], [[-x, -y, 0], [x, -y, h], [x, -y, 0]]] }, // Left
-    { n: "0 1 0", tris: [[[-x, y, 0], [x, y, 0], [x, y, h]], [[-x, y, 0], [x, y, h], [-x, y, h]]] }  // Right
+    // Bottom (n: 0 0 -1)
+    { n: "0 0 -1", tris: [[[x, -y, 0], [-x, -y, 0], [-x, y, 0]], [[x, -y, 0], [-x, y, 0], [x, y, 0]]] },
+    // Top (n: 0 0 1)
+    { n: "0 0 1", tris: [[[-x, -y, h], [x, -y, h], [x, y, h]], [[-x, -y, h], [x, y, h], [-x, y, h]]] },
+    // Front (n: 0 -1 0) (y = -y)
+    { n: "0 -1 0", tris: [[[-x, -y, 0], [x, -y, 0], [x, -y, h]], [[-x, -y, 0], [x, -y, h], [-x, -y, h]]] },
+    // Back (n: 0 1 0) (y = y)
+    { n: "0 1 0", tris: [[[x, y, 0], [-x, y, 0], [-x, y, h]], [[x, y, 0], [-x, y, h], [x, y, h]]] },
+    // Left (n: -1 0 0) (x = -x)
+    { n: "-1 0 0", tris: [[[-x, y, 0], [-x, -y, 0], [-x, -y, h]], [[-x, y, 0], [-x, -y, h], [-x, y, h]]] },
+    // Right (n: 1 0 0) (x = x)
+    { n: "1 0 0", tris: [[[x, -y, 0], [x, y, 0], [x, y, h]], [[x, -y, 0], [x, y, h], [x, -y, h]]] }
   ];
 
   let stl = "solid box\n";
@@ -48,18 +54,23 @@ export function generateCylinderSTL(dia: number, h: number, segs: number = 32): 
     const x1 = Math.cos(a1) * r, y1 = Math.sin(a1) * r;
     const x2 = Math.cos(a2) * r, y2 = Math.sin(a2) * r;
     
-    // Normal for the side facet (average direction of vertices for smoother-ish look in flat shading)
+    // Exact normal for the side facet
     const midA = (a1 + a2) / 2;
     const nx = Math.cos(midA), ny = Math.sin(midA);
 
-    // Bottom cap
+    // Bottom cap (Center -> a2 -> a1 for n=[0,0,-1])
     stl += `  facet normal 0 0 -1\n    outer loop\n      vertex 0 0 0\n      vertex ${x2} ${y2} 0\n      vertex ${x1} ${y1} 0\n    endloop\n  endfacet\n`;
-    // Top cap
+    // Top cap (Center -> a1 -> a2 for n=[0,0,1])
     stl += `  facet normal 0 0 1\n    outer loop\n      vertex 0 0 ${h}\n      vertex ${x1} ${y1} ${h}\n      vertex ${x2} ${y2} ${h}\n    endloop\n  endfacet\n`;
-    // Side 1
-    stl += `  facet normal ${nx} ${ny} 0\n    outer loop\n      vertex ${x1} ${y1} 0\n      vertex ${x2} ${y2} 0\n      vertex ${x2} ${y2} ${h}\n    endloop\n  endfacet\n`;
-    // Side 2
-    stl += `  facet normal ${nx} ${ny} 0\n    outer loop\n      vertex ${x1} ${y1} 0\n      vertex ${x2} ${y2} ${h}\n      vertex ${x1} ${y1} ${h}\n    endloop\n  endfacet\n`;
+    // Sides (CCW from outside)
+    // Vertices x1,y1,0 -> x2,y2,0 is CCW. 
+    // To get normal pointing OUT, we need Order: Bottom CCW then Up.
+    // Order: [x2,y2,0] -> [x1,y1,0] -> [x1,y1,h]
+    // Vector 1: v1-v0 = [x1-x2, y1-y2, 0] (CW tangent)
+    // Vector 2: v2-v1 = [0, 0, h] (Z+)
+    // Cross: CW x Z+ = Normal OUT. OK.
+    stl += `  facet normal ${nx} ${ny} 0\n    outer loop\n      vertex ${x2} ${y2} 0\n      vertex ${x1} ${y1} 0\n      vertex ${x1} ${y1} ${h}\n    endloop\n  endfacet\n`;
+    stl += `  facet normal ${nx} ${ny} 0\n    outer loop\n      vertex ${x2} ${y2} 0\n      vertex ${x1} ${y1} ${h}\n      vertex ${x2} ${y2} ${h}\n    endloop\n  endfacet\n`;
   }
   stl += "endsolid cyl";
   return stl;

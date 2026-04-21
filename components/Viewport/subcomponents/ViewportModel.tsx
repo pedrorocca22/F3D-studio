@@ -330,12 +330,7 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
                 side={THREE.DoubleSide}
                 clippingPlanes={isClipping ? [clippingPlane] : []}
                 clipShadows
-                stencilWrite={true}
-                stencilRef={0}
-                stencilFunc={THREE.AlwaysStencilFunc}
-                stencilFail={THREE.KeepStencilOp}
-                stencilZFail={THREE.KeepStencilOp}
-                stencilZPass={THREE.KeepStencilOp}
+                stencilWrite={false}
               />
             </mesh>
 
