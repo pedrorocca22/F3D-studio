@@ -25,6 +25,7 @@ import { BUILD_VOLUME, TOOLHEAD_COLORS, clippingPlane } from './constants';
 // Contexts
 import { useUIContext } from '../../contexts/UIContext';
 import { useProjectContext } from '../../contexts/ProjectContext';
+import { BACKEND_URL } from '../../config';
 
 import { MaterialPresetPanel } from './subcomponents/MaterialPresetPanel';
 
@@ -35,11 +36,11 @@ export const Viewport: React.FC = () => {
   const { project, slicer } = useProjectContext();
 
   // ── GCode State ──────────────────────────────────────────
-  const gcodeUrl = slicer.gcodePreviewJob ? `${slicer.gcodePreviewJob.jobId}/gcode` : null; 
+  const gcodeUrl = slicer.gcodePreviewJob ? `${BACKEND_URL}/fdm/job/${slicer.gcodePreviewJob.jobId}/gcode` : null; 
   
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
-  const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw } = useGCodeLoader(
-    slicer.gcodePreviewJob ? `${slicer.gcodePreviewJob.jobId}` : null, 
+  const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw, loading: gcodeLoading, error: gcodeError } = useGCodeLoader(
+    gcodeUrl, 
     gcodeLayer
   );
   
@@ -113,20 +114,20 @@ export const Viewport: React.FC = () => {
             <UVProcessPlanes 
               zZones={project.zZones} 
               models={project.models}
-              isVisible={isGCodeMode}
+              isVisible={false}
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
 
             <Suspense fallback={null}>
-              {!isGCodeMode && project.models.map(model => (
+              {project.models.map(model => (
                 <ViewportModel
                   key={model.id}
                   {...model}
                   url={model.url}
                   objectTool={objectTool}
-                  viewMode={viewMode}
+                  viewMode={isGCodeMode ? 'transparent' : viewMode}
                   isSelected={model.id === project.selectedModelId}
-                  isVisible={true}
+                  isVisible={!isGCodeMode}
                   isDimmed={ui.isAdvancedSliceMode && model.id !== project.selectedModelId}
                   isAdvancedMode={!!ui.isAdvancedSliceMode && model.id === project.selectedModelId}
                   advancedSettings={model.advancedSettings}
@@ -159,19 +160,41 @@ export const Viewport: React.FC = () => {
             <CameraManager viewTrigger={viewTrigger} focusTarget={focusTarget} />
           </Canvas>
 
-          {!isGCodeMode && project.models.length === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-              <div className="flex flex-col items-center gap-6 p-10 rounded-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800 shadow-2xl">
-                <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-inner">
-                  <Icon name="cloud_upload" className="text-4xl text-primary/80" />
+          {/* G-Code Loading/Error Status */}
+          {isGCodeMode && !gcodeParsed && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col items-center gap-3 animate-in zoom-in-95">
+                    {gcodeError ? (
+                        <>
+                            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-500">
+                                <Icon name="error" className="text-2xl" />
+                            </div>
+                            <div className="text-center">
+                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-1">G-Code Load Failed</p>
+                                <p className="text-[10px] text-red-500 font-mono">{gcodeError}</p>
+                            </div>
+                            <button 
+                                onClick={() => slicer.setGcodePreviewJob(null)}
+                                className="mt-2 px-4 py-1.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded-lg hover:bg-slate-200"
+                            >
+                                CLOSE
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary animate-spin">
+                                <Icon name="refresh" className="text-2xl" />
+                            </div>
+                            <div className="text-center">
+                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-1">Loading Toolpath</p>
+                                <p className="text-[9px] text-slate-400 font-medium">Fetching and parsing G-code...</p>
+                            </div>
+                        </>
+                    )}
                 </div>
-                <div className="text-center">
-                  <p className="text-[14px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em] mb-2">Workspace Empty</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Load STL models to begin fabrication process</p>
-                </div>
-              </div>
             </div>
           )}
+
 
           {isGCodeMode && (
             <button

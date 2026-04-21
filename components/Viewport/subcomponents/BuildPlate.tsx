@@ -9,8 +9,8 @@ interface BuildPlateProps {
 }
 
 export const BuildPlate: React.FC<BuildPlateProps> = ({ globalSettings }) => {
-  const bed = globalSettings.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
-  const bedType = bed.type;
+  const bed = globalSettings?.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
+  const bedType = bed?.type || 'glass_bed';
 
   let width = 100;
   let depth = 100;

@@ -187,11 +187,12 @@ export const LayersPanel: React.FC = () => {
               >
                 {slicer.isSlicing && (
                   <div
-                    className="absolute left-0 top-0 h-full bg-black/10 transition-all duration-300"
+                    className="absolute left-0 top-0 h-full bg-primary/20 transition-all duration-300 border-r border-primary/50"
                     style={{ width: `${Math.round(slicer.slicePercent * 100)}%` }}
                   />
                 )}
-                <span className="relative z-10">
+                <span className="relative z-10 flex items-center gap-2">
+                  {slicer.isSlicing && <Icon name="refresh" className="animate-spin text-[12px]" />}
                   {slicer.gcodePreviewJob
                     ? 'Execute print'
                     : slicer.isSlicing

@@ -217,7 +217,7 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
         let basePosY = transformData.position.y;
         const basePosZ = transformData.position.z;
 
-        const bed = globalSettings.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
+        const bed = globalSettings?.printBed || { type: 'glass_bed', dimensions: { width: 100, height: 100 } };
         if (bed.type === 'multiwell_plate' && wellAssignment) {
           const { format, wellId } = wellAssignment;
           const spec = MULTIWELL_SPECS[format.toString()] || MULTIWELL_SPECS['24'];
@@ -322,7 +322,7 @@ export const ViewportModel: React.FC<ViewportModelProps> = (props) => {
               <meshPhysicalMaterial
                 ref={materialRef}
                 onBeforeCompile={onBeforeCompile}
-                color={isOutOfBounds ? "#ef4444" : (isSelected ? "#f67104" : (isDimmed ? "#94a3b8" : toolheadColor))}
+                color={isOutOfBounds ? "#ef4444" : (viewMode === 'transparent' ? "#cbd5e1" : (isSelected ? "#f67104" : (isDimmed ? "#94a3b8" : toolheadColor)))}
                 roughness={0.6}
                 metalness={0}
                 clearcoat={0}
