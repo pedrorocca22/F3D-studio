@@ -1,80 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <objects>
   <object id="1">
-    <range min_z="0.0000" max_z="1.8500">
-      <option opt_key="fill_density">45%</option>
+    <range min_z="0.0000" max_z="5.1000">
+      <option opt_key="fill_density">15%</option>
       <option opt_key="fill_pattern">rectilinear</option>
-      <option opt_key="perimeters">4</option>
-      <option opt_key="top_solid_layers">0</option>
-      <option opt_key="bottom_solid_layers">3</option>
-      <option opt_key="perimeter_speed">18</option>
-      <option opt_key="external_perimeter_speed">12</option>
-      <option opt_key="infill_speed">22</option>
-      <option opt_key="travel_speed">80</option>
-      <option opt_key="fan_always_on">1</option>
-      <option opt_key="min_fan_speed">0</option>
-      <option opt_key="max_fan_speed">0</option>
-      <option opt_key="layer_height">0.24</option>
-      <option opt_key="extruder">0</option>
-      <option opt_key="perimeter_extruder">1</option>
-      <option opt_key="infill_extruder">1</option>
-      <option opt_key="solid_infill_extruder">1</option>
-      <option opt_key="support_material_extruder">1</option>
-    </range>
-    <range min_z="1.8500" max_z="2.0500">
-      <option opt_key="fill_density">32%</option>
-      <option opt_key="fill_pattern">gyroid</option>
-      <option opt_key="perimeters">4</option>
-      <option opt_key="top_solid_layers">0</option>
-      <option opt_key="bottom_solid_layers">0</option>
-      <option opt_key="perimeter_speed">18</option>
-      <option opt_key="external_perimeter_speed">12</option>
-      <option opt_key="infill_speed">22</option>
-      <option opt_key="travel_speed">80</option>
-      <option opt_key="fan_always_on">1</option>
-      <option opt_key="min_fan_speed">0</option>
-      <option opt_key="max_fan_speed">0</option>
-      <option opt_key="layer_height">0.24</option>
-      <option opt_key="extruder">0</option>
-      <option opt_key="perimeter_extruder">1</option>
-      <option opt_key="infill_extruder">2</option>
-      <option opt_key="solid_infill_extruder">1</option>
-      <option opt_key="support_material_extruder">1</option>
-    </range>
-    <range min_z="2.0500" max_z="7.8500">
-      <option opt_key="fill_density">32%</option>
-      <option opt_key="fill_pattern">gyroid</option>
       <option opt_key="perimeters">3</option>
-      <option opt_key="top_solid_layers">0</option>
-      <option opt_key="bottom_solid_layers">0</option>
-      <option opt_key="perimeter_speed">18</option>
-      <option opt_key="external_perimeter_speed">12</option>
-      <option opt_key="infill_speed">22</option>
-      <option opt_key="travel_speed">80</option>
-      <option opt_key="fan_always_on">1</option>
-      <option opt_key="min_fan_speed">0</option>
-      <option opt_key="max_fan_speed">0</option>
+      <option opt_key="top_solid_layers">3</option>
+      <option opt_key="bottom_solid_layers">3</option>
       <option opt_key="layer_height">0.2</option>
-      <option opt_key="extruder">0</option>
-      <option opt_key="perimeter_extruder">1</option>
-      <option opt_key="infill_extruder">2</option>
-      <option opt_key="solid_infill_extruder">1</option>
-      <option opt_key="support_material_extruder">1</option>
-    </range>
-    <range min_z="7.8500" max_z="10.0500">
-      <option opt_key="fill_density">40%</option>
-      <option opt_key="fill_pattern">monotoniclines</option>
-      <option opt_key="perimeters">4</option>
-      <option opt_key="top_solid_layers">2</option>
-      <option opt_key="bottom_solid_layers">0</option>
-      <option opt_key="perimeter_speed">18</option>
-      <option opt_key="external_perimeter_speed">12</option>
-      <option opt_key="infill_speed">22</option>
-      <option opt_key="travel_speed">80</option>
-      <option opt_key="fan_always_on">1</option>
-      <option opt_key="min_fan_speed">0</option>
-      <option opt_key="max_fan_speed">0</option>
-      <option opt_key="layer_height">0.18</option>
       <option opt_key="extruder">0</option>
       <option opt_key="perimeter_extruder">1</option>
       <option opt_key="infill_extruder">1</option>

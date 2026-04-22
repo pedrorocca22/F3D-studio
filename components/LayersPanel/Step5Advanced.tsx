@@ -61,15 +61,15 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
   const sortedZones = [...zZones].sort((a, b) => a.zStartMm - b.zStartMm);
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-left-1 pb-10">
-      <div className="flex items-center justify-between px-2">
+    <div className="space-y-4 animate-in fade-in slide-in-from-left-1 pb-10 relative">
+      <div className="sticky -top-2 z-20 bg-surface-light/40 dark:bg-slate-950/40 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 -mx-2 -mt-2 px-4 py-3 mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
             <Icon name="layers" className="text-primary text-[10px]" />
           </div>
           <div>
             <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Advanced Overrides</h2>
-            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Height-based parameter variations</p>
+            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Height-based variations</p>
           </div>
         </div>
         <button 
