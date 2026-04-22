@@ -121,6 +121,7 @@ export interface GlobalSettings {
   retractionSpeed?: number;
   extrusionMultiplier?: number;
   // Cooling
+  coolingEnabled?: boolean;
   fanAlwaysOn?: boolean;
   minFanSpeed?: number;
   maxFanSpeed?: number;
@@ -278,10 +279,35 @@ export interface ScaffoldToolMapping {
 }
 
 export type InfillPattern =
-  | 'rectilinear' | 'grid' | 'triangles' | 'stars' | 'cubic' | 'line'
+  | 'rectilinear' | 'monotonic' | 'monotoniclines' | 'alignedrectilinear' 
+  | 'grid' | 'triangles' | 'stars' | 'cubic' | 'line'
   | 'concentric' | 'honeycomb' | '3dhoneycomb' | 'gyroid' | 'hilbertcurve'
   | 'archimedeanchords' | 'octagramspiral' | 'adaptivecubic' | 'supportcubic'
   | 'lightning' | 'none';
+
+export const INFILL_PATTERN_LABELS: Record<InfillPattern, string> = {
+  rectilinear: 'Rectilinear',
+  monotonic: 'Monotonic',
+  monotoniclines: 'Monotonic Lines',
+  alignedrectilinear: 'Aligned Rectilinear',
+  grid: 'Grid',
+  triangles: 'Triangles',
+  stars: 'Stars',
+  cubic: 'Cubic',
+  line: 'Line',
+  concentric: 'Concentric',
+  honeycomb: 'Honeycomb',
+  '3dhoneycomb': '3D Honeycomb',
+  gyroid: 'Gyroid',
+  hilbertcurve: 'Hilbert Curve',
+  archimedeanchords: 'Archimedean Chords',
+  octagramspiral: 'Octagram Spiral',
+  adaptivecubic: 'Adaptive Cubic',
+  supportcubic: 'Support Cubic',
+  lightning: 'Lightning',
+  none: 'None (0%)',
+};
+
 
 export type PrintQuality = 'draft' | 'standard' | 'quality' | 'ultra';
 
@@ -343,7 +369,9 @@ export type ToolheadConfig = FDMToolheadConfig | SyringeToolheadConfig | UVToolh
 export interface FDMPrintSettings {
   layerHeightMm: number;
   firstLayerHeightMm: number;
-  printSpeedMmS: number;
+  perimeterSpeedMmS: number;
+  externalPerimeterSpeedMmS: number;
+  infillSpeedMmS: number;
   travelSpeedMmS: number;
   firstLayerSpeedMmS: number;
   infillPercent: number;

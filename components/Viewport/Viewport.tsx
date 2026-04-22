@@ -533,6 +533,18 @@ export const Viewport: React.FC = () => {
               gcodeUrl={gcodeUrl}
               gcodeScrollRef={gcodeScrollRef}
               activeLineRef={activeLineRef}
+              config={{
+                globalSettings: project.globalSettings,
+                models: project.models.map(m => ({
+                  id: m.id,
+                  name: m.name,
+                  transform: m.transform,
+                  toolhead: m.toolhead,
+                  settings: m.settings,
+                  advancedSettings: m.advancedSettings
+                })),
+                zZones: project.zZones
+              }}
             />
           )}
         </div>

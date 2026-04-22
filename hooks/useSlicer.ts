@@ -100,9 +100,10 @@ export const useSlicer = (
     formData.append('retraction_length', String(globalSettings.retractionLength ?? 1.0));
     formData.append('retraction_speed', String(globalSettings.retractionSpeed ?? 45));
     formData.append('extrusion_multiplier', String(globalSettings.extrusionMultiplier ?? 1.0));
+    formData.append('cooling', globalSettings.coolingEnabled !== false ? '1' : '0');
     formData.append('fan_always_on', globalSettings.fanAlwaysOn !== false ? '1' : '0');
-    formData.append('min_fan_speed', String(globalSettings.minFanSpeed ?? 100));
-    formData.append('max_fan_speed', String(globalSettings.maxFanSpeed ?? 100));
+    formData.append('min_fan_speed', String(globalSettings.coolingEnabled !== false ? (globalSettings.minFanSpeed ?? 100) : 0));
+    formData.append('max_fan_speed', String(globalSettings.coolingEnabled !== false ? (globalSettings.maxFanSpeed ?? 100) : 0));
     formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
     formData.append('z_zones', JSON.stringify(zZones));
 

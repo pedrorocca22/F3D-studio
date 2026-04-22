@@ -346,17 +346,24 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                            <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[8px] text-slate-400 uppercase block">Nozzle (mm)</label>
-                              <NumericInput value={assignedTool.nozzleDiameter || 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t))} step={0.05} />
+                              <NumericInput value={assignedTool.nozzleDiameter ?? 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t))} step={0.05} />
                             </div>
                             <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Temp (°C)</label>
-                              <NumericInput value={assignedTool.defaultTemperature || 210} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t))} step={5} />
-                            </div>
+                               <label className="text-[8px] text-slate-400 uppercase block">Temp (°C)</label>
+                               <NumericInput 
+                                 value={assignedTool.defaultTemperature ?? 210} 
+                                 onChange={v => {
+                                   onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
+                                   onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
+                                 }} 
+                                 step={5} 
+                               />
+                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[8px] text-slate-400 uppercase block">Flowrate (%)</label>
-                              <NumericInput value={assignedTool.flowratePercent || 100} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, flowratePercent: v } : t))} step={5} />
+                              <NumericInput value={assignedTool.flowratePercent ?? 100} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, flowratePercent: v } : t))} step={5} />
                             </div>
                             <div>
                               <label className="text-[8px] text-slate-400 uppercase block">Retract Speed</label>

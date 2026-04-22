@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import { ModelData, GlobalSettings, ToolheadConfig, ZZone } from '../../types';
+import { ModelData, GlobalSettings, ToolheadConfig, ZZone, INFILL_PATTERN_LABELS, InfillPattern } from '../../types';
 import { TOOLHEAD_COLORS } from '../Viewport/constants';
 import { SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS, ToolheadSelect } from '../ToolheadPanel/ToolheadPanel';
 import { NumericInput } from './NumericInput';
@@ -170,11 +170,9 @@ export const Step3Mapping: React.FC<Step3MappingProps> = ({
                            onChange={e => onUpdateModel(m.id, { fdmSettings: { ...m.fdmSettings, infillPattern: e.target.value as any } })}
                            className="w-full h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 text-xs outline-none focus:ring-1 focus:ring-primary font-medium"
                          >
-                           <option value="rectilinear">Rectilinear</option>
-                           <option value="grid">Grid</option>
-                           <option value="gyroid">Gyroid</option>
-                           <option value="honeycomb">Honeycomb</option>
-                           <option value="triangles">Triangles</option>
+                           {(Object.entries(INFILL_PATTERN_LABELS) as [InfillPattern, string][]).map(([val, label]) => (
+                             <option key={val} value={val}>{label}</option>
+                           ))}
                          </select>
                        </div>
                        <div className="space-y-1">

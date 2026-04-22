@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData, ScaffoldToolMapping } from '../../types';
+import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData, ScaffoldToolMapping, InfillPattern } from '../../types';
+import { INFILL_PATTERN_LABELS } from '../../types';
 
 interface ToolheadPanelProps {
     models: ModelData[];
@@ -309,10 +310,9 @@ export const LayerActionRow: React.FC<{
                                         className="w-full bg-slate-50 border border-outline-variant/20 rounded px-1.5 py-1 text-[9px] font-bold outline-none"
                                     >
                                         <option value="">Default</option>
-                                        <option value="rectilinear">Rectilinear</option>
-                                        <option value="grid">Grid</option>
-                                        <option value="gyroid">Gyroid</option>
-                                        <option value="honeycomb">Honeycomb</option>
+                                        {(Object.entries(INFILL_PATTERN_LABELS) as [InfillPattern, string][]).map(([val, label]) => (
+                                          <option key={val} value={val}>{label}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="space-y-1">

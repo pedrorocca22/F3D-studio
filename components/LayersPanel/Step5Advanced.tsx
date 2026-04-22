@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { ZZone, ModelData, ToolheadConfig, GlobalSettings } from '../../types';
+import { ZZone, ModelData, ToolheadConfig, GlobalSettings, INFILL_PATTERN_LABELS, InfillPattern } from '../../types';
 import { generateUUID } from '../../utils';
 import { ToolheadSelect, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
 
@@ -255,11 +255,9 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                                     value={zone.parameterOverride.fdm?.infillPattern || 'grid'}
                                     onChange={e => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillPattern: e.target.value as any } } })}
                                   >
-                                     <option value="rectilinear">Rectilinear</option>
-                                     <option value="grid">Grid</option>
-                                     <option value="gyroid">Gyroid</option>
-                                     <option value="honeycomb">Honeycomb</option>
-                                     <option value="triangles">Triangles</option>
+                                     {(Object.entries(INFILL_PATTERN_LABELS) as [InfillPattern, string][]).map(([val, label]) => (
+                                       <option key={val} value={val}>{label}</option>
+                                     ))}
                                   </select>
                                </div>
                             </div>
@@ -285,6 +283,51 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                                   <NumericInput 
                                     value={zone.parameterOverride.fdm?.bottomSolidLayers ?? 3}
                                     onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), bottomSolidLayers: v } } })}
+                                    className="h-7 text-[10px]"
+                                  />
+                               </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                               <div className="space-y-1">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Perim. Spd (mm/s)</span>
+                                  <NumericInput 
+                                    value={zone.parameterOverride.fdm?.perimeterSpeedMmS ?? (globalSettings.perimeterSpeed || 45)}
+                                    onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), perimeterSpeedMmS: v } } })}
+                                    className="h-7 text-[10px]"
+                                  />
+                               </div>
+                               <div className="space-y-1">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Ext. Spd (mm/s)</span>
+                                  <NumericInput 
+                                    value={zone.parameterOverride.fdm?.externalPerimeterSpeedMmS ?? (globalSettings.externalPerimeterSpeed || 25)}
+                                    onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), externalPerimeterSpeedMmS: v } } })}
+                                    className="h-7 text-[10px]"
+                                  />
+                               </div>
+                            </div>                             <div className="grid grid-cols-2 gap-3">
+                               <div className="space-y-1">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Infill Spd (mm/s)</span>
+                                  <NumericInput 
+                                    value={zone.parameterOverride.fdm?.infillSpeedMmS ?? (globalSettings.infillSpeed || 80)}
+                                    onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), infillSpeedMmS: v } } })}
+                                    className="h-7 text-[10px]"
+                                  />
+                               </div>
+                               <div className="space-y-1">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Travel Spd (mm/s)</span>
+                                  <NumericInput 
+                                    value={zone.parameterOverride.fdm?.travelSpeedMmS ?? (globalSettings.travelSpeed || 130)}
+                                    onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), travelSpeedMmS: v } } })}
+                                    className="h-7 text-[10px]"
+                                  />
+                               </div>
+                            </div>
+                            <div className="grid grid-cols-1 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                               <div className="space-y-1">
+                                  <span className="text-[8px] text-slate-500 uppercase font-black tracking-widest leading-none">Layer Fan (%)</span>
+                                  <NumericInput 
+                                    value={zone.parameterOverride.fdm?.fanSpeedPercent ?? (globalSettings.minFanSpeed || 100)}
+                                    onChange={v => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, fdm: { ...(zone.parameterOverride?.fdm || {}), fanSpeedPercent: v } } })}
                                     className="h-7 text-[10px]"
                                   />
                                </div>

@@ -90,12 +90,25 @@ def _normalize_fill_pattern(value):
     if not value: return "gyroid"
     v = str(value).lower()
     mapping = {
-        "gyroid": "gyroid",
-        "grid": "grid",
         "rectilinear": "rectilinear",
+        "monotonic": "monotonic",
+        "monotoniclines": "monotoniclines",
+        "alignedrectilinear": "alignedrectilinear",
+        "grid": "grid",
+        "triangles": "triangles",
         "stars": "stars",
+        "cubic": "cubic",
+        "line": "line",
+        "concentric": "concentric",
         "honeycomb": "honeycomb",
-        "triangles": "triangles"
+        "3dhoneycomb": "3dhoneycomb",
+        "gyroid": "gyroid",
+        "hilbertcurve": "hilbertcurve",
+        "archimedeanchords": "archimedeanchords",
+        "octagramspiral": "octagramspiral",
+        "adaptivecubic": "adaptivecubic",
+        "supportcubic": "supportcubic",
+        "lightning": "lightning"
     }
     return mapping.get(v, "gyroid")
 
@@ -310,6 +323,23 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                         fa = _safe_str(fdm_s.get("fillAngle"))
                         if fa:
                             ranges_xml_lines.append(f'      <option opt_key="fill_angle">{fa}</option>')
+
+                        # Speeds
+                        ps = _safe_str(fdm_s.get("perimeterSpeedMmS"))
+                        if ps: ranges_xml_lines.append(f'      <option opt_key="perimeter_speed">{ps}</option>')
+                        eps = _safe_str(fdm_s.get("externalPerimeterSpeedMmS"))
+                        if eps: ranges_xml_lines.append(f'      <option opt_key="external_perimeter_speed">{eps}</option>')
+                        ins = _safe_str(fdm_s.get("infillSpeedMmS"))
+                        if ins: ranges_xml_lines.append(f'      <option opt_key="infill_speed">{ins}</option>')
+                        trs = _safe_str(fdm_s.get("travelSpeedMmS"))
+                        if trs: ranges_xml_lines.append(f'      <option opt_key="travel_speed">{trs}</option>')
+
+                        # Fan Speed Override
+                        fs = _safe_str(fdm_s.get("fanSpeedPercent"))
+                        if fs:
+                            ranges_xml_lines.append(f'      <option opt_key="fan_always_on">1</option>')
+                            ranges_xml_lines.append(f'      <option opt_key="min_fan_speed">{fs}</option>')
+                            ranges_xml_lines.append(f'      <option opt_key="max_fan_speed">{fs}</option>')
 
                         # Layer Height Override
                         lh_ovr = _safe_str(fdm_s.get("layerHeightMm"))
@@ -840,6 +870,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "retract_speed": f"{ret_s},{ret_s},{ret_s}",
             "extrusion_multiplier": f"{ext_m},{ext_m},{ext_m}",
             "extruder_offset": "0x0,0x0,0x0",
+            "cooling": str(form_params.get("cooling", "1")),
             "fan_always_on": str(form_params.get("fan_always_on", "1")),
             "min_fan_speed": str(form_params.get("min_fan_speed", "100")),
             "max_fan_speed": str(form_params.get("max_fan_speed", "100")),
@@ -1238,6 +1269,7 @@ def fdm_slice():
         "min_fan_speed": request.form.get("min_fan_speed", "100"),
         "max_fan_speed": request.form.get("max_fan_speed", "100"),
         "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
+        "cooling": request.form.get("cooling", "1"),
     }
     
     # DEBUG: Log raw request

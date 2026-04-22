@@ -37,12 +37,12 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
           <div className="space-y-2 px-1">
             <div className="flex justify-between items-center">
               <span className="label-clinical">Layer Height</span>
-              <span className="text-[10px] font-mono font-bold text-primary">{globalSettings.layerHeight} µm</span>
+              <span className="text-[10px] font-mono font-bold text-primary">{globalSettings.layerHeight ?? 200} µm</span>
             </div>
             <input 
               type="range" 
               min="50" max="400" step="10"
-              value={globalSettings.layerHeight} 
+              value={globalSettings.layerHeight ?? 200} 
               onChange={e => onUpdateGlobalSettings({ ...globalSettings, layerHeight: +e.target.value })} 
               className="w-full"
             />
@@ -50,12 +50,12 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
           <div className="space-y-2 px-1">
             <div className="flex justify-between items-center">
               <span className="label-clinical">First Layer</span>
-              <span className="text-[10px] font-mono font-bold text-slate-400">{globalSettings.firstLayerHeight || 300} µm</span>
+              <span className="text-[10px] font-mono font-bold text-slate-400">{globalSettings.firstLayerHeight ?? 300} µm</span>
             </div>
             <input 
               type="range" 
               min="50" max="500" step="10"
-              value={globalSettings.firstLayerHeight || 300} 
+              value={globalSettings.firstLayerHeight ?? 300} 
               onChange={e => onUpdateGlobalSettings({ ...globalSettings, firstLayerHeight: +e.target.value })} 
               className="w-full"
             />
@@ -68,26 +68,48 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
           <div className="space-y-2 px-1">
             <div className="flex justify-between items-center">
               <span className="label-clinical">Perimeter Speed</span>
-              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.perimeterSpeed || 45} mm/s</span>
+              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.perimeterSpeed ?? 45} mm/s</span>
             </div>
             <input 
-              type="range" 
-              min="10" max="150" step="5"
-              value={globalSettings.perimeterSpeed || 45} 
+              type="range" min="5" max="150" step="5"
+              value={globalSettings.perimeterSpeed ?? 45} 
               onChange={e => onUpdateGlobalSettings({ ...globalSettings, perimeterSpeed: +e.target.value })} 
               className="w-full"
             />
           </div>
           <div className="space-y-2 px-1">
             <div className="flex justify-between items-center">
-              <span className="label-clinical">Infill Speed</span>
-              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.infillSpeed || 80} mm/s</span>
+              <span className="label-clinical">External Perimeter</span>
+              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.externalPerimeterSpeed ?? 25} mm/s</span>
             </div>
             <input 
-              type="range" 
-              min="10" max="200" step="10"
-              value={globalSettings.infillSpeed || 80} 
+              type="range" min="5" max="150" step="5"
+              value={globalSettings.externalPerimeterSpeed ?? 25} 
+              onChange={e => onUpdateGlobalSettings({ ...globalSettings, externalPerimeterSpeed: +e.target.value })} 
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2 px-1">
+            <div className="flex justify-between items-center">
+              <span className="label-clinical">Infill Speed</span>
+              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.infillSpeed ?? 80} mm/s</span>
+            </div>
+            <input 
+              type="range" min="5" max="200" step="5"
+              value={globalSettings.infillSpeed ?? 80} 
               onChange={e => onUpdateGlobalSettings({ ...globalSettings, infillSpeed: +e.target.value })} 
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-2 px-1">
+            <div className="flex justify-between items-center">
+              <span className="label-clinical">Travel Speed</span>
+              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.travelSpeed ?? 130} mm/s</span>
+            </div>
+            <input 
+              type="range" min="10" max="300" step="10"
+              value={globalSettings.travelSpeed ?? 130} 
+              onChange={e => onUpdateGlobalSettings({ ...globalSettings, travelSpeed: +e.target.value })} 
               className="w-full"
             />
           </div>
@@ -142,24 +164,42 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
       <AccordionSection title="Cooling" isOpen={openSections.fffCooling} onToggle={() => toggleSection('fffCooling')}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">Always On:</span>
-            <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, fanAlwaysOn: !globalSettings.fanAlwaysOn })} className={`w-8 h-4 rounded-full relative transition-colors ${globalSettings.fanAlwaysOn ? 'bg-primary' : 'bg-slate-300'}`}>
-              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.fanAlwaysOn ? 'right-0.5' : 'left-0.5'}`} />
+            <span className="text-xs text-slate-500 font-medium">Enable layer fan</span>
+            <button onClick={() => onUpdateGlobalSettings({ ...globalSettings, coolingEnabled: !globalSettings.coolingEnabled })} className={`w-8 h-4 rounded-full relative transition-colors ${globalSettings.coolingEnabled !== false ? 'bg-primary' : 'bg-slate-300'}`}>
+              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${globalSettings.coolingEnabled !== false ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-             <div className="space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">Min Speed (%)</span>
-              <NumericInput value={globalSettings.minFanSpeed || 35} onChange={v => onUpdateGlobalSettings({ ...globalSettings, minFanSpeed: v })} />
+          
+          <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-slate-400 uppercase font-black">Fan Speed</span>
+              <span className="text-[10px] font-mono text-primary font-bold">{globalSettings.minFanSpeed ?? 100}%</span>
             </div>
-            <div className="space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-bold">Max Speed (%)</span>
-              <NumericInput value={globalSettings.maxFanSpeed || 100} onChange={v => onUpdateGlobalSettings({ ...globalSettings, maxFanSpeed: v })} />
-            </div>
+            <input 
+              type="range" min="0" max="100" step="5"
+              disabled={globalSettings.coolingEnabled === false}
+              value={globalSettings.minFanSpeed ?? 100} 
+              onChange={e => {
+                const v = +e.target.value;
+                onUpdateGlobalSettings({ 
+                  ...globalSettings, 
+                  minFanSpeed: v, 
+                  maxFanSpeed: v,
+                  fanAlwaysOn: v > 0 
+                });
+              }} 
+              className="w-full"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3 items-center">
-            <span className="text-[10px] text-slate-500 font-medium uppercase">Disable for first (layers):</span>
-            <NumericInput className="w-full" value={globalSettings.disableFanFirstLayers || 3} onChange={v => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} />
+
+          <div className="grid grid-cols-2 gap-3 items-center pt-1 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="text-[10px] text-slate-500 font-black uppercase tracking-tight">Disable first (layers)</span>
+            <NumericInput 
+              disabled={globalSettings.coolingEnabled === false}
+              value={globalSettings.disableFanFirstLayers ?? 1} 
+              onChange={v => onUpdateGlobalSettings({ ...globalSettings, disableFanFirstLayers: v })} 
+              className="w-full h-7 text-[10px]"
+            />
           </div>
         </div>
       </AccordionSection>

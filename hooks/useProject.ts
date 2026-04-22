@@ -69,6 +69,7 @@ export const useProject = () => {
     retractionLength: 1.0,
     retractionSpeed: 45,
     extrusionMultiplier: 1.0,
+    coolingEnabled: true,
     fanAlwaysOn: true,
     minFanSpeed: 100,
     maxFanSpeed: 100,
@@ -126,6 +127,14 @@ export const useProject = () => {
       if (t.id !== toolheadId) return t;
       
       if (t.id === 'fdm') {
+        // Also update global settings for temperature if FDM material is changed
+        setGlobalSettings(prevGS => ({
+          ...prevGS,
+          nozzleTemperature: material.temp ?? prevGS.nozzleTemperature,
+          bedTemperature: material.bedTemp ?? prevGS.bedTemperature,
+          retractionLength: material.retraction ?? prevGS.retractionLength,
+        }));
+
         return {
           ...t,
           defaultTemperature: material.temp ?? t.defaultTemperature,
