@@ -8,7 +8,7 @@ interface CameraControlsProps {
 
 export const CameraControls: React.FC<CameraControlsProps> = ({ isGCodeMode, setView }) => {
   return (
-    <div className={`absolute top-6 left-6 flex items-center gap-0.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 z-20 transition-all duration-300 shadow-xl shadow-black/5`}>
+    <div className={`absolute top-6 left-6 flex items-center gap-0.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 z-20 transition-all duration-300`}>
       <button 
         onClick={() => setView('iso')} 
         className="w-8 h-8 rounded-md hover:bg-primary hover:text-white transition-all text-slate-500 dark:text-slate-400 flex items-center justify-center group" 

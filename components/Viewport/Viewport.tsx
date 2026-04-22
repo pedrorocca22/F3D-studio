@@ -214,7 +214,7 @@ export const Viewport: React.FC = () => {
           {/* G-Code Loading/Error Status */}
           {isGCodeMode && !gcodeParsed && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm">
-                <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex flex-col items-center gap-3 animate-in zoom-in-95">
+                <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center gap-3 animate-in zoom-in-95">
                     {gcodeError ? (
                         <>
                             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-500">
@@ -250,7 +250,7 @@ export const Viewport: React.FC = () => {
           {isGCodeMode && (
             <button
               onClick={() => slicer.setGcodePreviewJob(null)}
-              className="absolute top-6 right-6 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-[0_4px_12px_rgba(239,68,68,0.35)] hover:shadow-[0_4px_16px_rgba(239,68,68,0.45)] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+              className="absolute top-6 right-6 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
             >
               <Icon name="close" className="text-sm" />
               Exit Preview
@@ -258,7 +258,7 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex flex-col gap-2 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div className="absolute bottom-6 left-6 right-6 z-30 flex flex-col gap-2 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800">
               {/* LAYERS ROW */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 shrink-0 w-24">
@@ -300,7 +300,7 @@ export const Viewport: React.FC = () => {
                         <button 
                           key={s} 
                           onClick={() => setPlaybackSpeed(s)}
-                          className={`px-1.5 py-0.5 text-[8px] font-black rounded transition-all ${playbackSpeed === s ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          className={`px-1.5 py-0.5 text-[8px] font-black rounded transition-all ${playbackSpeed === s ? 'bg-white dark:bg-slate-700 text-primary' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                           {s}x
                         </button>
@@ -336,7 +336,7 @@ export const Viewport: React.FC = () => {
                       onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
                       className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
                         gcodeColorMode === 'linetype'
-                          ? 'bg-primary text-white border-primary shadow-sm'
+                          ? 'bg-primary text-white border-primary'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                       }`}
                     >
@@ -344,7 +344,7 @@ export const Viewport: React.FC = () => {
                       {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
                     </button>
 
-                    <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
+                    <div className="absolute bottom-full right-0 mb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl space-y-2 min-w-[180px] opacity-0 pointer-events-none group-hover/legend:opacity-100 group-hover/legend:pointer-events-auto transition-all duration-200 transform translate-y-2 group-hover/legend:translate-y-0">
                       <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 px-1">Legend</h4>
                       <div className="space-y-1.5">
                         {gcodeColorMode === 'toolhead' ? (
@@ -405,7 +405,7 @@ export const Viewport: React.FC = () => {
                     onClick={() => setGcodeRenderMode(m => m === 'solid' ? 'wire' : 'solid')}
                     className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
                       gcodeRenderMode === 'wire'
-                        ? 'bg-primary text-white border-primary shadow-sm'
+                        ? 'bg-primary text-white border-primary'
                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                     }`}
                     title={gcodeRenderMode === 'solid' ? "Switch to Wireframe" : "Switch to Solid"}
@@ -422,14 +422,14 @@ export const Viewport: React.FC = () => {
       </div>
 
       {/* Right Sidebar - Inspector */}
-      <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col h-full shadow-[0_0_20px_rgba(0,0,0,0.05)]">
+      <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col h-full">
         <div className="p-3 border-b border-slate-100 dark:border-slate-800/60">
           <div className="flex p-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/50 dark:border-slate-700/30">
             <button 
               onClick={() => setInspectorTab('inspector')}
               className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
                 inspectorTab === 'inspector' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
@@ -439,7 +439,7 @@ export const Viewport: React.FC = () => {
               onClick={() => setInspectorTab('materials')}
               className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
                 inspectorTab === 'materials' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
@@ -449,7 +449,7 @@ export const Viewport: React.FC = () => {
               onClick={() => setInspectorTab('gcode')}
               className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
                 inspectorTab === 'gcode' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >

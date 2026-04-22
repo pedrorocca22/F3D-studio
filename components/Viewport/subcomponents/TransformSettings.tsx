@@ -49,7 +49,7 @@ export const TransformSettings: React.FC<TransformSettingsProps> = ({
               key={tool.id}
               onClick={() => setObjectTool(tool.id as ObjectTool)}
               className={`flex flex-col items-center justify-center py-2 rounded transition-all ${objectTool === tool.id
-                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                ? 'bg-white dark:bg-slate-700 text-primary'
                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               title={tool.label}
@@ -60,7 +60,7 @@ export const TransformSettings: React.FC<TransformSettingsProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 shadow-sm">
+      <div className="bg-white dark:bg-slate-800/40 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
         {objectTool === 'modify' ? (
           <div className="flex flex-col gap-3">
             <div>
@@ -125,7 +125,7 @@ export const TransformSettings: React.FC<TransformSettingsProps> = ({
                   className="flex items-center gap-2 group"
                 >
                   <span className="text-[9px] font-black text-slate-400 group-hover:text-primary transition-colors select-none uppercase tracking-tighter">Uniform Scale</span>
-                  <div className={`w-3.5 h-3.5 border-2 rounded-md flex items-center justify-center transition-all ${uniformScale ? 'bg-primary border-primary shadow-sm shadow-primary/30' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
+                  <div className={`w-3.5 h-3.5 border-2 rounded-md flex items-center justify-center transition-all ${uniformScale ? 'bg-primary border-primary' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
                     {uniformScale && <Icon name="check" className="text-[10px] text-white font-bold" />}
                   </div>
                 </button>
