@@ -36,7 +36,7 @@ export default function App() {
 
   return (
     <div
-      className="h-screen w-screen flex flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200 relative"
+      className="fixed inset-0 flex flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200 overflow-hidden"
       {...handleDragEvents}
     >
       <Header
@@ -57,7 +57,7 @@ export default function App() {
         setCurrentView={ui.setCurrentView}
       />
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 h-full overflow-hidden relative">
         {ui.currentView === 'gallery' ? (
           <ProjectGallery />
         ) : (

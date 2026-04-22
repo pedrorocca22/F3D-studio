@@ -31,7 +31,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
   };
 
   return (
-    <div className="space-y-3 overflow-y-auto max-h-full pb-20 animate-in fade-in slide-in-from-left-1">
+    <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
       <AccordionSection title="Z-Axis Configuration" isOpen={openSections.fffQuality} onToggle={() => toggleSection('fffQuality')}>
         <div className="space-y-4 py-2">
           <div className="space-y-2 px-1">

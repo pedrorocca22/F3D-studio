@@ -183,7 +183,7 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
           </span>
         </div>
         
-        <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar max-h-[350px] pr-1">
+        <div className="flex flex-col gap-2 pr-1">
           {models.length === 0 ? (
             <div className="text-center py-10 border border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
               <Icon name="layers_clear" className="text-3xl text-slate-200 dark:text-slate-800 mb-2" />

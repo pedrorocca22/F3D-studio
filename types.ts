@@ -545,6 +545,8 @@ export interface ProjectProtocol {
   id: string;
   name: string;
   author: string;
+  description?: string;
+  tags?: string[];
   createdAt: string;
   thumbnail?: string;
   

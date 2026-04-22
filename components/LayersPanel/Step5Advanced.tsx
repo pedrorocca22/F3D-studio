@@ -59,7 +59,7 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
   };
 
   return (
-    <div className="space-y-3 overflow-y-auto max-h-full pb-20 animate-in fade-in slide-in-from-left-1">
+    <div className="space-y-3 animate-in fade-in slide-in-from-left-1">
       <AccordionSection 
         title={
           <div className="flex items-center justify-between w-full pr-2">

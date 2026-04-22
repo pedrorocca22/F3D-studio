@@ -71,7 +71,7 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
       </div>
 
       <div
-        className={`overflow-hidden transition-all duration-250 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+        className={`overflow-y-auto custom-scrollbar transition-all duration-250 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
         style={{ transition: 'max-height 0.25s ease-in-out, opacity 0.2s ease-in-out' }}
       >
         {children && (

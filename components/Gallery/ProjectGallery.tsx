@@ -103,13 +103,30 @@ const ProjectCard: React.FC<{
                             </div>
                         </div>
                     </div>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); if(confirm('Delete Protocol?')) onDelete(); }}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 rounded-lg transition-all shrink-0"
-                    >
-                        <Icon name="delete" className="text-sm" />
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); if(confirm('Delete Protocol?')) onDelete(); }}
+                            className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 rounded-lg transition-all shrink-0"
+                        >
+                            <Icon name="delete" className="text-sm" />
+                        </button>
+                        <div className="flex gap-1">
+                            {(protocol.tags || []).map(tag => (
+                                <span key={tag} className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[7px] font-black uppercase border border-primary/20">
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
                 </div>
+
+                {protocol.description && (
+                    <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 italic leading-relaxed">
+                            "{protocol.description}"
+                        </p>
+                    </div>
+                )}
 
                 {/* STATS OVERVIEW */}
                 <div className="grid grid-cols-2 gap-2">
@@ -167,7 +184,19 @@ const ProjectCard: React.FC<{
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-black uppercase italic tracking-tight">{z.label || 'Segment'}</span>
-                                            <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full border ${toolColor} uppercase`}>{tool}</span>
+                                            <div className="flex gap-1 flex-wrap">
+                                                {z.featureOverride?.scaffoldTools ? (
+                                                    <>
+                                                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full border border-primary/40 text-primary uppercase">P: {z.featureOverride.scaffoldTools.perimeter}</span>
+                                                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full border border-amber-500/40 text-amber-600 uppercase">I: {z.featureOverride.scaffoldTools.infill}</span>
+                                                        {z.featureOverride.scaffoldTools.support !== 'none' && (
+                                                            <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full border border-slate-400 text-slate-500 uppercase">S: {z.featureOverride.scaffoldTools.support}</span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full border ${toolColor} uppercase`}>{tool}</span>
+                                                )}
+                                            </div>
                                         </div>
                                         <span className="text-[9px] font-mono font-black text-slate-400">{z.zStartMm}-{z.zEndMm}mm</span>
                                     </div>

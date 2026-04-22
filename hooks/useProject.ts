@@ -363,7 +363,7 @@ export const useProject = () => {
         }
         return m;
       }));
-      const projectData = { models: modelsMetadata, globalSettings, zZones, version: "3.5", selectedMaterials, userMaterials };
+      const projectData = { models: modelsMetadata, globalSettings, zZones, version: "3.5", selectedMaterials, userMaterials, toolheads };
       zip.file("project.json", JSON.stringify(projectData, null, 2));
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
@@ -391,6 +391,7 @@ export const useProject = () => {
       if (projectData.zZones) setZZones(projectData.zZones);
       if (projectData.selectedMaterials) setSelectedMaterials(projectData.selectedMaterials);
       if (projectData.userMaterials) setUserMaterials(projectData.userMaterials);
+      if (projectData.toolheads) setToolheads(projectData.toolheads);
       if (projectData.models) {
         const rehydratedModels = await Promise.all(projectData.models.map(async (m: any) => {
           let fileObj = undefined;
@@ -426,11 +427,13 @@ export const useProject = () => {
     } catch(e) { return []; }
   });
 
-  const handleSaveToGallery = (name: string, author: string, jobInfo?: any, notes?: string) => {
+  const handleSaveToGallery = (name: string, author: string, jobInfo?: any, notes?: string, description?: string, tags?: string[]) => {
     const newProtocol: ProjectProtocol = {
       id: generateUUID(),
       name: name || `Protocol ${savedProtocols.length + 1}`,
       author: author || 'Unknown User',
+      description,
+      tags,
       createdAt: new Date().toISOString(),
       models: models.map(m => ({ ...m, file: undefined, url: '' })),
       globalSettings: { ...globalSettings },
@@ -458,6 +461,7 @@ export const useProject = () => {
     setZZones(protocol.zZones);
     setSelectedMaterials(protocol.selectedMaterials);
     setUserMaterials(protocol.userMaterials);
+    setToolheads(protocol.toolheads || DEFAULT_TOOLHEADS);
     setModels(protocol.models);
     if (protocol.models.length > 0) setSelectedModelId(protocol.models[0].id);
   };

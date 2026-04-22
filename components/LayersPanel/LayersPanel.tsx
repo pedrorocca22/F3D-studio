@@ -38,9 +38,9 @@ export const LayersPanel: React.FC = () => {
   };
 
   return (
-    <aside className="w-[420px] flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
+    <aside className="w-[420px] h-full flex-shrink-0 bg-surface-light border-r border-border-light flex flex-col z-10 transition-all duration-300">
       
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-2">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-64">
         {ui.activeStep === 1 && (
           <Step1Environment
             globalSettings={project.globalSettings}

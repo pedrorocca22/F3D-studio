@@ -7,7 +7,7 @@ interface Step6SliceProps {
   globalSettings: GlobalSettings;
   zZones: ZZone[];
   jobInfo?: { jobId: string; estimatedTimeSec: number; filamentUsedMm?: number; layerCount: number; };
-  onSaveToGallery: (name: string, author: string, jobInfo: any, notes?: string) => void;
+  onSaveToGallery: (name: string, author: string, jobInfo: any, notes?: string, description?: string, tags?: string[]) => void;
 }
 
 export const Step6Slice: React.FC<Step6SliceProps> = ({
@@ -19,6 +19,8 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
 }) => {
   const [author, setAuthor] = React.useState('');
   const [protocolName, setProtocolName] = React.useState(`PRT-${new Date().toISOString().replace(/T/, '-').replace(/:/g, '').slice(0, 16)}`);
+  const [description, setDescription] = React.useState('');
+  const [tags, setTags] = React.useState<string[]>([]);
   const [notes, setNotes] = React.useState('');
   const [isSaved, setIsSaved] = React.useState(false);
   // 1. Calculamos la altura física real de los modelos cargados (Segmento base)
@@ -33,7 +35,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
   const layerHeightMm = (globalSettings.layerHeight || 200) / 1000;
 
   return (
-    <div className="space-y-4 overflow-y-auto max-h-full pb-20 px-1 animate-in fade-in slide-in-from-left-1">
+    <div className="space-y-4 px-1 animate-in fade-in slide-in-from-left-1">
         {/* Resumen de Parámetros Críticos */}
         <div className="grid grid-cols-2 gap-2">
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
@@ -189,6 +191,16 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
         {/* ARCHIVE ACTION PANEL */}
         {jobInfo && !isSaved && (
           <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3 mt-4 space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="space-y-1.5">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter ml-1 text-primary">Project Description</p>
+                <textarea 
+                    placeholder="Short description of the project goal..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full h-12 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-[10px] text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 focus:ring-1 focus:ring-primary/20 outline-none resize-none placeholder:italic"
+                />
+             </div>
+
              <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
@@ -221,11 +233,32 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
                     </div>
                 </div>
              </div>
+
+             <div className="flex items-center gap-2 px-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter shrink-0">Labels:</p>
+                <div className="flex gap-1.5">
+                    {['Project', 'Approved Protocol'].map(tag => (
+                        <button
+                            key={tag}
+                            onClick={() => {
+                                setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                            }}
+                            className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase transition-all border ${
+                                tags.includes(tag) 
+                                ? 'bg-primary border-primary text-white' 
+                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                            }`}
+                        >
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+             </div>
              
              <div className="space-y-1.5 pt-1">
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter ml-1">Initial Build Notes</p>
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter ml-1">Post-Print Notes</p>
                 <textarea 
-                    placeholder="Observations, experimental conditions, or specific goals for this build..."
+                    placeholder="Observations, experimental results, or specific outcomes..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full h-16 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 text-[10px] text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 focus:ring-1 focus:ring-primary/20 outline-none resize-none placeholder:italic"
@@ -234,7 +267,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
              
              <button 
                 onClick={() => {
-                   onSaveToGallery(protocolName || 'Untitled Protocol', author || 'Default User', jobInfo, notes);
+                   onSaveToGallery(protocolName || 'Untitled Protocol', author || 'Default User', jobInfo, notes, description, tags);
                    setIsSaved(true);
                 }}
                 className="w-full bg-primary text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group shadow-sm shadow-primary/20"
