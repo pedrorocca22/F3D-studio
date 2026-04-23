@@ -27,8 +27,7 @@ def build_pore_injection_gcode(
     e_steps = flow_ul_per_cell / ul_per_mm if ul_per_mm > 0 else 0
     retract_mm = 0.5 # Default retraction
     
-    # Use relative extrusion if possible, but Prusa usually uses absolute. 
-    # For injection, relative makes it much easier.
+    # Aseguramos modo relativo (ya que BioFFF usa relative_e_distances = 1)
     gcode.append("M83 ; Relative extrusion for syringe")
     
     for cx, cy in centroids:
@@ -43,8 +42,9 @@ def build_pore_injection_gcode(
             
         gcode.append(f"G1 Z{current_z:.3f} F600 ; Raise syringe back to layer height")
 
-    gcode.append("M82 ; Back to absolute extrusion")
+    # FIX: En lugar de M82, mantenemos la consistencia con M83 para el FDM
     gcode.append(f"{fdm_tool} ; Switch back to FDM tool")
+    gcode.append("M83 ; Ensure FDM stays in relative extrusion mode")
     gcode.append("; --- PORE INJECTION END ---")
     
     return gcode
@@ -52,7 +52,6 @@ def build_pore_injection_gcode(
 def inject_pore_gcode_into_file(gcode_path: Path, layer_injections: dict):
     """
     Inserts generated injection gcode blocks right after the Internal Infill for the matching layer.
-    layer_injections is a dict: {layer_index: [gcode_line_1, gcode_line_2, ...]}
     """
     if not layer_injections:
         return
@@ -63,9 +62,9 @@ def inject_pore_gcode_into_file(gcode_path: Path, layer_injections: dict):
     current_layer = 0
     in_infill = False
     
-    layer_change_re = re.compile(r';LAYER_CHANGE')
-    type_infill_re = re.compile(r';TYPE:Internal infill')
-    type_other_re = re.compile(r';TYPE:')
+    layer_change_re = re.compile(r';\s*LAYER_CHANGE', re.IGNORECASE)
+    type_infill_re = re.compile(r';\s*TYPE:\s*Internal infill', re.IGNORECASE)
+    type_other_re = re.compile(r';\s*TYPE:', re.IGNORECASE)
     
     for line in lines:
         stripped = line.strip()
@@ -88,7 +87,6 @@ def inject_pore_gcode_into_file(gcode_path: Path, layer_injections: dict):
                 for injection_line in layer_injections[current_layer]:
                     output.append(f"{injection_line}\n")
                 output.append("\n")
-                # Remove it so we don't inject twice if there are multiple infill blocks in a layer
                 del layer_injections[current_layer]
             in_infill = False
 
