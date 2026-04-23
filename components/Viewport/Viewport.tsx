@@ -171,6 +171,7 @@ export const Viewport: React.FC = () => {
               poreInjection={project.globalSettings.poreInjection}
               models={project.models}
               globalSettings={project.globalSettings}
+              zZones={project.zZones}
               detectedPores={slicer.gcodePreviewJob?.detectedPores}
               bedCenter={slicer.gcodePreviewJob?.bedCenter}
             />

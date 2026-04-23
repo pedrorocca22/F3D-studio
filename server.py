@@ -1185,9 +1185,31 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                     
                     layer_injections = {}
                     
+                    # Pre-calculate which layers have pore injection enabled via Z-Zones
+                    injection_layers_override = set()
+                    for action in sanitizer_actions:
+                        if action.get("poreInjectionEnabled"):
+                            for l in range(action["layerFrom"], action["layerTo"] + 1):
+                                injection_layers_override.add(l)
+                    
+                    # If we have segments, they define the ONLY ranges for injection.
+                    # We ignore global z_start/z_end in this case.
+                    use_segment_logic = len(injection_layers_override) > 0
+
                     for layer_idx, data in infill_data.items():
                         z = data["z"]
-                        if z < z_start or z > z_end:
+                        
+                        should_inject = False
+                        if use_segment_logic:
+                            # Segment logic takes precedence
+                            if layer_idx in injection_layers_override:
+                                should_inject = True
+                        else:
+                            # Fallback to global range only if no segments are overriding
+                            if z_start <= z <= z_end:
+                                should_inject = True
+                                
+                        if not should_inject:
                             continue
                             
                         squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)

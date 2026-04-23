@@ -39,6 +39,7 @@ export function resolveLayerPlans(
     if (z.parameterOverride) {
       action.fdmSettings = z.parameterOverride.fdm;
       action.syringeSettings = z.parameterOverride.syringe;
+      action.poreInjectionEnabled = z.parameterOverride.poreInjectionEnabled;
     }
 
     if (z.processEvent) {
@@ -130,6 +131,10 @@ export function resolveLayerPlans(
           }
           if (action.preMacro) settings.preMacro = action.preMacro;
           if (action.postMacro) settings.postMacro = action.postMacro;
+        }
+
+        if (action.poreInjectionEnabled !== undefined) {
+          settings.poreInjectionEnabled = action.poreInjectionEnabled;
         }
       });
 

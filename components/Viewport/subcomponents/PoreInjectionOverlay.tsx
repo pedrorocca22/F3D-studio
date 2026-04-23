@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { ModelData, GlobalSettings } from '../../../types';
+import { ModelData, GlobalSettings, ZZone } from '../../../types';
 
 interface PoreInjectionOverlayProps {
   poreInjection?: GlobalSettings['poreInjection'];
   models: ModelData[];
   globalSettings: GlobalSettings;
+  zZones: ZZone[];
   detectedPores?: Array<{ x: number; y: number; z?: number; modelId?: string; layer: number }>;
   bedCenter?: { x: number; y: number };
 }
@@ -16,6 +17,7 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
   poreInjection,
   models,
   globalSettings,
+  zZones,
   detectedPores,
   bedCenter
 }) => {
@@ -31,7 +33,6 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
     const nozzle = Number(globalSettings.nozzleDiameter ?? 0.4);
     const infill = Number(globalSettings.infill ?? 15);
     const f = Math.max(0.01, Math.min(1, infill / 100));
-    const pitch = (Math.max(0.45, nozzle * 1.125) / f) * (globalSettings.infillPattern === 'grid' ? 2 : 1);
 
     const layerHeightMm = Number(globalSettings.layerHeight || 200) / 1000;
 
@@ -40,7 +41,7 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
 
     const radius = Math.max(
       MIN_PORE_RADIUS_MM,
-      Math.min(MAX_PORE_RADIUS_MM, pitch * 0.18)
+      Math.min(MAX_PORE_RADIUS_MM, (nozzle * 1.5) * (1 - f))
     );
 
     // Transformación de coordenadas de G-code a espacio de Three.js (Y es vertical)
@@ -64,21 +65,40 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
     // Si ya hay resultados reales o el sistema está desactivado, no mostramos la banda
     if (realPores.length > 0 || !poreInjection?.enabled || models.length === 0) return null;
 
-    const { zStartMm, zEndMm } = poreInjection;
-    const height = Math.max(0.1, Number(zEndMm) - Number(zStartMm));
-    const centerY = Number(zStartMm) + height / 2;
+    // Determine segments to show
+    const segmentsToShow: { zStart: number; zEnd: number }[] = [];
+    
+    // Check if any Z-Zone has poreInjectionEnabled
+    const activeZones = zZones.filter(z => z.enabled && z.parameterOverride?.poreInjectionEnabled);
+    
+    if (activeZones.length > 0) {
+      activeZones.forEach(z => {
+        segmentsToShow.push({ zStart: z.zStartMm, zEnd: z.zEndMm });
+      });
+    } else {
+      // Fallback to global range
+      segmentsToShow.push({ zStart: poreInjection.zStartMm, zEnd: poreInjection.zEndMm });
+    }
 
-    return models.map(m => {
-      if (!m.size) return null;
+    const bands: any[] = [];
+    models.forEach(m => {
+      if (!m.size) return;
       const sx = m.size.x * m.transform.scale.x;
       const sy = m.size.y * m.transform.scale.y;
-      return {
-        id: m.id,
-        pos: [m.transform.position.x, centerY, m.transform.position.z] as [number, number, number],
-        size: [sx, height, sy] as [number, number, number]
-      };
-    }).filter(Boolean);
-  }, [realPores, poreInjection, models]);
+      
+      segmentsToShow.forEach((seg, idx) => {
+        const height = Math.max(0.1, Number(seg.zEnd) - Number(seg.zStart));
+        const centerY = Number(seg.zStart) + height / 2;
+        bands.push({
+          id: `${m.id}-band-${idx}`,
+          pos: [m.transform.position.x, centerY, m.transform.position.z] as [number, number, number],
+          size: [sx, height, sy] as [number, number, number]
+        });
+      });
+    });
+
+    return bands;
+  }, [realPores, poreInjection, models, zZones]);
 
   // --- LOGS DE DEPURACIÓN CRÍTICOS ---
   // Estos logs aparecerán en la consola de Chrome/Edge (F12) al terminar el slicing

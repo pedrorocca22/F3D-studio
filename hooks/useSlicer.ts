@@ -127,6 +127,7 @@ export const useSlicer = (
         kind: zz.featureOverride ? 'feature_override' : (zz.parameterOverride ? 'parameter_override' : 'process_event'),
         toolOverride: zz.featureOverride?.toolhead, fdmSettings: zz.parameterOverride?.fdm,
         syringeSettings: zz.parameterOverride?.syringe, uvSettings: zz.processEvent,
+        poreInjectionEnabled: zz.parameterOverride?.poreInjectionEnabled,
         label: zz.label, color: zz.color
       };
     });

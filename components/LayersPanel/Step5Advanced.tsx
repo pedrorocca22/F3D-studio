@@ -339,6 +339,34 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                               />
                            </div>
                         </div>
+
+                        {/* Pore Injection Segment Toggle */}
+                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-[7px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Pore Injection</span>
+                              <span className="text-[6px] text-cyan-500 font-bold uppercase tracking-tighter">Requires Grid Infill</span>
+                            </div>
+                            <button
+                              onClick={() => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, poreInjectionEnabled: !zone.parameterOverride?.poreInjectionEnabled } })}
+                              className={`relative w-8 h-4 rounded-full transition-all ${
+                                zone.parameterOverride?.poreInjectionEnabled
+                                  ? 'bg-cyan-500'
+                                  : 'bg-slate-200 dark:bg-slate-700'
+                              }`}
+                            >
+                              <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
+                                zone.parameterOverride?.poreInjectionEnabled ? 'right-0.5' : 'left-0.5'
+                              }`} />
+                            </button>
+                          </div>
+                          {zone.parameterOverride?.poreInjectionEnabled && !globalSettings.poreInjection?.enabled && (
+                            <p className="text-[7px] text-red-500 mt-1 font-bold">⚠ Enable global Pore Injection first!</p>
+                          )}
+                          {zone.parameterOverride?.poreInjectionEnabled && (zone.parameterOverride.fdm?.infillPattern || globalSettings.infillPattern) !== 'grid' && (
+                            <p className="text-[7px] text-amber-600 mt-0.5 font-bold italic">Note: Only works with GRID pattern</p>
+                          )}
+                        </div>
                       </div>
                     )}
 
