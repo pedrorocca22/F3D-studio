@@ -111,7 +111,7 @@ export const useSlicer = (
 
     const resolvedPlans = resolveLayerPlans(models, calculatedTotalLayers, zZones, globalSettings.layerHeight / 1000, (globalSettings.firstLayerHeight || 300) / 1000);
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
-    
+
     if (globalSettings.poreInjection?.enabled) {
       formData.append('pore_injection', JSON.stringify(globalSettings.poreInjection));
     }
@@ -119,16 +119,16 @@ export const useSlicer = (
     const layer_h = globalSettings.layerHeight / 1000;
     const first_layer_h = (globalSettings.firstLayerHeight || 300) / 1000;
     const derivedLayerActions = zZones.map(zz => {
-        const from = zz.zStartMm <= first_layer_h ? 1 : Math.max(1, Math.ceil((zz.zStartMm - first_layer_h) / layer_h) + 1);
-        const to = Math.max(from, Math.floor((zz.zEndMm - first_layer_h) / layer_h) + 1);
-        return {
-            id: zz.id, layerFrom: from, layerTo: to,
-            modelId: zz.modelScope === 'all' ? 'all' : zz.modelScope,
-            kind: zz.featureOverride ? 'feature_override' : (zz.parameterOverride ? 'parameter_override' : 'process_event'),
-            toolOverride: zz.featureOverride?.toolhead, fdmSettings: zz.parameterOverride?.fdm, 
-            syringeSettings: zz.parameterOverride?.syringe, uvSettings: zz.processEvent,
-            label: zz.label, color: zz.color
-        };
+      const from = zz.zStartMm <= first_layer_h ? 1 : Math.max(1, Math.ceil((zz.zStartMm - first_layer_h) / layer_h) + 1);
+      const to = Math.max(from, Math.floor((zz.zEndMm - first_layer_h) / layer_h) + 1);
+      return {
+        id: zz.id, layerFrom: from, layerTo: to,
+        modelId: zz.modelScope === 'all' ? 'all' : zz.modelScope,
+        kind: zz.featureOverride ? 'feature_override' : (zz.parameterOverride ? 'parameter_override' : 'process_event'),
+        toolOverride: zz.featureOverride?.toolhead, fdmSettings: zz.parameterOverride?.fdm,
+        syringeSettings: zz.parameterOverride?.syringe, uvSettings: zz.processEvent,
+        label: zz.label, color: zz.color
+      };
     });
     formData.append('layer_actions', JSON.stringify(derivedLayerActions));
 
@@ -158,18 +158,20 @@ export const useSlicer = (
               const mRes = await fetch(`${BACKEND_URL}/fdm/job/${jobId}/manifest`);
               if (mRes.ok) {
                 const manifest = await mRes.json();
+                console.log("=== DEBUG 1: MANIFEST CRUDO ===", manifest); // Añade esta línea
                 layerCount = manifest.layer_count ?? 0;
-                detectedPores = manifest.pores || [];
-                // Handle different manifest key formats
-                const bc = manifest.bed_center || {};
-                bedCenter = { 
-                  x: bc.bed_center_x ?? manifest.bed_center_x ?? 0, 
-                  y: bc.bed_center_y ?? manifest.bed_center_y ?? 0 
+                detectedPores = manifest.pores || manifest.detected_pores || manifest.detectedPores || [];
+                // Handle different manifest key formats (including xy_compensation)
+                const bc = manifest.bed_center || manifest.xy_compensation || {};
+                bedCenter = {
+                  x: bc.bed_center_x ?? manifest.bed_center_x ?? 0,
+                  y: bc.bed_center_y ?? manifest.bed_center_y ?? 0
                 };
+                console.log("[DEBUG FRONTEND] Bed Center detectado:", bedCenter);
               }
-              setGcodePreviewJob({ 
-                jobId, 
-                layerCount, 
+              setGcodePreviewJob({
+                jobId,
+                layerCount,
                 nozzleDiameter: globalSettings.nozzleDiameter,
                 detectedPores,
                 bedCenter
@@ -202,7 +204,7 @@ export const useSlicer = (
         if (!spec) continue;
         const modelW = m.size.x * (m.transform.scale.x || 1);
         const modelD = m.size.y * (m.transform.scale.y || 1);
-        if (Math.sqrt(modelW*modelW + modelD*modelD) > spec.dia) overflowing.push(m.name);
+        if (Math.sqrt(modelW * modelW + modelD * modelD) > spec.dia) overflowing.push(m.name);
       }
       if (overflowing.length > 0) {
         alert("Some models do not fit in wells.");

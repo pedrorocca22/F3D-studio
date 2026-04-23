@@ -876,6 +876,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "extrusion_multiplier": f"{ext_m},{ext_m},{ext_m}",
             "extruder_offset": "0x0,0x0,0x0",
             "cooling": str(form_params.get("cooling", "1")),
+            
             "fan_always_on": str(form_params.get("fan_always_on", "1")),
             "min_fan_speed": str(form_params.get("min_fan_speed", "100")),
             "max_fan_speed": str(form_params.get("max_fan_speed", "100")),
@@ -1172,6 +1173,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                     # 1. Parse infill
                     lh_mm = float(layer_height)
                     infill_data = parse_infill_lines(gcode_out, lh_mm)
+
+                    print(f"--- DEBUG PYTHON --- Capas con infill detectadas: {len(infill_data)}") # AÑADE ESTO
                     
                     # 2. Find squares and compute centroids
                     z_start = pore_config.get("zStartMm", 0.0)
@@ -1188,6 +1191,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                             continue
                             
                         squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
+                        print(f"Capa {layer_idx} (Z={z}): Encontrados {len(squares)} cuadrados") # AÑADE ESTO
                         if not squares:
                             continue
                             
@@ -1359,6 +1363,7 @@ def fdm_slice():
         "max_fan_speed": request.form.get("max_fan_speed", "100"),
         "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
         "cooling": request.form.get("cooling", "1"),
+        "pore_injection": request.form.get("pore_injection")
     }
     
     # DEBUG: Log raw request

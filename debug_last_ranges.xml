@@ -2,7 +2,7 @@
 <objects>
   <object id="1">
     <range min_z="0.0000" max_z="5.1000">
-      <option opt_key="fill_density">15%</option>
+      <option opt_key="fill_density">25%</option>
       <option opt_key="fill_pattern">grid</option>
       <option opt_key="perimeters">3</option>
       <option opt_key="top_solid_layers">3</option>

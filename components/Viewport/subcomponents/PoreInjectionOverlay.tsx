@@ -1,13 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { ModelData, GlobalSettings } from '../../../types';
-import { BACKEND_URL } from '../../../config';
-import { Html } from '@react-three/drei';
 
 interface PoreInjectionOverlayProps {
   poreInjection?: GlobalSettings['poreInjection'];
   models: ModelData[];
   globalSettings: GlobalSettings;
-  detectedPores?: Array<{ x: number; y: number; z: number; modelId: string; layer: number }>;
+  detectedPores?: Array<{ x: number; y: number; z?: number; modelId?: string; layer: number }>;
   bedCenter?: { x: number; y: number };
 }
 
@@ -21,46 +19,54 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
   detectedPores,
   bedCenter
 }) => {
-  // If we have real detected pores, render them exactly
+  // 1. CÁLCULO DE RESULTADOS REALES (Post-Slice)
   const realPores = useMemo(() => {
+    // Si no hay datos de poros detectados, devolvemos array vacío
     if (!detectedPores || detectedPores.length === 0) return [];
-    
+
     const bedX = bedCenter?.x || 0;
     const bedY = bedCenter?.y || 0;
-    const { zStartMm, zEndMm } = poreInjection || { zStartMm: 0, zEndMm: 0 };
-    
-    // Estimate a reasonable display radius
+
+    // Parámetros de impresión para calcular el radio visual del poro
     const nozzle = Number(globalSettings.nozzleDiameter ?? 0.4);
     const infill = Number(globalSettings.infill ?? 15);
     const f = Math.max(0.01, Math.min(1, infill / 100));
     const pitch = (Math.max(0.45, nozzle * 1.125) / f) * (globalSettings.infillPattern === 'grid' ? 2 : 1);
-    
-    const layerHeightMm = (globalSettings.layerHeight || 200) / 1000;
-    const rawHeight = zEndMm - zStartMm;
-    const height = rawHeight <= 0.01 ? layerHeightMm : rawHeight;
+
+    const layerHeightMm = Number(globalSettings.layerHeight || 200) / 1000;
+
+    // Altura visual de cada cilindro (0.6mm o el doble de la capa para asegurar visibilidad)
+    const displayHeight = Math.max(0.6, layerHeightMm * 2);
 
     const radius = Math.max(
       MIN_PORE_RADIUS_MM,
       Math.min(MAX_PORE_RADIUS_MM, pitch * 0.18)
     );
 
-    return detectedPores.map((p, i) => ({
-      key: `real-pore-${i}-${p.layer}`,
-      x: p.x - bedX,
-      y: p.z,
-      z: p.y - bedY,
-      radius,
-      height
-    }));
-  }, [detectedPores, bedCenter, poreInjection, globalSettings]);
+    // Transformación de coordenadas de G-code a espacio de Three.js (Y es vertical)
+    return detectedPores.map((p, i) => {
+      // Fallback: si el backend no envía 'z' explícita, usamos la capa (layer)
+      const poreZ = p.z !== undefined ? Number(p.z) : (Number(p.layer) * layerHeightMm);
 
-  // If no real pores yet, show the "Z-Band" configuration volume
+      return {
+        key: `real-pore-${i}-${p.layer}`,
+        x: Number(p.x) - bedX,
+        y: poreZ,               // Altura física (Eje vertical en Three.js)
+        z: Number(p.y) - bedY,  // Profundidad (Eje Y en G-code)
+        radius,
+        height: displayHeight
+      };
+    });
+  }, [detectedPores, bedCenter, globalSettings]);
+
+  // 2. CÁLCULO DE LA GUÍA DE CONFIGURACIÓN (Pre-Slice)
   const zBandData = useMemo(() => {
+    // Si ya hay resultados reales o el sistema está desactivado, no mostramos la banda
     if (realPores.length > 0 || !poreInjection?.enabled || models.length === 0) return null;
-    
+
     const { zStartMm, zEndMm } = poreInjection;
-    const height = Math.max(0.1, zEndMm - zStartMm);
-    const centerY = zStartMm + height / 2;
+    const height = Math.max(0.1, Number(zEndMm) - Number(zStartMm));
+    const centerY = Number(zStartMm) + height / 2;
 
     return models.map(m => {
       if (!m.size) return null;
@@ -74,25 +80,37 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
     }).filter(Boolean);
   }, [realPores, poreInjection, models]);
 
+  // --- LOGS DE DEPURACIÓN CRÍTICOS ---
+  // Estos logs aparecerán en la consola de Chrome/Edge (F12) al terminar el slicing
+  console.log("=== DEBUG 2: PROPS DEL OVERLAY ===", {
+    enabled: poreInjection?.enabled,
+    detectedPoresCount: detectedPores?.length,
+    detectedPoresRaw: detectedPores,
+    bedCenter: bedCenter
+  });
+
+  console.log("=== DEBUG 3: GEOMETRÍA CALCULADA (realPores) ===", realPores);
+
+  // Si la función de inyección de poros no está habilitada en los ajustes globales, no renderizamos nada
   if (!poreInjection?.enabled) return null;
 
   return (
     <group name="pore-injection-overlay">
-      {/* REAL RESULTS (Post-Slice) */}
+      {/* RESULTADOS REALES: Se muestran como cilindros brillantes tras el slicing */}
       {realPores.map((p) => (
         <mesh key={p.key} position={[p.x, p.y, p.z]}>
           <cylinderGeometry args={[p.radius, p.radius, p.height, 12]} />
           <meshStandardMaterial
             color="#39d5e8"
             emissive="#18c1d6"
-            emissiveIntensity={0.8}
+            emissiveIntensity={0.9}
             transparent
-            opacity={0.8}
+            opacity={0.85}
           />
         </mesh>
       ))}
 
-      {/* CONFIGURATION GUIDE (Pre-Slice) */}
+      {/* GUÍA DE CONFIGURACIÓN: Se muestra como una banda translúcida en el área de inyección definida */}
       {zBandData?.map((band: any) => (
         <mesh key={band.id} position={band.pos}>
           <boxGeometry args={band.size} />
