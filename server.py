@@ -11,6 +11,7 @@ import struct
 import threading
 from pathlib import Path
 import io
+import time
 
 import numpy as np
 from stl import mesh
@@ -22,6 +23,8 @@ from flask_cors import CORS
 from moonraker_client import MoonrakerClient
 from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_default_toolhead_actions
 from datetime import datetime
+from utils.gcode_infill_parser import parse_infill_lines, detect_perfect_squares, compute_centroids
+from utils.gcode_injector import build_pore_injection_gcode, inject_pore_gcode_into_file
 
 def _debug_log_to_file(filename, content):
     try:
@@ -781,7 +784,7 @@ def wifi_connect():
 # =============================================================================
 # FDM Slicing Routes (BioFFF Studio)
 # =============================================================================
-def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params: dict):
+def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params: dict, preview_only: bool = False):
     """Background worker: slice STL with PrusaSlicer in FDM mode → .gcode."""
     import traceback
     import time as _t
@@ -818,6 +821,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             infill = str(int(infill_f)) if infill_f == int(infill_f) else str(infill_f)
         except (ValueError, TypeError):
             infill = "15"
+        
+        print(f"[FDM SLICE] Processing job {job_id}. Infill: {infill}%")
         nozzle_temp = form_params.get("nozzle_temp", "210")
         bed_temp = form_params.get("bed_temp", "60")
         supports_raw = form_params.get("supports")
@@ -1116,16 +1121,23 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
         _set_progress(job_id, 0.1, "Running PrusaSlicer FDM...")
         t0 = _t.time()
-        p = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=60) # Fail safe timeout
+        except subprocess.TimeoutExpired:
+            print(f"[FDM SLICE] PrusaSlicer timed out after 60s")
+            _set_progress(job_id, 0.0, "PrusaSlicer timed out", status="error")
+            return None
+            
         elapsed = _t.time() - t0
         print(f"[TIMING] FDM slice: {elapsed:.2f}s")
 
         if p.returncode != 0 or not gcode_out.exists():
             print(f"FDM Slice Error:\nSTDOUT: {p.stdout}\nSTDERR: {p.stderr}")
             _set_progress(job_id, 0.0, f"PrusaSlicer FDM failed: {p.stderr[:300]}", status="error")
-            return
+            return None
 
         # correctly positioned relative to the bed origin.
+        # (Post-processing continues below)
 
         # ── Apply Layer Schedule Priority over Scaffold Mapping ──
         # Use full layer plans if available for more accurate toolhead switching
@@ -1150,18 +1162,91 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config, model_bboxes)
 
         # ── Pore Injection Post-Processing ──
-        pore_models = [
-            {
-                **entry["poreParams"],
-                "bedMinX": entry.get("bedMinX", 0.0),
-                "bedMinY": entry.get("bedMinY", 0.0),
-            }
-            for entry in consolidated_data
-            if entry.get("poreDepositionEnabled") and entry.get("poreParams")
-        ]
-        if pore_models:
-            _set_progress(job_id, 0.97, f"Injecting pores into scaffold (T1)...")
-            _inject_pores_in_gcode(gcode_out, pore_models)
+        pore_raw = form_params.get("pore_injection")
+        detected_pores_for_metadata = []
+        if pore_raw and not preview_only:
+            try:
+                pore_config = json.loads(pore_raw)
+                if pore_config.get("enabled"):
+                    _set_progress(job_id, 0.96, "Detecting pores in infill...")
+                    # 1. Parse infill
+                    lh_mm = float(layer_height)
+                    infill_data = parse_infill_lines(gcode_out, lh_mm)
+                    
+                    # 2. Find squares and compute centroids
+                    z_start = pore_config.get("zStartMm", 0.0)
+                    z_end = pore_config.get("zEndMm", 5.0)
+                    min_cell = pore_config.get("minCellSizeMm", 0.5)
+                    tol = pore_config.get("cellSizeToleranceMm", 0.1)
+                    skip_perimeter = pore_config.get("skipPerimeterCells", True)
+                    
+                    layer_injections = {}
+                    
+                    for layer_idx, data in infill_data.items():
+                        z = data["z"]
+                        if z < z_start or z > z_end:
+                            continue
+                            
+                        squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
+                        if not squares:
+                            continue
+                            
+                        # If skip_perimeter is True, we could filter them out. For now we use all perfect squares as they are usually internal.
+                        centroids = compute_centroids(squares)
+                        
+                        if centroids:
+                            syringe_tool = pore_config.get("syringeToolhead", "T1")
+                            
+                            # Ensure tool format is correct for Prusa (e.g. T1 instead of syringe)
+                            if not syringe_tool.startswith("T"):
+                                # Fallback mapping if frontend sends 'syringe'
+                                mapping = {"fdm": "T0", "syringe": "T1", "uv": "T2"}
+                                syringe_tool = mapping.get(syringe_tool.lower(), "T1")
+                            
+                            # Note: To avoid redefining flow mapping here, we use a simple ul_per_mm conversion 
+                            # Prusa mk3 defaults to 1.75mm filament => area = 2.405 mm2 => 1mm = 2.405 ul.
+                            # For a 10ml syringe (inner dia ~14.5mm => area 165 mm2 => 1mm = 165 ul)
+                            # This should ideally come from ToolheadConfig, but we use a reasonable default.
+                            ul_per_mm = 165.0 
+                            
+                            gcode_block = build_pore_injection_gcode(
+                                centroids=centroids,
+                                current_z=z,
+                                injection_depth_mm=pore_config.get("injectionDepthMm", 0.3),
+                                flow_ul_per_cell=pore_config.get("flowRateUlPerCell", 0.5),
+                                ul_per_mm=ul_per_mm,
+                                travel_feedrate=pore_config.get("travelFeedrateMmMin", 6000),
+                                inject_feedrate=pore_config.get("injectionFeedrateMmMin", 120),
+                                syringe_tool=syringe_tool,
+                                fdm_tool="T0"
+                            )
+                            layer_injections[layer_idx] = gcode_block
+                            
+                            # Save for frontend preview
+                            for c in centroids:
+                                model_id = "global"
+                                # Improved bounding box check using the actual model_ids
+                                for d in consolidated_data:
+                                    # Expand bbox slightly to avoid rounding issues
+                                    if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
+                                       (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
+                                        model_id = d["model_id"]
+                                        break
+
+                                detected_pores_for_metadata.append({
+                                    "x": float(c[0]),
+                                    "y": float(c[1]),
+                                    "z": float(z),
+                                    "modelId": model_id,
+                                    "layer": int(layer_idx)
+                                })
+
+                    if layer_injections and not preview_only:
+                        _set_progress(job_id, 0.97, f"Injecting {sum(len(v) for v in layer_injections.values())//7} pore sites...")
+                        inject_pore_gcode_into_file(gcode_out, layer_injections)
+            except Exception as e:
+                print(f"[PORE INJECTION] Error: {e}")
+                traceback.print_exc()
 
         # Parse basic stats from G-code comments
         layer_count = 0
@@ -1184,9 +1269,10 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             pass
 
         # Write job manifest
-        job_manifest = {
+        job_info = {
             "job_id": job_id,
             "type": "fdm",
+            "status": "done",
             "gcode_filename": gcode_out.name,
             "gcode_path": str(gcode_out),
             "layer_count": layer_count,
@@ -1199,8 +1285,9 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 "bed_center_x": bed_center_x,
                 "bed_center_y": bed_center_y,
             },
+            "pores": detected_pores_for_metadata
         }
-        (job_dir / "job_fdm.json").write_text(json.dumps(job_manifest, indent=2), encoding="utf-8")
+        (job_dir / "job_fdm.json").write_text(json.dumps(job_info, indent=2), encoding="utf-8")
 
         _set_progress(
             job_id,
@@ -1208,10 +1295,12 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             f"Done — {layer_count} layers, {filament_used:.0f}mm filament",
             status="done",
         )
+        return consolidated_data
 
     except Exception as e:
         traceback.print_exc()
         _set_progress(job_id, 0.0, f"FDM Slice error: {e}", status="error")
+        return None
 
 
 
@@ -1327,6 +1416,13 @@ def fdm_slice():
     t.start()
 
     return jsonify({"status": "processing", "job_id": job_id})
+
+@app.post("/fdm/preview_pores")
+def fdm_preview_pores():
+    """
+    Endpoint deprecated. Use final slice for pore detection.
+    """
+    return jsonify({"error": "Endpoint deprecated. Use final slice for pore detection."}), 410
 
 
 @app.get("/fdm/job/<job_id>/manifest")

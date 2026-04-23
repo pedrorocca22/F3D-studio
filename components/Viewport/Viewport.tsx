@@ -12,6 +12,7 @@ import './subcomponents/three-types';
 import { ModelInfoPanel } from './subcomponents/ModelInfoPanel';
 import { BuildPlate } from './subcomponents/BuildPlate';
 import { UVProcessPlanes } from './subcomponents/UVProcessPlanes';
+import { PoreInjectionOverlay } from './subcomponents/PoreInjectionOverlay';
 import { CameraManager } from './subcomponents/CameraManager';
 import { ViewportModel, ObjectTool, ViewMode } from './subcomponents/ViewportModel';
 import { GCodeTextViewer } from './subcomponents/GCodeTextViewer';
@@ -159,6 +160,20 @@ export const Viewport: React.FC = () => {
             <pointLight position={[0, 200, 0]} intensity={0.5} />
 
             <BuildPlate globalSettings={project.globalSettings} />
+
+            {/* Pore Injection Z-range overlay */}
+            {/* Pore Injection Z-range overlay */}
+            {console.log('Pore Data in Viewport:', { 
+                count: slicer.gcodePreviewJob?.detectedPores?.length, 
+                job: slicer.gcodePreviewJob?.jobId 
+            })}
+            <PoreInjectionOverlay
+              poreInjection={project.globalSettings.poreInjection}
+              models={project.models}
+              globalSettings={project.globalSettings}
+              detectedPores={slicer.gcodePreviewJob?.detectedPores}
+              bedCenter={slicer.gcodePreviewJob?.bedCenter}
+            />
 
             <UVProcessPlanes 
               zZones={project.zZones} 

@@ -110,12 +110,17 @@ const ProjectCard: React.FC<{
                         >
                             <Icon name="delete" className="text-sm" />
                         </button>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap justify-end">
                             {(protocol.tags || []).map(tag => (
                                 <span key={tag} className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[7px] font-black uppercase border border-primary/20">
                                     {tag}
                                 </span>
                             ))}
+                            {protocol.globalSettings.poreInjection?.enabled && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600 dark:text-cyan-400 text-[7px] font-black uppercase border border-cyan-300 dark:border-cyan-700 flex items-center gap-0.5">
+                                    💉 Pore Inj.
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>

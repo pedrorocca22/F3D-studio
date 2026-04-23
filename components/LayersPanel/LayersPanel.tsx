@@ -93,6 +93,7 @@ export const LayersPanel: React.FC = () => {
             models={project.models}
             toolheads={project.toolheads}
             globalSettings={project.globalSettings}
+            onUpdateGlobalSettings={project.setGlobalSettings}
           />
         )}
 

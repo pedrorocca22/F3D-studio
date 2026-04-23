@@ -95,11 +95,23 @@ export interface MotorControlSettings {
   separationDistance: number;
 }
 
+export interface PoreInjectionConfig {
+  enabled: boolean;
+  syringeToolhead: ToolheadId;
+  zStartMm: number;
+  zEndMm: number;
+  injectionDepthMm: number;
+  flowRateUlPerCell: number;
+  travelFeedrateMmMin: number;
+  injectionFeedrateMmMin: number;
+}
+
 export interface GlobalSettings {
   layerHeight: number;
   adhesion?: AdhesionSettings;
   thermodynamic?: ThermodynamicSettings;
   motor?: MotorControlSettings;
+  poreInjection?: PoreInjectionConfig;
   // FDM additions
   nozzleTemperature?: number;
   bedTemperature?: number;

@@ -19,7 +19,9 @@ export const useSlicer = (
   const [gcodePreviewJob, setGcodePreviewJob] = useState<{
     jobId: string;
     layerCount: number;
-    nozzleDiameter?: number
+    nozzleDiameter?: number;
+    detectedPores?: Array<{ x: number; y: number; z: number; modelId: string; layer: number }>;
+    bedCenter?: { x: number; y: number };
   } | null>(null);
 
   // Auto-reset logic from App.tsx
@@ -109,6 +111,10 @@ export const useSlicer = (
 
     const resolvedPlans = resolveLayerPlans(models, calculatedTotalLayers, zZones, globalSettings.layerHeight / 1000, (globalSettings.firstLayerHeight || 300) / 1000);
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
+    
+    if (globalSettings.poreInjection?.enabled) {
+      formData.append('pore_injection', JSON.stringify(globalSettings.poreInjection));
+    }
 
     const layer_h = globalSettings.layerHeight / 1000;
     const first_layer_h = (globalSettings.firstLayerHeight || 300) / 1000;
@@ -147,11 +153,27 @@ export const useSlicer = (
             setSlicePercent(p.progress || 0);
             if (p.status === 'done') {
               clearInterval(poll);
+              let detectedPores = [];
+              let bedCenter = { x: 0, y: 0 };
               const mRes = await fetch(`${BACKEND_URL}/fdm/job/${jobId}/manifest`);
               if (mRes.ok) {
                 const manifest = await mRes.json();
                 layerCount = manifest.layer_count ?? 0;
+                detectedPores = manifest.pores || [];
+                // Handle different manifest key formats
+                const bc = manifest.bed_center || {};
+                bedCenter = { 
+                  x: bc.bed_center_x ?? manifest.bed_center_x ?? 0, 
+                  y: bc.bed_center_y ?? manifest.bed_center_y ?? 0 
+                };
               }
+              setGcodePreviewJob({ 
+                jobId, 
+                layerCount, 
+                nozzleDiameter: globalSettings.nozzleDiameter,
+                detectedPores,
+                bedCenter
+              });
               resolve();
             } else if (p.status === 'error') {
               clearInterval(poll);
@@ -163,7 +185,6 @@ export const useSlicer = (
 
       setIsSlicing(false);
       setSliceProgress('');
-      setGcodePreviewJob({ jobId, layerCount, nozzleDiameter: globalSettings.nozzleDiameter });
     } catch (error) {
       setIsSlicing(false);
       setSliceProgress('');

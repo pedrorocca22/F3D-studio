@@ -428,12 +428,17 @@ export const useProject = () => {
   });
 
   const handleSaveToGallery = (name: string, author: string, jobInfo?: any, notes?: string, description?: string, tags?: string[]) => {
+    let finalTags = tags || [];
+    if (globalSettings.poreInjection?.enabled) {
+      finalTags = [...new Set([...finalTags, 'pore-injection'])];
+    }
+
     const newProtocol: ProjectProtocol = {
       id: generateUUID(),
       name: name || `Protocol ${savedProtocols.length + 1}`,
       author: author || 'Unknown User',
       description,
-      tags,
+      tags: finalTags,
       createdAt: new Date().toISOString(),
       models: models.map(m => ({ ...m, file: undefined, url: '' })),
       globalSettings: { ...globalSettings },
