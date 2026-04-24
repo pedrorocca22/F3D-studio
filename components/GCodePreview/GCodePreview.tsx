@@ -117,6 +117,7 @@ export function parseGCode(raw: string): ParsedGCode {
     let currentLayer = 0;
     let prevE = 0;
     let relativeE = false;
+    let relativeXYZ = false;
 
     const knownZ: number[] = [];
     let maxSeenLayer = 0;
@@ -143,30 +144,55 @@ export function parseGCode(raw: string): ParsedGCode {
             continue;
         }
 
-        if (line.startsWith('M83')) { relativeE = true; continue; }
-        if (line.startsWith('M82')) { relativeE = false; continue; }
+        // Detect positioning and extrusion modes anywhere in the line
+        if (/\bM83\b/i.test(line)) { relativeE = true; }
+        if (/\bM82\b/i.test(line)) { relativeE = false; prevE = 0; } // Reset prevE when switching to absolute
+        if (/\bG91\b/i.test(line)) { relativeXYZ = true; }
+        if (/\bG90\b/i.test(line)) { relativeXYZ = false; }
+
         if (!line.startsWith('G0') && !line.startsWith('G1') && !line.startsWith('G92')) continue;
 
         if (line.startsWith('G92')) {
             const eMatch = line.match(/E([-\d.]+)/);
             if (eMatch) prevE = parseFloat(eMatch[1]);
+            // Also handle X, Y, Z resets if needed
+            const xM = line.match(/X([-\d.]+)/);
+            const yM = line.match(/Y([-\d.]+)/);
+            const zM = line.match(/Z([-\d.]+)/);
+            if (xM) cx = parseFloat(xM[1]);
+            if (yM) cy = parseFloat(yM[1]);
+            if (zM) cz = parseFloat(zM[1]);
             continue;
         }
 
+        const isG0 = line.startsWith('G0');
         const xM = line.match(/X([-\d.]+)/);
         const yM = line.match(/Y([-\d.]+)/);
         const zM = line.match(/Z([-\d.]+)/);
         const eM = line.match(/E([-\d.]+)/);
 
-        const nx = xM ? parseFloat(xM[1]) : cx;
-        const ny = yM ? parseFloat(yM[1]) : cy;
-        const nz = zM ? parseFloat(zM[1]) : cz;
+        let nx = xM ? parseFloat(xM[1]) : (relativeXYZ ? 0 : cx);
+        let ny = yM ? parseFloat(yM[1]) : (relativeXYZ ? 0 : cy);
+        let nz = zM ? parseFloat(zM[1]) : (relativeXYZ ? 0 : cz);
+
+        if (relativeXYZ) {
+            if (xM) nx = cx + nx; else nx = cx;
+            if (yM) ny = cy + ny; else ny = cy;
+            if (zM) nz = cz + nz; else nz = cz;
+        }
 
         let extrude = false;
-        if (eM) {
+        if (eM && !isG0) { // G0 never extrudes
             const eVal = parseFloat(eM[1]);
-            if (relativeE) { extrude = eVal > 0; }
-            else { extrude = eVal > prevE; prevE = eVal; }
+            if (relativeE) { 
+                extrude = eVal > 0.0001; // Increased threshold for relative
+            } else { 
+                extrude = eVal > (prevE + 0.0001); 
+                prevE = eVal; 
+            }
+        } else if (eM && isG0 && !relativeE) {
+            // Even if G0, update prevE to maintain absolute tracking
+            prevE = parseFloat(eM[1]);
         }
 
         const prevLayer = currentLayer;

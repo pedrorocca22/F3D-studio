@@ -23,11 +23,10 @@ def build_pore_injection_gcode(
     gcode.append("; --- PORE INJECTION START ---")
     gcode.append(f"{syringe_tool} ; Switch to syringe")
     
-    # Calculate extrusion length in mm from ul
     e_steps = flow_ul_per_cell / ul_per_mm if ul_per_mm > 0 else 0
-    retract_mm = 0.5 # Default retraction
+    retract_mm = 0.5
     
-    # Aseguramos modo relativo (ya que BioFFF usa relative_e_distances = 1)
+    # M83 asegura el modo relativo (corregido)
     gcode.append("M83 ; Relative extrusion for syringe")
     
     for cx, cy in centroids:
@@ -42,7 +41,7 @@ def build_pore_injection_gcode(
             
         gcode.append(f"G1 Z{current_z:.3f} F600 ; Raise syringe back to layer height")
 
-    # FIX: En lugar de M82, mantenemos la consistencia con M83 para el FDM
+    # Devolvemos la herramienta y aseguramos que el FDM también use M83
     gcode.append(f"{fdm_tool} ; Switch back to FDM tool")
     gcode.append("M83 ; Ensure FDM stays in relative extrusion mode")
     gcode.append("; --- PORE INJECTION END ---")
@@ -62,12 +61,28 @@ def inject_pore_gcode_into_file(gcode_path: Path, layer_injections: dict):
     current_layer = 0
     in_infill = False
     
+    # Variables para rastrear la última posición conocida del FDM
+    last_x = None
+    last_y = None
+    
     layer_change_re = re.compile(r';\s*LAYER_CHANGE', re.IGNORECASE)
     type_infill_re = re.compile(r';\s*TYPE:\s*Internal infill', re.IGNORECASE)
     type_other_re = re.compile(r';\s*TYPE:', re.IGNORECASE)
     
+    def extract_val(line, axis):
+        match = re.search(f'{axis}([0-9.-]+)', line)
+        if match: return float(match.group(1))
+        return None
+
     for line in lines:
         stripped = line.strip()
+        
+        # RASTREO: Capturamos la posición X e Y en cada movimiento de PrusaSlicer
+        if stripped.startswith('G0') or stripped.startswith('G1'):
+            x = extract_val(stripped, 'X')
+            y = extract_val(stripped, 'Y')
+            if x is not None: last_x = x
+            if y is not None: last_y = y
         
         if layer_change_re.search(stripped):
             current_layer += 1
@@ -81,11 +96,16 @@ def inject_pore_gcode_into_file(gcode_path: Path, layer_injections: dict):
             continue
             
         if in_infill and (type_other_re.search(stripped) or layer_change_re.search(stripped)):
-            # Infill block just ended! Insert the injection gcode here if any.
+            # ¡El infill ha terminado! Insertamos nuestra inyección
             if current_layer in layer_injections:
                 output.append("\n")
                 for injection_line in layer_injections[current_layer]:
                     output.append(f"{injection_line}\n")
+                
+                # RETORNO: Forzamos al cabezal a volver a su posición original
+                if last_x is not None and last_y is not None:
+                    output.append(f"G0 X{last_x:.3f} Y{last_y:.3f} F7200 ; Restore position for FDM\n")
+                    
                 output.append("\n")
                 del layer_injections[current_layer]
             in_infill = False
