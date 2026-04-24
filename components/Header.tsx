@@ -70,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
       <header className="h-14 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-5 z-20 relative">
 
         {/* Wordmark */}
-        <div className="flex items-center gap-2.5 select-none min-w-[110px]">
+        <div className="flex items-center gap-2.5 select-none min-w-[150px]">
           <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary/30">
             <span className="text-white text-[10px] font-black">B</span>
           </div>
@@ -79,76 +79,8 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Stepper — continuous segmented banner */}
-        <div className="flex items-stretch h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
-          {STEPS.map((step, idx) => {
-            const isDone   = activeStep > step.id;
-            const isActive = activeStep === step.id;
-            const isLast   = idx === STEPS.length - 1;
-            return (
-              <div
-                key={step.id}
-                className={`relative flex items-center justify-center px-4 text-[11px] font-semibold select-none transition-all duration-300 overflow-hidden
-                  ${!isLast ? 'border-r border-white/20 dark:border-slate-600/40' : ''}
-                  ${isActive
-                    ? 'bg-primary text-white shadow-[0_2px_10px_-3px_rgba(22,163,74,0.4)]'
-                    : isDone
-                      ? 'bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400/80 font-bold'
-                      : 'bg-white dark:bg-slate-800/60 text-slate-300 dark:text-slate-600'
-                  }`}
-              >
-
-                <span className="relative z-10 tracking-wide">{step.label}</span>
-              </div>
-            );
-          })}
-        </div>
-
         {/* Right actions */}
-        <div className="flex items-center gap-2 min-w-[110px] justify-end">
-
-          {/* Printer status */}
-          <button
-            onClick={onOpenPrinterStatus}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 text-xs font-medium text-slate-500 dark:text-slate-400 transition-all"
-          >
-            <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
-            <span className="hidden lg:inline">{stateLabel[printerState]}</span>
-          </button>
-
-          {/* New Protocol Archive Button */}
-          <button
-            onClick={() => setCurrentView(currentView === 'gallery' ? 'editor' : 'gallery')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-black tracking-tighter transition-all shadow-sm
-                ${currentView === 'gallery' 
-                    ? 'bg-primary text-white shadow-primary/20' 
-                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary/40'}`}
-          >
-            <Icon name="archive" className="text-[13px]" />
-            <span className="hidden lg:inline">archive</span>
-          </button>
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
-
-          {/* Load / Save */}
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={onLoadProject}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium transition-colors"
-            >
-              <Icon name="folder_open" className="text-[13px]" />
-              <span className="hidden sm:inline">Load</span>
-            </button>
-            <button
-              onClick={onSaveProject}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium transition-colors"
-            >
-              <Icon name="save" className="text-[13px]" />
-              <span className="hidden sm:inline">Save</span>
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+        <div className="flex items-center gap-4 min-w-[110px] justify-end">
 
           {/* Network */}
           <button

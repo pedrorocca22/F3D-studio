@@ -10,6 +10,9 @@ export const useAppUI = () => {
   const [isAdvancedSliceMode, setIsAdvancedSliceMode] = useState(false);
   const [isSlicePreviewMode, setIsSlicePreviewMode] = useState(false);
   const [currentView, setCurrentView] = useState<'editor' | 'gallery'>('editor');
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
   // Sync dark mode with HTML class
   useEffect(() => {
@@ -40,6 +43,12 @@ export const useAppUI = () => {
     isSlicePreviewMode,
     setIsSlicePreviewMode,
     currentView,
-    setCurrentView
+    setCurrentView,
+    isPanelCollapsed,
+    setIsPanelCollapsed,
+    isSidebarCollapsed,
+    setIsSidebarCollapsed,
+    isInspectorCollapsed,
+    setIsInspectorCollapsed
   };
 };

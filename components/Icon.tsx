@@ -10,8 +10,11 @@ interface IconProps {
 export const Icon: React.FC<IconProps> = ({ name, className = "", style, onClick }) => {
   return (
     <span
-      className={`material-icons-outlined ${className} ${onClick ? 'cursor-pointer' : ''}`}
-      style={style}
+      className={`material-symbols-outlined ${className} ${onClick ? 'cursor-pointer' : ''}`}
+      style={{ 
+        fontVariationSettings: "'wght' 300, 'opsz' 24",
+        ...style 
+      }}
       onClick={onClick}
     >
       {name}

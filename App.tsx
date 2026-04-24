@@ -1,5 +1,6 @@
 import React from 'react';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { WifiConfig } from './components/WifiConfig/WifiConfig';
 import { LayersPanel } from './components/LayersPanel/LayersPanel';
 import { Viewport } from './components/Viewport/Viewport';
@@ -36,12 +37,14 @@ export default function App() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200 overflow-hidden"
+      className="fixed inset-0 flex bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 transition-colors duration-200 overflow-hidden"
       {...handleDragEvents}
     >
-      <Header
-        darkMode={ui.darkMode}
-        toggleDarkMode={ui.toggleDarkMode}
+      <Sidebar 
+        activeStep={ui.activeStep}
+        setActiveStep={ui.setActiveStep}
+        currentView={ui.currentView}
+        setCurrentView={ui.setCurrentView}
         onSaveProject={project.handleSaveProject}
         onLoadProject={() => {
           const input = document.createElement('input');
@@ -50,30 +53,45 @@ export default function App() {
           input.onchange = (e: any) => e.target.files?.[0] && project.handleLoadProject(e.target.files[0]);
           input.click();
         }}
-        onOpenWifi={() => ui.setIsWifiOpen(true)}
-        activeStep={ui.activeStep}
-        setActiveStep={ui.setActiveStep}
-        currentView={ui.currentView}
-        setCurrentView={ui.setCurrentView}
       />
 
-      <div className="flex flex-1 h-full overflow-hidden relative">
-        {ui.currentView === 'gallery' ? (
-          <ProjectGallery />
-        ) : (
-          <>
-            <LayersPanel />
-            <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
-              <Viewport />
-              {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
-              {ui.isDragging && (
-                <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
-                  <span className="text-sm font-medium">Drop STL file here</span>
-                </div>
-              )}
-            </main>
-          </>
-        )}
+      <div className="flex flex-col flex-1 h-full overflow-hidden relative">
+        <Header
+          darkMode={ui.darkMode}
+          toggleDarkMode={ui.toggleDarkMode}
+          onSaveProject={project.handleSaveProject}
+          onLoadProject={() => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.bpp,.zip';
+            input.onchange = (e: any) => e.target.files?.[0] && project.handleLoadProject(e.target.files[0]);
+            input.click();
+          }}
+          onOpenWifi={() => ui.setIsWifiOpen(true)}
+          activeStep={ui.activeStep}
+          setActiveStep={ui.setActiveStep}
+          currentView={ui.currentView}
+          setCurrentView={ui.setCurrentView}
+        />
+
+        <div className="flex flex-1 h-full overflow-hidden relative">
+          {ui.currentView === 'gallery' ? (
+            <ProjectGallery />
+          ) : (
+            <>
+              <LayersPanel />
+              <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
+                <Viewport />
+                {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
+                {ui.isDragging && (
+                  <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
+                    <span className="text-sm font-medium">Drop STL file here</span>
+                  </div>
+                )}
+              </main>
+            </>
+          )}
+        </div>
       </div>
 
       <HelpWiki topic={ui.helpTopic} onClose={() => ui.setHelpTopic(null)} />
