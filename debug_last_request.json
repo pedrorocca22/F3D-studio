@@ -7,9 +7,9 @@
     "infill_pattern": "grid",
     "perimeters": "3",
     "supports": false,
-    "layer_actions": "[{\"id\":\"ea3dae57-d854-4b73-afe6-12eb51e1bdeb\",\"layerFrom\":1,\"layerTo\":9,\"modelId\":\"all\",\"kind\":\"feature_override\",\"toolOverride\":\"syringe\",\"fdmSettings\":{},\"label\":\"ZONE 1\",\"color\":\"#3a0179\"}]",
-    "resolved_layer_plans": "[{\"modelId\":\"6d0ed862-6129-4816-9209-82d1beb89f64\",\"modelName\":\"Prism_1777022594668.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":10,\"settings\":{\"mapping\":{\"perimeter\":\"syringe\",\"infill\":\"syringe\",\"solidInfill\":\"syringe\",\"support\":\"syringe\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}},{\"layerFrom\":11,\"layerTo\":25,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"fdm\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
-    "models_metadata": "[{\"id\":\"6d0ed862-6129-4816-9209-82d1beb89f64\",\"name\":\"Prism_1777022594668.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"fdm_settings\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
+    "layer_actions": "[]",
+    "resolved_layer_plans": "[{\"modelId\":\"9577f64e-c775-4fd5-be90-20775208f495\",\"modelName\":\"Prism_1777028995548.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":25,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"fdm\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
+    "models_metadata": "[{\"id\":\"9577f64e-c775-4fd5-be90-20775208f495\",\"name\":\"Prism_1777028995548.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"fdm_settings\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
     "nozzle_diameter": "0.4",
     "first_layer_height": "0.300",
     "skirt_count": "1",
@@ -32,7 +32,7 @@
     "disable_fan_first_layers": "1",
     "cooling": "1",
     "pore_injection": null,
-    "z_zones": "[{\"id\":\"ea3dae57-d854-4b73-afe6-12eb51e1bdeb\",\"modelScope\":\"all\",\"zStartMm\":0,\"zEndMm\":2,\"enabled\":true,\"priority\":1,\"label\":\"ZONE 1\",\"color\":\"#3a0179\",\"featureOverride\":{\"toolhead\":\"syringe\",\"targetFeatures\":[\"all\"]},\"parameterOverride\":{\"fdm\":{},\"poreInjection\":{\"enabled\":true,\"syringeToolhead\":\"syringe\",\"zStartMm\":0,\"zEndMm\":2,\"injectionDepthMm\":0.3,\"flowRateUlPerCell\":0.5,\"travelFeedrateMmMin\":6000,\"injectionFeedrateMmMin\":120}}}]"
+    "z_zones": "[]"
   },
   "files_count": 1
 }

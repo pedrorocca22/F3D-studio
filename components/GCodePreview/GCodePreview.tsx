@@ -6,10 +6,63 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
+import { STLLoader } from 'three-stdlib';
 import { Icon } from '../Icon';
+
+// ── Nozzle Component ─────────────────────────────────────────────────────────
+function Nozzle({ position, toolhead }: { position: [number, number, number], toolhead: string }) {
+    const originalGeometry = useLoader(STLLoader, '/punta.stl');
+    
+    const geometry = useMemo(() => {
+        if (!originalGeometry) return null;
+        const geo = originalGeometry.clone();
+        
+        geo.computeBoundingBox();
+        const size = new THREE.Vector3();
+        geo.boundingBox!.getSize(size);
+        
+        // Determine original orientation and rotate to Y-up
+        if (size.x > size.y && size.x > size.z) {
+            geo.rotateZ(Math.PI / 2);
+        } else if (size.z > size.y && size.z > size.x) {
+            geo.rotateX(Math.PI / 2);
+        }
+        
+        // Assuming min.y is the tip. But the user says it looks upside down,
+        // so we flip it 180 degrees before calculating the final translation.
+        geo.rotateX(Math.PI);
+        
+        geo.computeBoundingBox();
+        const bbox = geo.boundingBox!;
+        const center = new THREE.Vector3();
+        bbox.getCenter(center);
+        
+        const minY = bbox.min.y;
+        geo.translate(-center.x, -minY, -center.z);
+        
+        return geo;
+    }, [originalGeometry]);
+
+    if (!geometry) return null;
+
+    return (
+        <mesh 
+            geometry={geometry} 
+            position={position}
+        >
+            <meshStandardMaterial 
+                color="#ff69b4" 
+                transparent={true} 
+                opacity={0.8} 
+                roughness={0.3} 
+                metalness={0.1} 
+            />
+        </mesh>
+    );
+}
 
 // ── Three.js JSX element declarations ─────────────────────────────────────────
 declare global {
@@ -469,6 +522,13 @@ export function GCodeScene({
         return layerStart + Math.floor(upToMoveIndex);
     }, [parsed, safeLayer, upToMoveIndex]);
 
+    // Current toolhead position for simulation
+    const currentMove = useMemo(() => {
+        if (upToMoveIndex === undefined) return null;
+        const idx = Math.min(absoluteMoveLimit, parsed.moves.length - 1);
+        return parsed.moves[idx] || null;
+    }, [parsed.moves, absoluteMoveLimit, upToMoveIndex]);
+
     return (
         <group position={[centerOffset.x, 0, centerOffset.y]}>
             {geoData.extrusions.map((ext, i) => {
@@ -502,6 +562,14 @@ export function GCodeScene({
                 }
                 visible={showTravel}
             />
+
+            {/* Simulated Toolhead (Nozzle) */}
+            {currentMove && (
+                <Nozzle 
+                    position={[currentMove.x, currentMove.z, currentMove.y]} 
+                    toolhead={currentMove.toolhead} 
+                />
+            )}
         </group>
     );
 }
