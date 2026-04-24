@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { GlobalSettings, ToolheadConfig } from '../../types';
+import { GlobalSettings, ToolheadConfig, SyringeToolheadConfig } from '../../types';
 import { HelpTopic } from '../HelpWiki/HelpWiki';
 import { useProjectContext } from '../../contexts/ProjectContext';
+import { TipGallery } from '../TipGallery/TipGallery';
+import type { NozzleTip } from '../../constants/nozzleTips';
 
 interface Step1EnvironmentProps {
   globalSettings: GlobalSettings;
@@ -383,27 +385,35 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                         </div>
                       )}
                       {assignedTool.id === 'syringe' && (
-                        <div className="space-y-2">
-                           {/* ... existing Syringe settings ... */}
-                           <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Needle (mm)</label>
-                              <NumericInput value={assignedTool.nozzleDiameterMm || 0.5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, nozzleDiameterMm: v } : t))} step={0.01} />
-                            </div>
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Syringe (mL)</label>
-                              <NumericInput value={assignedTool.syringeVolumeMl || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
-                            </div>
+                        <div className="space-y-3">
+                          {/* ── Galería de Puntas ── */}
+                          <TipGallery
+                            selectedTipId={(assignedTool as SyringeToolheadConfig).tipId}
+                            onSelectTip={(tip: NozzleTip) => {
+                              onUpdateToolheads(toolheads.map(t =>
+                                t.id === 'syringe'
+                                  ? { ...t, nozzleDiameterMm: tip.innerDiameterMm, tipId: tip.id }
+                                  : t
+                              ));
+                            }}
+                          />
+
+                          {/* ── Parámetros de extrusión ── */}
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2">
+                           <div>
+                             <label className="text-[8px] text-slate-400 uppercase block">Flowrate (mm/s)</label>
+                             <NumericInput value={(assignedTool as SyringeToolheadConfig).flowrateMmPerSec || 2} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, flowrateMmPerSec: v } : t))} step={0.5} />
+                           </div>
+                           <div>
+                             <label className="text-[8px] text-slate-400 uppercase block">Retract (mm)</label>
+                             <NumericInput value={(assignedTool as SyringeToolheadConfig).retractDistance || 1} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, retractDistance: v } : t))} step={0.5} />
+                           </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Flowrate (mm/s)</label>
-                              <NumericInput value={assignedTool.flowrateMmPerSec || 2} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, flowrateMmPerSec: v } : t))} step={0.5} />
-                            </div>
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Retract (mm)</label>
-                              <NumericInput value={assignedTool.retractDistance || 1} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, retractDistance: v } : t))} step={0.5} />
-                            </div>
+                           <div>
+                             <label className="text-[8px] text-slate-400 uppercase block">Syringe (mL)</label>
+                             <NumericInput value={(assignedTool as SyringeToolheadConfig).syringeVolumeMl || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
+                           </div>
                           </div>
                         </div>
                       )}

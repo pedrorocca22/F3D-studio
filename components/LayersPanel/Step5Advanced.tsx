@@ -4,6 +4,7 @@ import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
 import { ZZone, ModelData, ToolheadConfig, GlobalSettings, INFILL_PATTERN_LABELS, InfillPattern } from '../../types';
 import { generateUUID } from '../../utils';
+import { analyzeGridInfill } from '../../utils/infillAnalysis';
 import { ToolheadSelect, SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS } from '../ToolheadPanel/ToolheadPanel';
 
 interface Step5AdvancedProps {
@@ -355,6 +356,7 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                                     ...zone.parameterOverride!, 
                                     poreInjection: current ? undefined : {
                                       enabled: true,
+                                      mode: 'layer_by_layer',
                                       syringeToolhead: 'syringe',
                                       zStartMm: zone.zStartMm,
                                       zEndMm: zone.zEndMm,
@@ -378,8 +380,38 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                             </button>
                           </div>
 
-                          {zone.parameterOverride?.poreInjection?.enabled && (
+                          {zone.parameterOverride?.poreInjection?.enabled && (() => {
+                            const activeModel = zone.modelScope === 'all' ? models[0] : models.find(m => m.id === zone.modelScope) || models[0];
+                            const areaWidth = activeModel?.size ? activeModel.size.x * activeModel.transform.scale.x : 20;
+                            const areaDepth = activeModel?.size ? activeModel.size.y * activeModel.transform.scale.y : 20;
+                            const infillPercent = zone.parameterOverride.fdm?.infillPercent ?? globalSettings.infill ?? 15;
+                            const zHeight = Math.max(0, zone.zEndMm - zone.zStartMm);
+                            const analysis = analyzeGridInfill(areaWidth, areaDepth, zHeight, infillPercent, 0.4);
+                            const currentMode = zone.parameterOverride.poreInjection.mode || 'layer_by_layer';
+
+                            return (
                             <div className="space-y-3 bg-cyan-50/30 dark:bg-cyan-900/10 p-2.5 rounded-lg border border-cyan-100 dark:border-cyan-800/30 animate-in fade-in slide-in-from-top-1">
+                              
+                              {/* Mode Selector Tabs */}
+                              <div className="flex bg-cyan-100/50 dark:bg-cyan-950/50 p-1 rounded-md border border-cyan-200/50 dark:border-cyan-800/50">
+                                <button
+                                  onClick={() => handleUpdateZZone(zone.id, { 
+                                    parameterOverride: { ...zone.parameterOverride!, poreInjection: { ...zone.parameterOverride!.poreInjection!, mode: 'layer_by_layer' } } 
+                                  })}
+                                  className={`flex-1 py-1 rounded transition-all text-[8px] font-black uppercase tracking-widest ${currentMode === 'layer_by_layer' ? 'bg-white dark:bg-cyan-600 text-cyan-700 dark:text-white shadow-sm border border-cyan-200 dark:border-cyan-500' : 'text-cyan-600/60 dark:text-cyan-400/60 hover:text-cyan-700 dark:hover:text-cyan-300'}`}
+                                >
+                                  Layer by Layer
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateZZone(zone.id, { 
+                                    parameterOverride: { ...zone.parameterOverride!, poreInjection: { ...zone.parameterOverride!.poreInjection!, mode: 'multilayer' } } 
+                                  })}
+                                  className={`flex-1 py-1 rounded transition-all text-[8px] font-black uppercase tracking-widest ${currentMode === 'multilayer' ? 'bg-white dark:bg-cyan-600 text-cyan-700 dark:text-white shadow-sm border border-cyan-200 dark:border-cyan-500' : 'text-cyan-600/60 dark:text-cyan-400/60 hover:text-cyan-700 dark:hover:text-cyan-300'}`}
+                                >
+                                  Multilayer
+                                </button>
+                              </div>
+
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
                                   <span className="text-[7px] text-slate-400 font-black uppercase">Toolhead</span>
@@ -399,36 +431,6 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                                   </select>
                                 </div>
                                 <div className="space-y-1">
-                                  <span className="text-[7px] text-slate-400 font-black uppercase">Depth (mm)</span>
-                                  <NumericInput
-                                    value={zone.parameterOverride.poreInjection.injectionDepthMm}
-                                    onChange={v => handleUpdateZZone(zone.id, { 
-                                      parameterOverride: { 
-                                        ...zone.parameterOverride!, 
-                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, injectionDepthMm: v } 
-                                      } 
-                                    })}
-                                    className="h-6 text-[9px] bg-white dark:bg-slate-900"
-                                    step={0.05}
-                                  />
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <span className="text-[7px] text-slate-400 font-black uppercase">Flow/Pore (µL)</span>
-                                  <NumericInput
-                                    value={zone.parameterOverride.poreInjection.flowRateUlPerCell}
-                                    onChange={v => handleUpdateZZone(zone.id, { 
-                                      parameterOverride: { 
-                                        ...zone.parameterOverride!, 
-                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, flowRateUlPerCell: v } 
-                                      } 
-                                    })}
-                                    className="h-6 text-[9px] bg-white dark:bg-slate-900"
-                                    step={0.1}
-                                  />
-                                </div>
-                                <div className="space-y-1">
                                   <span className="text-[7px] text-slate-400 font-black uppercase">Inject Feedrate</span>
                                   <NumericInput
                                     value={zone.parameterOverride.poreInjection.injectionFeedrateMmMin}
@@ -443,11 +445,78 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                                   />
                                 </div>
                               </div>
+
+                              {currentMode === 'layer_by_layer' ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <span className="text-[7px] text-slate-400 font-black uppercase">Flow/Pore (µL)</span>
+                                    <NumericInput
+                                      value={zone.parameterOverride.poreInjection.flowRateUlPerCell}
+                                      onChange={v => handleUpdateZZone(zone.id, { 
+                                        parameterOverride: { 
+                                          ...zone.parameterOverride!, 
+                                          poreInjection: { ...zone.parameterOverride!.poreInjection!, flowRateUlPerCell: v } 
+                                        } 
+                                      })}
+                                      className="h-6 text-[9px] bg-white dark:bg-slate-900"
+                                      step={0.1}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[7px] text-slate-400 font-black uppercase">Depth (mm)</span>
+                                    <NumericInput
+                                      value={zone.parameterOverride.poreInjection.injectionDepthMm}
+                                      onChange={v => handleUpdateZZone(zone.id, { 
+                                        parameterOverride: { 
+                                          ...zone.parameterOverride!, 
+                                          poreInjection: { ...zone.parameterOverride!.poreInjection!, injectionDepthMm: v } 
+                                        } 
+                                      })}
+                                      className="h-6 text-[9px] bg-white dark:bg-slate-900"
+                                      step={0.05}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-end">
+                                    <div className="space-y-1 flex-1 pr-2">
+                                      <span className="text-[7px] text-slate-400 font-black uppercase flex justify-between">
+                                        <span>Target Vol. (µL)</span>
+                                        <span className="text-cyan-500">Max: {analysis.totalMaxVolumeUl.toFixed(1)}</span>
+                                      </span>
+                                      <NumericInput
+                                        value={zone.parameterOverride.poreInjection.targetVolumeUl ?? (analysis.totalMaxVolumeUl * 0.5)}
+                                        onChange={v => handleUpdateZZone(zone.id, { 
+                                          parameterOverride: { 
+                                            ...zone.parameterOverride!, 
+                                            poreInjection: { ...zone.parameterOverride!.poreInjection!, targetVolumeUl: Math.min(v, analysis.totalMaxVolumeUl) } 
+                                          } 
+                                        })}
+                                        className="h-6 text-[9px] bg-white dark:bg-slate-900 border-cyan-300 dark:border-cyan-700"
+                                        step={1}
+                                      />
+                                    </div>
+                                    <div className="flex flex-col items-end pb-1">
+                                      <span className="text-[7px] text-slate-400 font-black uppercase">Est. Pores</span>
+                                      <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">{analysis.estimatedCellCount}</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                      className="h-full bg-cyan-500 transition-all duration-300"
+                                      style={{ width: `${Math.min(100, ((zone.parameterOverride.poreInjection.targetVolumeUl || 0) / analysis.totalMaxVolumeUl) * 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
                               {(zone.parameterOverride.fdm?.infillPattern || globalSettings.infillPattern) !== 'grid' && (
                                 <p className="text-[7px] text-amber-600 font-bold italic">Note: Only works with GRID pattern</p>
                               )}
                             </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       </div>
                     )}

@@ -212,17 +212,21 @@ export const Viewport: React.FC = () => {
               ))}
             </Suspense>
 
-            {isGCodeMode && gcodeParsed && (
-              <GCodeScene
-                parsed={gcodeParsed}
-                upToLayer={gcodeLayer}
-                upToMoveIndex={gcodeMoveIndex}
-                nozzleDiameter={gcodeNozzle}
-                showTravel={gcodeShowTravel}
-                colorMode={gcodeColorMode}
-                renderMode={gcodeRenderMode}
-              />
-            )}
+            {isGCodeMode && gcodeParsed && (() => {
+              const syringeTool = project.toolheads.find(t => t.id === 'syringe') as any;
+              return (
+                <GCodeScene
+                  parsed={gcodeParsed}
+                  upToLayer={gcodeLayer}
+                  upToMoveIndex={gcodeMoveIndex}
+                  nozzleDiameter={gcodeNozzle}
+                  showTravel={gcodeShowTravel}
+                  colorMode={gcodeColorMode}
+                  renderMode={gcodeRenderMode}
+                  activeTipId={syringeTool?.tipId}
+                />
+              );
+            })()}
 
             <ContactShadows position={[0, -0.01, 0]} opacity={0.2} scale={400} blur={2.5} far={10} color="#000000" />
             <SceneControls cameraMode={cameraMode} zoomTrigger={zoomTrigger} />

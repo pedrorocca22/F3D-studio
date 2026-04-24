@@ -25,6 +25,7 @@ from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_defa
 from datetime import datetime
 from utils.gcode_infill_parser import parse_infill_lines, detect_perfect_squares, compute_centroids
 from utils.gcode_injector import build_pore_injection_gcode, inject_pore_gcode_into_file
+from utils.pore_injection_gcode import build_multilayer_injection_gcode
 
 def _debug_log_to_file(filename, content):
     try:
@@ -1199,55 +1200,98 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                     z_end = float(zone.get("zEndMm", 10.0))
                     print(f"[PORE] Scanning zone '{zone.get('label')}' ({z_start}-{z_end} mm)")
                     
-                    # 2. Identify and process layers within this zone's range
-                    for layer_idx, data in infill_data.items():
-                        z = data["z"]
-                        if not (z_start <= z <= z_end):
-                            continue
-                        
-                        # Use zone-specific cell detection parameters
-                        tol = float(pore_config.get("cellSizeToleranceMm", 0.1))
-                        min_cell = float(pore_config.get("minCellSizeMm", 0.5))
-                        
-                        squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
-                        if not squares:
-                            continue
+                    mode = pore_config.get("mode", "layer_by_layer")
+                    tol = float(pore_config.get("cellSizeToleranceMm", 0.1))
+                    min_cell = float(pore_config.get("minCellSizeMm", 0.5))
+                    syringe_tool = get_tool_name(pore_config.get("syringeToolhead", "syringe"))
+
+                    if mode == "layer_by_layer":
+                        # 2. Process layer by layer as usual
+                        for layer_idx, data in infill_data.items():
+                            z = data["z"]
+                            if not (z_start <= z <= z_end):
+                                continue
                             
-                        centroids = compute_centroids(squares)
-                        if centroids:
-                            # Build injection G-code for these specific sites
-                            syringe_tool = get_tool_name(pore_config.get("syringeToolhead", "syringe"))
-                            
-                            gcode_block = build_pore_injection_gcode(
-                                centroids=centroids,
-                                current_z=z,
-                                injection_depth_mm=float(pore_config.get("injectionDepthMm", 0.3)),
-                                flow_ul_per_cell=float(pore_config.get("flowRateUlPerCell", 0.5)),
-                                ul_per_mm=165.0, # Approximate for 10ml syringe
-                                travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
-                                inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
-                                syringe_tool=syringe_tool,
-                                fdm_tool="T0"
-                            )
-                            
-                            # Add to the global injection plan
-                            if layer_idx in all_layer_injections:
-                                all_layer_injections[layer_idx].extend(gcode_block)
-                            else:
-                                all_layer_injections[layer_idx] = gcode_block
-                            
-                            # Record for frontend visualization
-                            for c in centroids:
-                                mid = "global"
-                                for d in consolidated_data:
-                                    if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
-                                       (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
-                                        mid = d["model_id"]
-                                        break
-                                detected_pores_for_metadata.append({
-                                    "x": float(c[0]), "y": float(c[1]), "z": float(z),
-                                    "modelId": mid, "layer": int(layer_idx)
-                                })
+                            squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
+                            if not squares:
+                                continue
+                                
+                            centroids = compute_centroids(squares)
+                            if centroids:
+                                gcode_block = build_pore_injection_gcode(
+                                    centroids=centroids,
+                                    current_z=z,
+                                    injection_depth_mm=float(pore_config.get("injectionDepthMm", 0.3)),
+                                    flow_ul_per_cell=float(pore_config.get("flowRateUlPerCell", 0.5)),
+                                    ul_per_mm=165.0, # Approximate for 10ml syringe
+                                    travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
+                                    inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
+                                    syringe_tool=syringe_tool,
+                                    fdm_tool="T0"
+                                )
+                                
+                                if layer_idx in all_layer_injections:
+                                    all_layer_injections[layer_idx].extend(gcode_block)
+                                else:
+                                    all_layer_injections[layer_idx] = gcode_block
+                                
+                                for c in centroids:
+                                    mid = "global"
+                                    for d in consolidated_data:
+                                        if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
+                                           (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
+                                            mid = d["model_id"]
+                                            break
+                                    detected_pores_for_metadata.append({
+                                        "x": float(c[0]), "y": float(c[1]), "z": float(z),
+                                        "modelId": mid, "layer": int(layer_idx)
+                                    })
+                    else:
+                        # MULTILAYER MODE: Find the highest layer in the zone, get its centroids, and inject once.
+                        highest_layer_idx = None
+                        highest_z = -1
+                        for layer_idx, data in infill_data.items():
+                            z = data["z"]
+                            if z_start <= z <= z_end and z > highest_z:
+                                highest_z = z
+                                highest_layer_idx = layer_idx
+                                
+                        if highest_layer_idx is not None:
+                            data = infill_data[highest_layer_idx]
+                            squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
+                            centroids = compute_centroids(squares)
+                            if centroids:
+                                target_volume = float(pore_config.get("targetVolumeUl", 0.0))
+                                flow_ul_per_cell = target_volume / len(centroids) if len(centroids) > 0 else 0
+                                
+                                gcode_block = build_multilayer_injection_gcode(
+                                    centroids=centroids,
+                                    z_start_mm=z_start,
+                                    z_end_mm=highest_z,
+                                    flow_ul_per_cell=flow_ul_per_cell,
+                                    ul_per_mm=165.0,
+                                    travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
+                                    inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
+                                    syringe_tool=syringe_tool,
+                                    fdm_tool="T0"
+                                )
+                                
+                                if highest_layer_idx in all_layer_injections:
+                                    all_layer_injections[highest_layer_idx].extend(gcode_block)
+                                else:
+                                    all_layer_injections[highest_layer_idx] = gcode_block
+                                
+                                for c in centroids:
+                                    mid = "global"
+                                    for d in consolidated_data:
+                                        if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
+                                           (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
+                                            mid = d["model_id"]
+                                            break
+                                    detected_pores_for_metadata.append({
+                                        "x": float(c[0]), "y": float(c[1]), "z": float(highest_z),
+                                        "modelId": mid, "layer": int(highest_layer_idx)
+                                    })
 
                 if all_layer_injections:
                     _set_progress(job_id, 0.97, f"Injecting {len(detected_pores_for_metadata)} pore sites...")

@@ -11,9 +11,10 @@ import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three-stdlib';
 import { Icon } from '../Icon';
+import { getTipById, DEFAULT_TIP_ID } from '../../constants/nozzleTips';
 
 // ── Nozzle Component ─────────────────────────────────────────────────────────
-function Nozzle({ position, toolhead }: { position: [number, number, number], toolhead: string }) {
+function Nozzle({ position, tipColor }: { position: [number, number, number], tipColor: string }) {
     const originalGeometry = useLoader(STLLoader, '/punta.stl');
     
     const geometry = useMemo(() => {
@@ -31,8 +32,7 @@ function Nozzle({ position, toolhead }: { position: [number, number, number], to
             geo.rotateX(Math.PI / 2);
         }
         
-        // Assuming min.y is the tip. But the user says it looks upside down,
-        // so we flip it 180 degrees before calculating the final translation.
+        // Flip 180° so the tip points downward
         geo.rotateX(Math.PI);
         
         geo.computeBoundingBox();
@@ -54,9 +54,9 @@ function Nozzle({ position, toolhead }: { position: [number, number, number], to
             position={position}
         >
             <meshStandardMaterial 
-                color="#ff69b4" 
+                color={tipColor}
                 transparent={true} 
-                opacity={0.8} 
+                opacity={0.85} 
                 roughness={0.3} 
                 metalness={0.1} 
             />
@@ -498,13 +498,21 @@ function WireSegments({ extrusion, count }: { extrusion: ExtrusionData; count: n
 
 // ── GCodeScene (embedded in Viewport's Canvas) ────────────────────────────────
 export function GCodeScene({
-    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead', renderMode = 'solid'
+    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead', renderMode = 'solid', activeTipId
 }: {
     parsed: ParsedGCode; upToLayer: number; upToMoveIndex?: number;
     nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
     renderMode?: 'solid' | 'wire';
+    /** ID of the active Nordson tip — drives the Nozzle mesh color */
+    activeTipId?: string;
 }) {
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
+
+    // Resolve tip color: use Nordson color or fallback to pink (20GA default)
+    const tipColor = useMemo(() => {
+        const tip = getTipById(activeTipId ?? DEFAULT_TIP_ID);
+        return tip?.colorHex ?? '#FF69B4';
+    }, [activeTipId]);
 
     const centerOffset = useMemo(() => {
         return { x: -50, y: -50 };
@@ -563,11 +571,11 @@ export function GCodeScene({
                 visible={showTravel}
             />
 
-            {/* Simulated Toolhead (Nozzle) */}
+            {/* Simulated Toolhead (Nozzle) — color matches selected Nordson tip */}
             {currentMove && (
                 <Nozzle 
                     position={[currentMove.x, currentMove.z, currentMove.y]} 
-                    toolhead={currentMove.toolhead} 
+                    tipColor={tipColor}
                 />
             )}
         </group>

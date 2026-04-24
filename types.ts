@@ -95,15 +95,30 @@ export interface MotorControlSettings {
   separationDistance: number;
 }
 
+export type PoreInjectionMode = 'layer_by_layer' | 'multilayer';
+
 export interface PoreInjectionConfig {
   enabled: boolean;
+  /** Operational mode: inject after each FDM layer vs. sweep a full Z-volume */
+  mode: PoreInjectionMode;
   syringeToolhead: ToolheadId;
+  /** ID of the selected Nordson tip (from constants/nozzleTips.ts) */
+  tipId?: string;
   zStartMm: number;
   zEndMm: number;
   injectionDepthMm: number;
+  // ── Layer-by-layer params ──
+  /** Volume dispensed per pore cell (µL) */
   flowRateUlPerCell: number;
   travelFeedrateMmMin: number;
   injectionFeedrateMmMin: number;
+  // ── Multilayer params ──
+  /** Target injection volume (µL) — capped to maxAvailableVolumeUl */
+  targetVolumeUl?: number;
+  /** Calculated max available volume from infill geometry (read-only, UI display) */
+  maxAvailableVolumeUl?: number;
+  /** Number of FDM layers accumulated for depth calculation */
+  accumulatedLayerCount?: number;
 }
 
 export interface GlobalSettings {
@@ -361,6 +376,8 @@ export interface SyringeToolheadConfig extends BaseToolheadConfig {
   pressureKPa?: number;
   flowrateMmPerSec?: number;
   retractDistance?: number;
+  /** Selected Nordson tip ID — drives nozzleDiameterMm and 3D color */
+  tipId?: string;
 }
 
 export interface UVToolheadConfig extends BaseToolheadConfig {
