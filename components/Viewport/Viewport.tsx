@@ -174,6 +174,8 @@ export const Viewport: React.FC = () => {
               zZones={project.zZones}
               detectedPores={slicer.gcodePreviewJob?.detectedPores}
               bedCenter={slicer.gcodePreviewJob?.bedCenter}
+              isClipping={isClipping}
+              currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
 
             <UVProcessPlanes 
