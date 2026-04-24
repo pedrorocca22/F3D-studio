@@ -1162,116 +1162,99 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
             _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config, model_bboxes)
 
-        # ── Pore Injection Post-Processing ──
-        pore_raw = form_params.get("pore_injection")
+        # ── Pore Injection Post-Processing (Segment-Based) ──
+        z_zones_raw = form_params.get("z_zones", "[]")
+        z_zones = json.loads(z_zones_raw)
         detected_pores_for_metadata = []
-        if pore_raw and not preview_only:
+        
+        if z_zones and not preview_only:
+            print(f"[PORE DEBUG] Processing {len(z_zones)} zones for injection...")
             try:
-                pore_config = json.loads(pore_raw)
-                if pore_config.get("enabled"):
-                    _set_progress(job_id, 0.96, "Detecting pores in infill...")
-                    # 1. Parse infill
-                    lh_mm = float(layer_height)
-                    infill_data = parse_infill_lines(gcode_out, lh_mm)
+                _set_progress(job_id, 0.96, "Detecting pores in infill...")
+                # 1. Parse infill ONCE
+                lh_mm = float(layer_height)
+                infill_data = parse_infill_lines(gcode_out, lh_mm)
+                
+                all_layer_injections = {}
+                
+                # Helper to map toolhead IDs to G-code tool numbers
+                def get_tool_name(t_id):
+                    if not t_id: return "T1"
+                    s = str(t_id).lower()
+                    if s.startswith("t"): return s.upper()
+                    mapping = {"fdm": "T0", "syringe": "T1", "uv": "T2"}
+                    return mapping.get(s, "T1")
 
-                    print(f"--- DEBUG PYTHON --- Capas con infill detectadas: {len(infill_data)}") # AÑADE ESTO
+                for zone in z_zones:
+                    # Check if this zone has pore injection enabled
+                    param_override = zone.get("parameterOverride", {})
+                    pore_config = param_override.get("poreInjection")
                     
-                    # 2. Find squares and compute centroids
-                    z_start = pore_config.get("zStartMm", 0.0)
-                    z_end = pore_config.get("zEndMm", 5.0)
-                    min_cell = pore_config.get("minCellSizeMm", 0.5)
-                    tol = pore_config.get("cellSizeToleranceMm", 0.1)
-                    skip_perimeter = pore_config.get("skipPerimeterCells", True)
-                    
-                    layer_injections = {}
-                    
-                    # Pre-calculate which layers have pore injection enabled via Z-Zones
-                    injection_layers_override = set()
-                    for action in sanitizer_actions:
-                        if action.get("poreInjectionEnabled"):
-                            for l in range(action["layerFrom"], action["layerTo"] + 1):
-                                injection_layers_override.add(l)
-                    
-                    # If we have segments, they define the ONLY ranges for injection.
-                    # We ignore global z_start/z_end in this case.
-                    use_segment_logic = len(injection_layers_override) > 0
+                    print(f"[PORE DEBUG] Zone '{zone.get('label')}': pore_config={pore_config}")
 
+                    if not (pore_config and pore_config.get("enabled")):
+                        continue
+                    
+                    z_start = float(zone.get("zStartMm", 0.0))
+                    z_end = float(zone.get("zEndMm", 10.0))
+                    print(f"[PORE] Scanning zone '{zone.get('label')}' ({z_start}-{z_end} mm)")
+                    
+                    # 2. Identify and process layers within this zone's range
                     for layer_idx, data in infill_data.items():
                         z = data["z"]
-                        
-                        should_inject = False
-                        if use_segment_logic:
-                            # Segment logic takes precedence
-                            if layer_idx in injection_layers_override:
-                                should_inject = True
-                        else:
-                            # Fallback to global range only if no segments are overriding
-                            if z_start <= z <= z_end:
-                                should_inject = True
-                                
-                        if not should_inject:
+                        if not (z_start <= z <= z_end):
                             continue
-                            
+                        
+                        # Use zone-specific cell detection parameters
+                        tol = float(pore_config.get("cellSizeToleranceMm", 0.1))
+                        min_cell = float(pore_config.get("minCellSizeMm", 0.5))
+                        
                         squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
-                        print(f"Capa {layer_idx} (Z={z}): Encontrados {len(squares)} cuadrados") # AÑADE ESTO
                         if not squares:
                             continue
                             
-                        # If skip_perimeter is True, we could filter them out. For now we use all perfect squares as they are usually internal.
                         centroids = compute_centroids(squares)
-                        
                         if centroids:
-                            syringe_tool = pore_config.get("syringeToolhead", "T1")
-                            
-                            # Ensure tool format is correct for Prusa (e.g. T1 instead of syringe)
-                            if not syringe_tool.startswith("T"):
-                                # Fallback mapping if frontend sends 'syringe'
-                                mapping = {"fdm": "T0", "syringe": "T1", "uv": "T2"}
-                                syringe_tool = mapping.get(syringe_tool.lower(), "T1")
-                            
-                            # Note: To avoid redefining flow mapping here, we use a simple ul_per_mm conversion 
-                            # Prusa mk3 defaults to 1.75mm filament => area = 2.405 mm2 => 1mm = 2.405 ul.
-                            # For a 10ml syringe (inner dia ~14.5mm => area 165 mm2 => 1mm = 165 ul)
-                            # This should ideally come from ToolheadConfig, but we use a reasonable default.
-                            ul_per_mm = 165.0 
+                            # Build injection G-code for these specific sites
+                            syringe_tool = get_tool_name(pore_config.get("syringeToolhead", "syringe"))
                             
                             gcode_block = build_pore_injection_gcode(
                                 centroids=centroids,
                                 current_z=z,
-                                injection_depth_mm=pore_config.get("injectionDepthMm", 0.3),
-                                flow_ul_per_cell=pore_config.get("flowRateUlPerCell", 0.5),
-                                ul_per_mm=ul_per_mm,
-                                travel_feedrate=pore_config.get("travelFeedrateMmMin", 6000),
-                                inject_feedrate=pore_config.get("injectionFeedrateMmMin", 120),
+                                injection_depth_mm=float(pore_config.get("injectionDepthMm", 0.3)),
+                                flow_ul_per_cell=float(pore_config.get("flowRateUlPerCell", 0.5)),
+                                ul_per_mm=165.0, # Approximate for 10ml syringe
+                                travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
+                                inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
                                 syringe_tool=syringe_tool,
                                 fdm_tool="T0"
                             )
-                            layer_injections[layer_idx] = gcode_block
                             
-                            # Save for frontend preview
+                            # Add to the global injection plan
+                            if layer_idx in all_layer_injections:
+                                all_layer_injections[layer_idx].extend(gcode_block)
+                            else:
+                                all_layer_injections[layer_idx] = gcode_block
+                            
+                            # Record for frontend visualization
                             for c in centroids:
-                                model_id = "global"
-                                # Improved bounding box check using the actual model_ids
+                                mid = "global"
                                 for d in consolidated_data:
-                                    # Expand bbox slightly to avoid rounding issues
                                     if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
                                        (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
-                                        model_id = d["model_id"]
+                                        mid = d["model_id"]
                                         break
-
                                 detected_pores_for_metadata.append({
-                                    "x": float(c[0]),
-                                    "y": float(c[1]),
-                                    "z": float(z),
-                                    "modelId": model_id,
-                                    "layer": int(layer_idx)
+                                    "x": float(c[0]), "y": float(c[1]), "z": float(z),
+                                    "modelId": mid, "layer": int(layer_idx)
                                 })
 
-                    if layer_injections and not preview_only:
-                        _set_progress(job_id, 0.97, f"Injecting {sum(len(v) for v in layer_injections.values())//7} pore sites...")
-                        inject_pore_gcode_into_file(gcode_out, layer_injections)
-            except Exception as e:
-                print(f"[PORE INJECTION] Error: {e}")
+                if all_layer_injections:
+                    _set_progress(job_id, 0.97, f"Injecting {len(detected_pores_for_metadata)} pore sites...")
+                    inject_pore_gcode_into_file(gcode_out, all_layer_injections)
+                    
+            except Exception as pe:
+                print(f"[PORE] Injection processing failed: {pe}")
                 traceback.print_exc()
 
         # Parse basic stats from G-code comments
@@ -1385,7 +1368,8 @@ def fdm_slice():
         "max_fan_speed": request.form.get("max_fan_speed", "100"),
         "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
         "cooling": request.form.get("cooling", "1"),
-        "pore_injection": request.form.get("pore_injection")
+        "pore_injection": request.form.get("pore_injection"),
+        "z_zones": request.form.get("z_zones", "[]")
     }
     
     # DEBUG: Log raw request

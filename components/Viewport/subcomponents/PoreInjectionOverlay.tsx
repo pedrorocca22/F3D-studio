@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { ModelData, GlobalSettings, ZZone } from '../../../types';
 import { clippingPlane as globalClippingPlane } from '../constants';
@@ -27,6 +27,8 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
   isClipping = false,
   currentHeight
 }) => {
+  const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+
   // 1. LOCAL CLIPPING PLANE FOR G-CODE LAYERS
   const gcodeClipPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 1000), []);
 
@@ -34,57 +36,56 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
     if (currentHeight !== undefined && currentHeight !== null) {
       gcodeClipPlane.constant = currentHeight;
     } else {
-      gcodeClipPlane.constant = 1000; // Show all if no height
+      gcodeClipPlane.constant = 1000;
     }
   }, [currentHeight, gcodeClipPlane]);
 
-  // 2. CÁLCULO DE RESULTADOS REALES (Post-Slice)
-  const realPores = useMemo(() => {
-    if (!detectedPores || detectedPores.length === 0) return [];
+  // 2. OPTIMIZED PARAMETERS FOR INSTANCING
+  const poreParams = useMemo(() => {
+    if (!detectedPores || detectedPores.length === 0) return null;
 
     const bedX = bedCenter?.x || 0;
     const bedY = bedCenter?.y || 0;
-
     const nozzle = Number(globalSettings.nozzleDiameter ?? 0.4);
     const infill = Number(globalSettings.infill ?? 15);
     const f = Math.max(0.01, Math.min(1, infill / 100));
-
     const layerHeightMm = Number(globalSettings.layerHeight || 200) / 1000;
-
-    // Altura visual de cada cilindro (0.6mm o el doble de la capa para asegurar visibilidad)
+    
     const displayHeight = Math.max(0.6, layerHeightMm * 2);
+    const radius = Math.max(MIN_PORE_RADIUS_MM, Math.min(MAX_PORE_RADIUS_MM, (nozzle * 1.5) * (1 - f)));
 
-    const radius = Math.max(
-      MIN_PORE_RADIUS_MM,
-      Math.min(MAX_PORE_RADIUS_MM, (nozzle * 1.5) * (1 - f))
-    );
-
-    return detectedPores.map((p, i) => {
-      const poreZ = p.z !== undefined ? Number(p.z) : (Number(p.layer) * layerHeightMm);
-
-      return {
-        key: `real-pore-${i}-${p.layer}`,
-        x: Number(p.x) - bedX,
-        y: poreZ,               // Altura física
-        z: Number(p.y) - bedY,  // Profundidad
-        radius,
-        height: displayHeight
-      };
-    });
+    return { bedX, bedY, layerHeightMm, displayHeight, radius };
   }, [detectedPores, bedCenter, globalSettings]);
 
-  // 3. CÁLCULO DE LA GUÍA DE CONFIGURACIÓN (Pre-Slice)
-  const zBandData = useMemo(() => {
-    if (realPores.length > 0 || !poreInjection?.enabled || models.length === 0) return null;
+  // 3. UPDATE INSTANCED MESH MATRICES
+  useEffect(() => {
+    if (!instancedMeshRef.current || !detectedPores || !poreParams) return;
 
+    const { bedX, bedY, layerHeightMm } = poreParams;
+    const dummy = new THREE.Object3D();
+
+    detectedPores.forEach((p, i) => {
+      const poreZ = p.z !== undefined ? Number(p.z) : (Number(p.layer) * layerHeightMm);
+      // G-code X,Y -> Three.js X,Z. G-code Z -> Three.js Y.
+      dummy.position.set(Number(p.x) - bedX, poreZ, Number(p.y) - bedY);
+      dummy.updateMatrix();
+      instancedMeshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
+
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+    instancedMeshRef.current.count = detectedPores.length;
+  }, [detectedPores, poreParams]);
+
+  // 4. CONFIGURATION GUIDE (Standard Mesh as they are few)
+  const zBandData = useMemo(() => {
     const segmentsToShow: { zStart: number; zEnd: number }[] = [];
-    const activeZones = zZones.filter(z => z.enabled && z.parameterOverride?.poreInjectionEnabled);
+    const activeZones = zZones.filter(z => z.enabled && z.parameterOverride?.poreInjection?.enabled);
     
     if (activeZones.length > 0) {
       activeZones.forEach(z => {
         segmentsToShow.push({ zStart: z.zStartMm, zEnd: z.zEndMm });
       });
-    } else {
+    } else if (poreInjection?.enabled) {
       segmentsToShow.push({ zStart: poreInjection.zStartMm, zEnd: poreInjection.zEndMm });
     }
 
@@ -106,42 +107,49 @@ export const PoreInjectionOverlay: React.FC<PoreInjectionOverlayProps> = ({
     });
 
     return bands;
-  }, [realPores, poreInjection, models, zZones]);
+  }, [detectedPores, poreInjection, models, zZones]);
 
-  if (!poreInjection?.enabled) return null;
+  // Master visibility: Show if we have real results OR if any zone has it enabled
+  const anyZoneEnabled = useMemo(() => zZones.some(z => z.enabled && z.parameterOverride?.poreInjection?.enabled), [zZones]);
+  const isVisible = (detectedPores && detectedPores.length > 0) || anyZoneEnabled || poreInjection?.enabled;
 
-  // Active planes: always include gcodeClipPlane, optionally include global clipping plane
+  if (!isVisible) return null;
+
   const activePlanes = [gcodeClipPlane];
   if (isClipping) activePlanes.push(globalClippingPlane);
 
   return (
     <group name="pore-injection-overlay">
-      {realPores.map((p) => (
-        <mesh key={p.key} position={[p.x, p.y, p.z]}>
-          <cylinderGeometry args={[p.radius, p.radius, p.height, 12]} />
-          <meshPhysicalMaterial
+      {/* REAL RESULTS USING INSTANCING (High Performance) */}
+      {detectedPores && detectedPores.length > 0 && poreParams && (
+        <instancedMesh 
+          ref={instancedMeshRef} 
+          args={[undefined, undefined, detectedPores.length]}
+          frustumCulled={false}
+        >
+          <cylinderGeometry args={[poreParams.radius, poreParams.radius, poreParams.displayHeight, 8]} />
+          <meshStandardMaterial
             color="#39d5e8"
             emissive="#18c1d6"
-            emissiveIntensity={0.9}
+            emissiveIntensity={0.8}
             transparent
-            opacity={0.85}
+            opacity={0.8}
             clippingPlanes={activePlanes}
             clipShadows
-            side={THREE.DoubleSide}
           />
-        </mesh>
-      ))}
+        </instancedMesh>
+      )}
 
+      {/* CONFIGURATION GUIDE (Standard Meshes) */}
       {zBandData?.map((band: any) => (
         <mesh key={band.id} position={band.pos}>
           <boxGeometry args={band.size} />
-          <meshPhysicalMaterial
+          <meshStandardMaterial
             color="#39d5e8"
             transparent
             opacity={0.15}
             depthWrite={false}
             clippingPlanes={activePlanes}
-            side={THREE.DoubleSide}
           />
         </mesh>
       ))}

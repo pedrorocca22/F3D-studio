@@ -340,31 +340,113 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                            </div>
                         </div>
 
-                        {/* Pore Injection Segment Toggle */}
+                        {/* Pore Injection Segment Toggle & Config */}
                         <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between mb-2">
                             <div className="flex flex-col">
                               <span className="text-[7px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Pore Injection</span>
                               <span className="text-[6px] text-cyan-500 font-bold uppercase tracking-tighter">Requires Grid Infill</span>
                             </div>
                             <button
-                              onClick={() => handleUpdateZZone(zone.id, { parameterOverride: { ...zone.parameterOverride!, poreInjectionEnabled: !zone.parameterOverride?.poreInjectionEnabled } })}
+                              onClick={() => {
+                                const current = zone.parameterOverride?.poreInjection;
+                                handleUpdateZZone(zone.id, { 
+                                  parameterOverride: { 
+                                    ...zone.parameterOverride!, 
+                                    poreInjection: current ? undefined : {
+                                      enabled: true,
+                                      syringeToolhead: 'syringe',
+                                      zStartMm: zone.zStartMm,
+                                      zEndMm: zone.zEndMm,
+                                      injectionDepthMm: 0.3,
+                                      flowRateUlPerCell: 0.5,
+                                      travelFeedrateMmMin: 6000,
+                                      injectionFeedrateMmMin: 120
+                                    } 
+                                  } 
+                                });
+                              }}
                               className={`relative w-8 h-4 rounded-full transition-all ${
-                                zone.parameterOverride?.poreInjectionEnabled
+                                zone.parameterOverride?.poreInjection?.enabled
                                   ? 'bg-cyan-500'
                                   : 'bg-slate-200 dark:bg-slate-700'
                               }`}
                             >
                               <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
-                                zone.parameterOverride?.poreInjectionEnabled ? 'right-0.5' : 'left-0.5'
+                                zone.parameterOverride?.poreInjection?.enabled ? 'right-0.5' : 'left-0.5'
                               }`} />
                             </button>
                           </div>
-                          {zone.parameterOverride?.poreInjectionEnabled && !globalSettings.poreInjection?.enabled && (
-                            <p className="text-[7px] text-red-500 mt-1 font-bold">⚠ Enable global Pore Injection first!</p>
-                          )}
-                          {zone.parameterOverride?.poreInjectionEnabled && (zone.parameterOverride.fdm?.infillPattern || globalSettings.infillPattern) !== 'grid' && (
-                            <p className="text-[7px] text-amber-600 mt-0.5 font-bold italic">Note: Only works with GRID pattern</p>
+
+                          {zone.parameterOverride?.poreInjection?.enabled && (
+                            <div className="space-y-3 bg-cyan-50/30 dark:bg-cyan-900/10 p-2.5 rounded-lg border border-cyan-100 dark:border-cyan-800/30 animate-in fade-in slide-in-from-top-1">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <span className="text-[7px] text-slate-400 font-black uppercase">Toolhead</span>
+                                  <select
+                                    className="w-full h-6 rounded border border-slate-200 dark:border-slate-800 text-[9px] bg-white dark:bg-slate-900 font-bold outline-none px-1"
+                                    value={zone.parameterOverride.poreInjection.syringeToolhead}
+                                    onChange={e => handleUpdateZZone(zone.id, { 
+                                      parameterOverride: { 
+                                        ...zone.parameterOverride!, 
+                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, syringeToolhead: e.target.value as any } 
+                                      } 
+                                    })}
+                                  >
+                                    {toolheads.filter(t => t.id === 'syringe').map(t => (
+                                      <option key={t.id} value={t.id}>{t.label || 'Syringe'}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[7px] text-slate-400 font-black uppercase">Depth (mm)</span>
+                                  <NumericInput
+                                    value={zone.parameterOverride.poreInjection.injectionDepthMm}
+                                    onChange={v => handleUpdateZZone(zone.id, { 
+                                      parameterOverride: { 
+                                        ...zone.parameterOverride!, 
+                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, injectionDepthMm: v } 
+                                      } 
+                                    })}
+                                    className="h-6 text-[9px] bg-white dark:bg-slate-900"
+                                    step={0.05}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <span className="text-[7px] text-slate-400 font-black uppercase">Flow/Pore (µL)</span>
+                                  <NumericInput
+                                    value={zone.parameterOverride.poreInjection.flowRateUlPerCell}
+                                    onChange={v => handleUpdateZZone(zone.id, { 
+                                      parameterOverride: { 
+                                        ...zone.parameterOverride!, 
+                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, flowRateUlPerCell: v } 
+                                      } 
+                                    })}
+                                    className="h-6 text-[9px] bg-white dark:bg-slate-900"
+                                    step={0.1}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[7px] text-slate-400 font-black uppercase">Inject Feedrate</span>
+                                  <NumericInput
+                                    value={zone.parameterOverride.poreInjection.injectionFeedrateMmMin}
+                                    onChange={v => handleUpdateZZone(zone.id, { 
+                                      parameterOverride: { 
+                                        ...zone.parameterOverride!, 
+                                        poreInjection: { ...zone.parameterOverride!.poreInjection!, injectionFeedrateMmMin: v } 
+                                      } 
+                                    })}
+                                    className="h-6 text-[9px] bg-white dark:bg-slate-900"
+                                    step={10}
+                                  />
+                                </div>
+                              </div>
+                              {(zone.parameterOverride.fdm?.infillPattern || globalSettings.infillPattern) !== 'grid' && (
+                                <p className="text-[7px] text-amber-600 font-bold italic">Note: Only works with GRID pattern</p>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -432,204 +514,8 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
         ))}
       </div>
 
-      {/* ─── Pore Injection System ─────────────────────────────── */}
-      <div className="mt-8 mx-1 border border-cyan-200 dark:border-cyan-800/50 rounded-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-cyan-50 dark:bg-cyan-900/20 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-              <Icon name="vaccines" className="text-cyan-600 dark:text-cyan-400 text-sm" />
-            </div>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-cyan-700 dark:text-cyan-300">
-                Pore Injection
-              </span>
-              <p className="text-[8px] text-cyan-500 dark:text-cyan-500 font-medium">
-                Post-print bio-material injection into infill pores
-              </p>
-            </div>
-          </div>
-          {/* Enable toggle */}
-          <button
-            onClick={() => {
-              const current = globalSettings.poreInjection;
-              onUpdateGlobalSettings({
-                ...globalSettings,
-                poreInjection: {
-                  syringeToolhead: 'syringe',
-                  zStartMm: 0,
-                  zEndMm: 5,
-                  injectionDepthMm: 0.3,
-                  flowRateUlPerCell: 0.5,
-                  travelFeedrateMmMin: 6000,
-                  injectionFeedrateMmMin: 120,
-                  ...(current || {}),
-                  enabled: !(current?.enabled),
-                }
-              });
-            }}
-            className={`relative w-10 h-5 rounded-full transition-all ${
-              globalSettings.poreInjection?.enabled
-                ? 'bg-cyan-500'
-                : 'bg-slate-300 dark:bg-slate-600'
-            }`}
-          >
-            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${
-              globalSettings.poreInjection?.enabled ? 'right-0.5' : 'left-0.5'
-            }`} />
-          </button>
-        </div>
+      {/* Global Pore Injection System Panel removed in favor of Segment-based injection */}
 
-        {globalSettings.poreInjection?.enabled && (
-          <div className="p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 bg-white dark:bg-slate-900/40">
-
-            {/* Infill pattern warning */}
-            {(!globalSettings.infillPattern || globalSettings.infillPattern !== 'rectilinear') && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-2.5 rounded-lg flex items-start gap-2 text-[10px] border border-amber-200 dark:border-amber-800/50">
-                <Icon name="warning" className="text-[13px] mt-0.5 flex-shrink-0" />
-                <span>
-                  Set global infill to <strong>Rectilinear</strong> (Step 4 → Settings) for correct pore detection.
-                </span>
-              </div>
-            )}
-
-            {/* Syringe toolhead selector */}
-            {(() => {
-              const syringes = toolheads.filter(t => t.id === 'syringe' && t.slot !== undefined);
-              return (
-                <div className="space-y-1.5">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                    <Icon name="medical_services" className="text-[10px] text-cyan-500" />
-                    Syringe Toolhead
-                  </span>
-                  {syringes.length === 0 ? (
-                    <div className="text-[9px] text-red-500 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-lg p-2 flex items-center gap-1.5">
-                      <Icon name="error_outline" className="text-[11px]" />
-                      No syringe toolhead installed — configure one in Step 1 (Environment).
-                    </div>
-                  ) : (
-                    <select
-                      className="w-full h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10px] font-bold px-2 outline-none focus:ring-1 focus:ring-cyan-400"
-                      value={globalSettings.poreInjection.syringeToolhead}
-                      onChange={e => onUpdateGlobalSettings({
-                        ...globalSettings,
-                        poreInjection: { ...globalSettings.poreInjection!, syringeToolhead: e.target.value as any }
-                      })}
-                    >
-                      {syringes.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.label || 'Syringe'} {t.slot !== undefined ? `(Slot ${t.slot + 1})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Z Range */}
-            <div className="space-y-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Icon name="height" className="text-[10px] text-cyan-500" />
-                Injection Layer Range
-              </span>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Z Start (mm)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.zStartMm}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, zStartMm: v } })}
-                    className="h-8 text-xs"
-                    step={0.1}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Z End (mm)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.zEndMm}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, zEndMm: v } })}
-                    className="h-8 text-xs"
-                    step={0.1}
-                  />
-                </div>
-              </div>
-              <p className="text-[8px] text-cyan-500 font-medium">
-                ↳ Range visible as a Z-volume guide in the 3D viewport
-              </p>
-            </div>
-
-            {/* Injection Physics */}
-            <div className="space-y-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Icon name="science" className="text-[10px] text-cyan-500" />
-                Injection Parameters
-              </span>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Flow/Pore (µL)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.flowRateUlPerCell}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, flowRateUlPerCell: v } })}
-                    className="h-7 text-xs"
-                    step={0.1}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Needle Depth (mm)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.injectionDepthMm}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, injectionDepthMm: v } })}
-                    className="h-7 text-xs"
-                    step={0.05}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Feedrates */}
-            <div className="space-y-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Icon name="speed" className="text-[10px] text-cyan-500" />
-                Feedrates
-              </span>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Travel (mm/min)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.travelFeedrateMmMin}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, travelFeedrateMmMin: v } })}
-                    className="h-7 text-xs"
-                    step={100}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Inject (mm/min)</span>
-                  <NumericInput
-                    value={globalSettings.poreInjection.injectionFeedrateMmMin}
-                    onChange={v => onUpdateGlobalSettings({ ...globalSettings, poreInjection: { ...globalSettings.poreInjection!, injectionFeedrateMmMin: v } })}
-                    className="h-7 text-xs"
-                    step={10}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Pore Detection - Automatic */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Icon name="auto_awesome" className="text-[10px] text-cyan-500" />
-                Post-Slice Detection
-              </span>
-              <div className="bg-cyan-50/50 dark:bg-cyan-900/10 border border-cyan-100 dark:border-cyan-800/30 p-2 rounded-lg flex items-center gap-2">
-                <Icon name="memory" className="text-cyan-500 text-[14px]" />
-                <p className="text-[9px] text-cyan-700 dark:text-cyan-300 leading-tight">
-                  <strong className="font-black">G-Code Analysis:</strong> Precise pore sites are calculated during the final slicing job. The system analyzes the actual infill toolpaths to inject exclusively into fully enclosed cells. Results are shown in the viewport after the slice is complete.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
     </div>
   );

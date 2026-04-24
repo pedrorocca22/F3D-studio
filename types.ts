@@ -438,7 +438,7 @@ export interface ResolvedLayerSettings {
   fdm?: Partial<FDMPrintSettings>;
   syringe?: Partial<SyringePrintSettings>;
   uv?: UVCrosslinkSettings;
-  poreInjectionEnabled?: boolean;
+  poreInjection?: PoreInjectionConfig;
   preMacro?: string;
   postMacro?: string;
 }
@@ -468,7 +468,7 @@ export interface LayerAction {
   fdmSettings?: Partial<FDMPrintSettings>;
   syringeSettings?: Partial<SyringePrintSettings>;
   uvSettings?: UVCrosslinkSettings;
-  poreInjectionEnabled?: boolean;
+  poreInjection?: PoreInjectionConfig;
   preMacro?: string;
   postMacro?: string;
   color?: string;
@@ -497,7 +497,7 @@ export interface ZZone {
   parameterOverride?: {
     fdm?: Partial<FDMPrintSettings>;
     syringe?: Partial<SyringePrintSettings>;
-    poreInjectionEnabled?: boolean;
+    poreInjection?: PoreInjectionConfig;
   };
 
   processEvent?: {
