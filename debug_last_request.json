@@ -7,9 +7,9 @@
     "infill_pattern": "grid",
     "perimeters": "3",
     "supports": false,
-    "layer_actions": "[{\"id\":\"0277354c-538a-46c3-93e3-39dfe371db5d\",\"layerFrom\":1,\"layerTo\":9,\"modelId\":\"all\",\"kind\":\"feature_override\",\"toolOverride\":\"syringe\",\"fdmSettings\":{},\"poreInjectionEnabled\":true,\"label\":\"ZONE 1\",\"color\":\"#eb9c8b\"}]",
-    "resolved_layer_plans": "[{\"modelId\":\"97d3456d-6d6b-4b98-acdf-146b63e55da2\",\"modelName\":\"Prism_1776954525063.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":10,\"settings\":{\"mapping\":{\"perimeter\":\"syringe\",\"infill\":\"syringe\",\"solidInfill\":\"syringe\",\"support\":\"syringe\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{},\"poreInjectionEnabled\":true}},{\"layerFrom\":11,\"layerTo\":25,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"fdm\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
-    "models_metadata": "[{\"id\":\"97d3456d-6d6b-4b98-acdf-146b63e55da2\",\"name\":\"Prism_1776954525063.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"fdm_settings\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
+    "layer_actions": "[]",
+    "resolved_layer_plans": "[{\"modelId\":\"c9f23d69-e2fe-446d-90a2-0855dfba35d1\",\"modelName\":\"Prism_1777012519757.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":250,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"fdm\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":20,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
+    "models_metadata": "[{\"id\":\"c9f23d69-e2fe-446d-90a2-0855dfba35d1\",\"name\":\"Prism_1777012519757.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"fdm_settings\":{\"infillPercent\":20,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
     "nozzle_diameter": "0.4",
     "first_layer_height": "0.300",
     "skirt_count": "1",
@@ -31,7 +31,7 @@
     "max_fan_speed": "100",
     "disable_fan_first_layers": "1",
     "cooling": "1",
-    "pore_injection": "{\"syringeToolhead\":\"syringe\",\"zStartMm\":0,\"zEndMm\":5,\"injectionDepthMm\":0.3,\"flowRateUlPerCell\":0.5,\"travelFeedrateMmMin\":6000,\"injectionFeedrateMmMin\":120,\"enabled\":true}"
+    "pore_injection": null
   },
   "files_count": 1
 }
