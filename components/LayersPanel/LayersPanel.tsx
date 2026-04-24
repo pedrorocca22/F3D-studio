@@ -42,10 +42,10 @@ export const LayersPanel: React.FC = () => {
       {/* Toggle Button - Positioned to the RIGHT of the panel */}
       <button
         onClick={() => ui.setIsPanelCollapsed(!ui.isPanelCollapsed)}
-        className={`absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-12 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-r-xl shadow-sm z-20 flex items-center justify-center text-slate-400 hover:text-primary transition-all duration-300 ${ui.isPanelCollapsed ? 'rotate-180' : ''}`}
+        className={`absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 rounded-r-lg shadow-sm z-20 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isPanelCollapsed ? 'rotate-180' : ''}`}
         title={ui.isPanelCollapsed ? "Expand Panel" : "Collapse Panel"}
       >
-        <Icon name="chevron_right" className="text-lg" />
+        <Icon name="chevron_left" className="text-base" />
       </button>
 
       <aside className={`h-full bg-surface-light border-r border-border-light flex flex-col transition-all duration-500 ease-in-out overflow-hidden ${ui.isPanelCollapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-[420px] opacity-100'}`}>

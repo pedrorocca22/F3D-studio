@@ -443,10 +443,10 @@ export const Viewport: React.FC = () => {
       <div className="relative flex-shrink-0 flex items-center h-full">
         <button
           onClick={() => ui.setIsInspectorCollapsed(!ui.isInspectorCollapsed)}
-          className={`absolute -left-6 top-1/2 -translate-y-1/2 w-6 h-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-l-xl shadow-sm z-40 flex items-center justify-center text-slate-400 hover:text-primary transition-all duration-300 ${ui.isInspectorCollapsed ? '' : 'rotate-180'}`}
+          className={`absolute -left-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-l-lg shadow-sm z-40 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isInspectorCollapsed ? 'rotate-180' : ''}`}
           title={ui.isInspectorCollapsed ? "Expand Inspector" : "Collapse Inspector"}
         >
-          <Icon name="chevron_left" className="text-lg" />
+          <Icon name="chevron_right" className="text-base" />
         </button>
 
         <div className={`h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col transition-all duration-500 ease-in-out overflow-hidden ${ui.isInspectorCollapsed ? 'w-0 opacity-0' : 'w-72 opacity-100'}`}>
