@@ -70,12 +70,9 @@ export const Header: React.FC<HeaderProps> = ({
       <header className="h-14 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-5 z-20 relative">
 
         {/* Wordmark */}
-        <div className="flex items-center gap-2.5 select-none min-w-[150px]">
-          <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center flex-shrink-0 shadow-sm shadow-primary/30">
-            <span className="text-white text-[10px] font-black">B</span>
-          </div>
-          <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 tracking-tight">
-            Bio<span className="text-primary">FFF</span>
+        <div className="flex items-center gap-2 select-none min-w-[150px]">
+          <span className="font-outfit text-base text-slate-950 dark:text-slate-100 tracking-tight">
+            <span className="font-bold">F3D</span> <span className="font-normal opacity-90">studio</span>
           </span>
         </div>
 
