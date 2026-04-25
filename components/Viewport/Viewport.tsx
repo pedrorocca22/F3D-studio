@@ -29,6 +29,7 @@ import { useProjectContext } from '../../contexts/ProjectContext';
 import { BACKEND_URL } from '../../config';
 
 import { MaterialPresetPanel } from './subcomponents/MaterialPresetPanel';
+import { TipsLibraryPanel } from './subcomponents/TipsLibraryPanel';
 
 type CameraMode = 'orbit' | 'pan';
 
@@ -486,7 +487,7 @@ export const Viewport: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              Materials
+              LABWARE
             </button>
             <button 
               onClick={() => setInspectorTab('gcode')}
@@ -503,7 +504,10 @@ export const Viewport: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
           {inspectorTab === 'materials' ? (
-            <MaterialPresetPanel />
+            <div className="space-y-6">
+              <MaterialPresetPanel />
+              <TipsLibraryPanel />
+            </div>
           ) : inspectorTab === 'inspector' ? (
             selectedModel ? (
               <>

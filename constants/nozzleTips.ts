@@ -10,8 +10,8 @@
 export interface NozzleTip {
   /** Identificador único: <gauge>ga_<color_en> */
   id: string;
-  brand: 'Nordson EFD';
-  series: 'SmoothFlow' | 'Precision';
+  brand: string;
+  series: string;
   /** Forma de la punta */
   type: 'conical' | 'straight';
   /** Calibre en gauge (AWG) */
@@ -24,8 +24,9 @@ export interface NozzleTip {
   innerDiameterMm: number;
   /** Diámetro interior en pulgadas */
   innerDiameterIn: number;
-  /** Número de referencia Nordson */
+  /** Número de referencia */
   standardRef: string;
+  isCustom?: boolean;
 }
 
 export const NORDSON_TIPS: NozzleTip[] = [

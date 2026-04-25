@@ -15,6 +15,7 @@ import {
 import { generateUUID, generateBoxSTL, generateCylinderSTL } from '../utils';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
 import { MATERIAL_PRESETS } from '../constants/materials';
+import { NORDSON_TIPS, NozzleTip } from '../constants/nozzleTips';
 
 const DEFAULT_TOOLHEADS: ToolheadConfig[] = [
   {
@@ -51,6 +52,32 @@ export const useProject = () => {
   const [userMaterials, setUserMaterials] = useState<MaterialProfile[]>(MATERIAL_PRESETS);
   const [selectedMaterials, setSelectedMaterials] = useState<Record<string, string>>({});
   
+  const [tipsLibrary, setTipsLibrary] = useState<NozzleTip[]>(() => {
+    try {
+      const saved = localStorage.getItem('biofff_tips_library');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return NORDSON_TIPS;
+  });
+
+  const handleUpdateTip = (id: string, updates: Partial<NozzleTip>) => {
+    const next = tipsLibrary.map(t => t.id === id ? { ...t, ...updates } : t);
+    setTipsLibrary(next);
+    localStorage.setItem('biofff_tips_library', JSON.stringify(next));
+  };
+
+  const handleAddTip = (tip: NozzleTip) => {
+    const next = [tip, ...tipsLibrary];
+    setTipsLibrary(next);
+    localStorage.setItem('biofff_tips_library', JSON.stringify(next));
+  };
+
+  const handleDeleteTip = (id: string) => {
+    const next = tipsLibrary.filter(t => t.id !== id);
+    setTipsLibrary(next);
+    localStorage.setItem('biofff_tips_library', JSON.stringify(next));
+  };
+
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     layerHeight: 200,
     nozzleTemperature: 210,
@@ -485,6 +512,10 @@ export const useProject = () => {
     globalSettings, setGlobalSettings,
     selectedMaterials,
     userMaterials,
+    tipsLibrary,
+    handleAddTip,
+    handleUpdateTip,
+    handleDeleteTip,
     savedProtocols,
     handleSaveToGallery,
     handleUpdateProtocolNotes,

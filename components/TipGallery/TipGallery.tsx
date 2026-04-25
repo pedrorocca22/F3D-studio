@@ -4,8 +4,9 @@
  * Se integra dentro del acordeón Toolhead (Syringe) en Step1Environment.
  */
 
-import React, { useState, useEffect } from 'react';
-import { NORDSON_TIPS, getTipById, DEFAULT_TIP_ID, type NozzleTip } from '../../constants/nozzleTips';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getTipById, DEFAULT_TIP_ID, type NozzleTip } from '../../constants/nozzleTips';
+import { useProjectContext } from '../../contexts/ProjectContext';
 
 interface TipGalleryProps {
   /** ID de la punta actualmente seleccionada */
@@ -15,17 +16,25 @@ interface TipGalleryProps {
 }
 
 export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectTip }) => {
+  const { project } = useProjectContext();
+  const tipsLibrary = project.tipsLibrary;
+
   const activeTipId = selectedTipId ?? DEFAULT_TIP_ID;
-  const activeTip = getTipById(activeTipId);
-  const [activeTab, setActiveTab] = useState<'conical' | 'straight'>(activeTip?.type || 'conical');
+  const activeTip = useMemo(() => tipsLibrary.find(t => t.id === activeTipId) || getTipById(activeTipId), [tipsLibrary, activeTipId]);
+  
+  const initialTab = activeTip?.isCustom ? 'custom' : (activeTip?.type || 'conical');
+  const [activeTab, setActiveTab] = useState<'conical' | 'straight' | 'custom'>(initialTab);
 
   useEffect(() => {
     if (activeTip) {
-      setActiveTab(activeTip.type);
+      setActiveTab(activeTip.isCustom ? 'custom' : activeTip.type);
     }
   }, [activeTip]);
 
-  const filteredTips = NORDSON_TIPS.filter(t => t.type === activeTab);
+  const filteredTips = useMemo(() => {
+    if (activeTab === 'custom') return tipsLibrary.filter(t => t.isCustom);
+    return tipsLibrary.filter(t => t.type === activeTab && !t.isCustom);
+  }, [tipsLibrary, activeTab]);
 
   return (
     <div className="space-y-3">
@@ -55,34 +64,48 @@ export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectT
       <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-lg p-1">
         <button
           onClick={() => setActiveTab('conical')}
-          className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${
+          className={`flex-1 text-[9px] font-bold py-1.5 rounded-md transition-all ${
             activeTab === 'conical'
               ? 'bg-white dark:bg-slate-700 shadow-sm text-primary'
               : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          Cónicas (SmoothFlow)
+          Cónicas
         </button>
         <button
           onClick={() => setActiveTab('straight')}
-          className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${
+          className={`flex-1 text-[9px] font-bold py-1.5 rounded-md transition-all ${
             activeTab === 'straight'
               ? 'bg-white dark:bg-slate-700 shadow-sm text-primary'
               : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          Rectas (Precision)
+          Rectas
         </button>
+        {tipsLibrary.some(t => t.isCustom) && (
+          <button
+            onClick={() => setActiveTab('custom')}
+            className={`flex-1 text-[9px] font-bold py-1.5 rounded-md transition-all ${
+              activeTab === 'custom'
+                ? 'bg-white dark:bg-slate-700 shadow-sm text-primary'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            Custom
+          </button>
+        )}
       </div>
 
-      {/* Imagen ilustrativa */}
-      <div className="flex justify-center bg-white rounded-lg p-2 border border-slate-200 dark:border-slate-700">
-        <img 
-          src={activeTab === 'conical' ? '/conica.jpg' : '/recta.jpg'} 
-          alt={`Punta ${activeTab === 'conical' ? 'Cónica' : 'Recta'}`}
-          className="h-20 object-contain"
-        />
-      </div>
+      {/* Imagen ilustrativa (oculta en custom si queremos, o genérica) */}
+      {activeTab !== 'custom' && (
+        <div className="flex justify-center bg-white rounded-lg p-2 border border-slate-200 dark:border-slate-700">
+          <img 
+            src={activeTab === 'conical' ? '/conica.jpg' : '/recta.jpg'} 
+            alt={`Punta ${activeTab === 'conical' ? 'Cónica' : 'Recta'}`}
+            className="h-20 object-contain"
+          />
+        </div>
+      )}
 
       {/* Grid de cards scrollable */}
       <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
@@ -141,10 +164,10 @@ export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectT
         <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
           <div className="space-y-0.5">
             <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">
-              Nordson EFD {activeTip.series}™
+              {activeTip.brand} {activeTip.series}
             </span>
             <span className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300">
-              Ref. {activeTip.standardRef}
+              Ref. {activeTip.standardRef || 'CUSTOM'}
             </span>
           </div>
           <div className="text-right space-y-0.5">
