@@ -99,6 +99,7 @@ export const Viewport: React.FC = () => {
   const [gcodeNozzle, setGcodeNozzle] = useState(project.globalSettings.nozzleDiameter || 0.4);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
   const [gcodeRenderMode, setGcodeRenderMode] = useState<'solid' | 'wire'>('solid');
+  const [gcodeShowTip, setGcodeShowTip] = useState(true);
   const isGCodeMode = !!slicer.gcodePreviewJob;
 
   // ── Viewport State ───────────────────────────────────────
@@ -163,10 +164,7 @@ export const Viewport: React.FC = () => {
 
             {/* Pore Injection Z-range overlay */}
             {/* Pore Injection Z-range overlay */}
-            {console.log('Pore Data in Viewport:', { 
-                count: slicer.gcodePreviewJob?.detectedPores?.length, 
-                job: slicer.gcodePreviewJob?.jobId 
-            })}
+
             <PoreInjectionOverlay
               poreInjection={project.globalSettings.poreInjection}
               models={project.models}
@@ -224,6 +222,7 @@ export const Viewport: React.FC = () => {
                   colorMode={gcodeColorMode}
                   renderMode={gcodeRenderMode}
                   activeTipId={syringeTool?.tipId}
+                  showTip={gcodeShowTip}
                 />
               );
             })()}
@@ -422,6 +421,19 @@ export const Viewport: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => setGcodeShowTip(v => !v)}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                      gcodeShowTip
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
+                    }`}
+                    title={gcodeShowTip ? "Hide Toolhead Tip" : "Show Toolhead Tip"}
+                  >
+                    <Icon name="hardware" className="text-[12px]" />
+                    TIP
+                  </button>
 
                   <button
                     onClick={() => setGcodeRenderMode(m => m === 'solid' ? 'wire' : 'solid')}

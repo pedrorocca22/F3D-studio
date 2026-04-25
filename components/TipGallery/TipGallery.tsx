@@ -4,7 +4,7 @@
  * Se integra dentro del acordeón Toolhead (Syringe) en Step1Environment.
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NORDSON_TIPS, getTipById, DEFAULT_TIP_ID, type NozzleTip } from '../../constants/nozzleTips';
 
 interface TipGalleryProps {
@@ -17,9 +17,18 @@ interface TipGalleryProps {
 export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectTip }) => {
   const activeTipId = selectedTipId ?? DEFAULT_TIP_ID;
   const activeTip = getTipById(activeTipId);
+  const [activeTab, setActiveTab] = useState<'conical' | 'straight'>(activeTip?.type || 'conical');
+
+  useEffect(() => {
+    if (activeTip) {
+      setActiveTab(activeTip.type);
+    }
+  }, [activeTip]);
+
+  const filteredTips = NORDSON_TIPS.filter(t => t.type === activeTab);
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
@@ -42,12 +51,45 @@ export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectT
         )}
       </div>
 
-      {/* Grid de cards */}
-      <div className="grid grid-cols-2 gap-1.5">
-        {NORDSON_TIPS.map(tip => {
+      {/* Tabs */}
+      <div className="flex bg-slate-100 dark:bg-slate-800/60 rounded-lg p-1">
+        <button
+          onClick={() => setActiveTab('conical')}
+          className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${
+            activeTab === 'conical'
+              ? 'bg-white dark:bg-slate-700 shadow-sm text-primary'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Cónicas (SmoothFlow)
+        </button>
+        <button
+          onClick={() => setActiveTab('straight')}
+          className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${
+            activeTab === 'straight'
+              ? 'bg-white dark:bg-slate-700 shadow-sm text-primary'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Rectas (Precision)
+        </button>
+      </div>
+
+      {/* Imagen ilustrativa */}
+      <div className="flex justify-center bg-white rounded-lg p-2 border border-slate-200 dark:border-slate-700">
+        <img 
+          src={activeTab === 'conical' ? '/conica.jpg' : '/recta.jpg'} 
+          alt={`Punta ${activeTab === 'conical' ? 'Cónica' : 'Recta'}`}
+          className="h-20 object-contain"
+        />
+      </div>
+
+      {/* Grid de cards scrollable */}
+      <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+        {filteredTips.map(tip => {
           const isSelected = tip.id === activeTipId;
           const isBlack = tip.colorHex === '#1A1A1A';
-          const isClear = tip.id === '27ga_clear';
+          const isClear = tip.id.includes('clear');
 
           return (
             <button
@@ -99,7 +141,7 @@ export const TipGallery: React.FC<TipGalleryProps> = ({ selectedTipId, onSelectT
         <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
           <div className="space-y-0.5">
             <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">
-              Nordson EFD SmoothFlow™
+              Nordson EFD {activeTip.series}™
             </span>
             <span className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300">
               Ref. {activeTip.standardRef}
