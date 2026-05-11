@@ -1,4 +1,5 @@
 # 🧬 F3D Studio
+<img width="1916" height="1040" alt="Screenshot_F3D" src="https://github.com/user-attachments/assets/8be57a5d-cdad-4fd5-961d-9d398acf5271" />
 
 <div align="center">
   <i>Professional software suite for Advanced Bioprinting and Fused Filament Fabrication</i>
