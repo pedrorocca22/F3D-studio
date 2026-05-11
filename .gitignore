@@ -32,3 +32,8 @@ jobs/
 *.njsproj
 *.sln
 *.sw?
+
+# Local Deployment and Start scripts
+start_biofff_pedro.bat
+deploy_to_rpi.bat
+start_biofff.bat

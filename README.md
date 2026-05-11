@@ -1,11 +1,11 @@
-# 🧬 BioFFF Studio
+# 🧬 F3D Studio
 
 <div align="center">
   <i>Professional software suite for Advanced Bioprinting and Fused Filament Fabrication</i>
 </div>
 <br/>
 
-BioFFF Studio is a comprehensive, professional-grade software suite designed for advanced bioprinting workflows. Built with a modern web interface and a robust Python backend, BioFFF Studio bridges the gap between 3D slicing parameters and user-friendly G-code generation. It enables precise control over print parameters across different heights (Z-Zones) and introduces advanced features tailored for biological and soft-material printing, such as Pore Injection.
+F3D Studio is a comprehensive, professional-grade software suite designed for advanced bioprinting workflows. Built with a modern web interface and a robust Python backend, F3D Studio bridges the gap between 3D slicing parameters and user-friendly G-code generation. It enables precise control over print parameters across different heights (Z-Zones) and introduces advanced features tailored for biological and soft-material printing, such as Pore Injection.
 
 > **Disclaimer:** This software is currently a beta version and is still under active development. Features and performance are subject to change.
 
@@ -36,4 +36,4 @@ BioFFF Studio is a comprehensive, professional-grade software suite designed for
 
 ## Acknowledgements & Origin
 
-While the original vision, conceptualization, and workflow design for BioFFF Studio were mine, the software's codebase was **100% implemented using AI**. Through extensive AI-driven analysis, architectural refactoring, and continuous iteration, we successfully transformed complex printing workflows into a highly optimized system—achieving robust, professional-grade G-code generation and delivering a production-ready bioprinting suite.
+While the original vision, conceptualization, and workflow design for F3D Studio were mine, the software's codebase was **100% implemented using AI**. Through extensive AI-driven analysis, architectural refactoring, and continuous iteration, we successfully transformed complex printing workflows into a highly optimized system—achieving robust, professional-grade G-code generation and delivering a production-ready bioprinting suite.
