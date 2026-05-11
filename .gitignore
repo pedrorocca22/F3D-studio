@@ -33,7 +33,13 @@ jobs/
 *.sln
 *.sw?
 
-# Local Deployment and Start scripts
+# Local Deployment and Start scripts (machine-specific, not for public repo)
 start_biofff_pedro.bat
 deploy_to_rpi.bat
 start_biofff.bat
+
+# PyInstaller & Inno Setup build artifacts
+build_pyinstaller/
+dist_pyinstaller/
+Output/
+*.spec.bak

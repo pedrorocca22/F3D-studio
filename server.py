@@ -1,6 +1,7 @@
 import uuid
 import traceback
 import os
+import sys
 import re
 import math
 import subprocess
@@ -15,7 +16,7 @@ import time
 
 import numpy as np
 from stl import mesh
-from flask import Flask, render_template, request, redirect, url_for, send_file, abort, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_file, send_from_directory, abort, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageOps
 
@@ -34,7 +35,12 @@ def _debug_log_to_file(filename, content):
     except:
         pass
 
-BASE_DIR = Path(__file__).resolve().parent
+# In PyInstaller bundle, __file__ lives inside _internal/ but datas are at the bundle root.
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+DIST_DIR = BASE_DIR / "dist"
 
 # Configuracion
 PRUSA_SLICER_CONSOLE = str(BASE_DIR / "PrusaSlicer-2.9.3" / "prusa-slicer-console.exe")
@@ -44,7 +50,7 @@ FDM_CONFIG_INI = str(BASE_DIR / "config.ini")  # NEW: FDM uses the replaced conf
 JOBS_DIR = BASE_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=str(DIST_DIR), static_url_path="/")
 CORS(app)  # Habilita CORS para todas las rutas
 
 # Multiwell plate specs matching UI — FIX #4: added 'dia' field to match frontend constants/wellplate.ts
@@ -1679,14 +1685,76 @@ def moonraker_uv_expose():
 
 @app.route("/assets/<path:filename>")
 def serve_asset(filename):
-    """Serve static assets (like reference STLs) from the project root."""
+    """Serve compiled frontend assets from dist/assets/."""
+    asset_path = DIST_DIR / "assets" / filename
+    if asset_path.exists():
+        return send_file(asset_path)
+    # Fallback: serve static assets (like reference STLs) from the project root
     return send_file(BASE_DIR / filename)
 
 
+# ─────────────────────────────────────────────────────────────
+# Serve compiled React SPA from dist/
+# All non-API routes fall through to index.html (client-side routing)
+# ─────────────────────────────────────────────────────────────
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    """Serve the compiled React frontend. API routes take precedence."""
+    if DIST_DIR.exists():
+        target = DIST_DIR / path
+        if path and target.exists():
+            return send_from_directory(str(DIST_DIR), path)
+        return send_from_directory(str(DIST_DIR), "index.html")
+    return jsonify({"error": "Frontend not built. Run 'npm run build' first."}), 404
+
+
+def _wait_for_server(url: str, timeout: float = 10.0):
+    """Poll until the Flask server is accepting connections."""
+    import urllib.request
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            urllib.request.urlopen(url, timeout=1)
+            return True
+        except Exception:
+            time.sleep(0.2)
+    return False
+
+
 if __name__ == "__main__":
-    print("Starting BioFFF Studio Server...")
-    print(f" DLP3 Legacy Config INI : {DEFAULT_CONFIG_INI}")
-    print(f" FDM Profile INI : {FDM_CONFIG_INI}")
-    print(f" PrusaSlicer Console : {PRUSA_SLICER_CONSOLE}")
-    print(" Moonraker URL : (lazy-init from [Hardware] rpi_ip)")
-    app.run(host="127.0.0.1", port=8000, debug=True)
+    # Detect if we are running inside PyInstaller bundle
+    _bundled = getattr(sys, 'frozen', False)
+
+    # Start Flask in a background daemon thread so the GUI thread stays free
+    server_thread = threading.Thread(
+        target=lambda: app.run(host="127.0.0.1", port=8000, debug=False, use_reloader=False),
+        daemon=True,
+    )
+    server_thread.start()
+
+    # Wait until the server is ready before opening the window
+    if not _wait_for_server("http://127.0.0.1:8000"):
+        print("[FATAL] Flask server failed to start.")
+        sys.exit(1)
+
+    # When bundled, show a native desktop window via pywebview
+    if _bundled:
+        import webview
+        webview.create_window(
+            title=" ",
+            url="http://127.0.0.1:8000",
+            width=1400,
+            height=900,
+            min_size=(1000, 650),
+            text_select=True,
+        )
+        webview.start()
+    else:
+        # Development mode: open the system browser
+        import webbrowser
+        print("Starting F3D Studio Server...")
+        print(" Frontend : http://localhost:8000")
+        webbrowser.open("http://localhost:8000")
+        # Keep the main thread alive in dev mode
+        server_thread.join()

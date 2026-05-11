@@ -96,6 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[14px]" />
           </button>
+
         </div>
       </header>
     </>
