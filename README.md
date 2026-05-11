@@ -25,12 +25,14 @@ F3D Studio is a comprehensive, professional-grade software suite designed for ad
 ### 3. Advanced Bioprinting Capabilities
 - **Pore Injection Logic:** Allows fine-grained control over the printing process by enabling users to configure per-segment "Pore Injection" logic. When activated on compatible infill patterns (like GRID), the system modifies the G-code to inject specific biological or support materials directly into the pores of the structure.
 - **Hardware Integration:** Connects directly with Klipper/Moonraker APIs, allowing users to send G-code seamlessly to their networked bioprinters.
+<img width="1920" height="1040" alt="Screenshot3_F3D" src="https://github.com/user-attachments/assets/41887407-cff7-4d84-ac77-54d58b06a65b" />
 
 ### 4. Protocol Management & Workspace Features
 - **Archived Protocol Gallery:** Save, organize, and reload past printing jobs complete with metadata, custom tags, and detailed project descriptions, ensuring reproducible bioprinting workflows.
 - **Detailed Toolhead Mapping:** Support for interchangeable toolheads, allowing users to easily configure standard filament extruders, syringe injection heads for bioinks and gels, and UV curing tools for accurate simulation and precise volumetric control.
 - **Live Print Monitoring:** Includes a built-in telemetry dashboard to track the progress and status of active print jobs in real-time.
 - **Integrated Network Config:** Manage device connectivity (WiFi) directly from the interface, ideal for standalone or headless deployments (e.g., Raspberry Pi).
+<img width="1920" height="1040" alt="Screenshot4_F3D" src="https://github.com/user-attachments/assets/42083427-19f9-4bbc-b4b5-fe3be837cc7c" />
 
 ## Tech Stack
 - **Frontend:** React, TypeScript, Vite, CSS Modules, Three.js (3D rendering).
