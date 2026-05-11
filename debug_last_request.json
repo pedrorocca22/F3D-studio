@@ -7,9 +7,9 @@
     "infill_pattern": "grid",
     "perimeters": "3",
     "supports": false,
-    "layer_actions": "[]",
-    "resolved_layer_plans": "[{\"modelId\":\"6fd38b22-dbe6-4b06-830b-881e42101ae4\",\"modelName\":\"Prism_1777103383986.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":25,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"syringe\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
-    "models_metadata": "[{\"id\":\"6fd38b22-dbe6-4b06-830b-881e42101ae4\",\"name\":\"Prism_1777103383986.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"scaffoldTools\":{\"perimeter\":\"fdm\",\"infill\":\"syringe\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm_settings\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
+    "layer_actions": "[{\"id\":\"41ced185-a671-438e-b5ce-3e2cd186f936\",\"layerFrom\":1,\"layerTo\":24,\"modelId\":\"all\",\"kind\":\"parameter_override\",\"fdmSettings\":{},\"label\":\"ZONE 1\",\"color\":\"#595b05\"}]",
+    "resolved_layer_plans": "[{\"modelId\":\"94972cb7-eac3-4fed-943f-d5a472b6a88c\",\"modelName\":\"Prism_1777271790401.stl\",\"ranges\":[{\"layerFrom\":1,\"layerTo\":25,\"settings\":{\"mapping\":{\"perimeter\":\"fdm\",\"infill\":\"syringe\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3},\"syringe\":{}}}]}]",
+    "models_metadata": "[{\"id\":\"94972cb7-eac3-4fed-943f-d5a472b6a88c\",\"name\":\"Prism_1777271790401.stl\",\"transform\":{\"rotation\":{\"x\":0,\"y\":0,\"z\":0},\"scale\":{\"x\":1,\"y\":1,\"z\":1},\"position\":{\"x\":0,\"y\":0,\"z\":0}},\"toolhead\":\"fdm\",\"scaffoldTools\":{\"perimeter\":\"fdm\",\"infill\":\"syringe\",\"solidInfill\":\"fdm\",\"support\":\"fdm\"},\"fdm_settings\":{\"infillPercent\":15,\"infillPattern\":\"grid\",\"wallCount\":3,\"topSolidLayers\":3,\"bottomSolidLayers\":3}}]",
     "nozzle_diameter": "0.4",
     "first_layer_height": "0.300",
     "skirt_count": "1",
@@ -32,7 +32,7 @@
     "disable_fan_first_layers": "1",
     "cooling": "1",
     "pore_injection": null,
-    "z_zones": "[]"
+    "z_zones": "[{\"id\":\"41ced185-a671-438e-b5ce-3e2cd186f936\",\"modelScope\":\"all\",\"zStartMm\":0,\"zEndMm\":5,\"enabled\":true,\"priority\":1,\"label\":\"ZONE 1\",\"color\":\"#595b05\",\"parameterOverride\":{\"fdm\":{}}}]"
   },
   "files_count": 1
 }
