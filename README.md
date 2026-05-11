@@ -20,6 +20,7 @@ F3D Studio is a comprehensive, professional-grade software suite designed for ad
 ### 2. Multi-Zone Slicing Engine
 - **PrusaSlicer Integration:** Seamlessly integrates with PrusaSlicer's CLI under the hood to perform robust geometry slicing without needing local desktop software.
 - **Parametric Z-Zones:** Users can define dynamic Z-Zones, allowing per-segment configuration of layer heights, infill patterns, and speeds. This allows printing hybrid structures where properties vary across the height of the construct.
+<img width="1920" height="1040" alt="Screenshot2_F3D" src="https://github.com/user-attachments/assets/a49a2352-f03f-4288-a28a-30b661fea026" />
 
 ### 3. Advanced Bioprinting Capabilities
 - **Pore Injection Logic:** Allows fine-grained control over the printing process by enabling users to configure per-segment "Pore Injection" logic. When activated on compatible infill patterns (like GRID), the system modifies the G-code to inject specific biological or support materials directly into the pores of the structure.
