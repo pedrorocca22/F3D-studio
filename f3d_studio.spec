@@ -43,7 +43,7 @@ a = Analysis(
         # CAD tip models
         ('CAD_tips', 'CAD_tips'),
         # PrusaSlicer executable and all its files
-        ('PrusaSlicer-2.9.3', 'PrusaSlicer-2.9.3'),
+        ('PrusaSlicer-2.9.6', 'PrusaSlicer-2.9.6'),
         # Default print config
         ('config.ini', '.'),
         # Klipper configs (reference only)

@@ -17,9 +17,10 @@ dist-ssr
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # Big static binaries and temporary outputs
-PrusaSlicer-2.9.3/
+PrusaSlicer-2.9.6/
 jobs/
 
 # Editor directories and files
@@ -43,3 +44,6 @@ build_pyinstaller/
 dist_pyinstaller/
 Output/
 *.spec.bak
+
+# ZCode agent client state
+.zcode/

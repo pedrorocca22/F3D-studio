@@ -10,6 +10,58 @@ F3D Studio is a comprehensive, professional-grade software suite designed for ad
 
 > **Disclaimer:** This software is currently a beta version and is still under active development. Features and performance are subject to change.
 
+## Prerequisites & Setup
+
+F3D Studio relies on **PrusaSlicer's CLI** to perform geometry slicing. Because the binary is large, it is **not** included in this repository — you must download and place it manually.
+
+1. Download the **PrusaSlicer Console** package for Windows from the [official releases page](https://github.com/prusa3d/PrusaSlicer/releases).
+2. Extract it and **rename the folder** to exactly `PrusaSlicer-2.9.6`.
+3. Place the folder at the **root of the project**, so the executable is reachable at:
+   ```
+   E:\F3D-studio\PrusaSlicer-2.9.6\prusa-slicer-console.exe
+   ```
+
+```
+E:\F3D-studio\
+├── server.py
+├── config.ini
+├── ...
+└── PrusaSlicer-2.9.6\          ← place here
+    └── prusa-slicer-console.exe
+```
+
+> **Version note:** the backend resolves the slicer from `server.py` as `BASE_DIR / "PrusaSlicer-2.9.6" / "prusa-slicer-console.exe"`. If you use a different PrusaSlicer version, either rename the folder to `PrusaSlicer-2.9.6` or update the three references: `server.py`, `f3d_studio.spec`, and `.gitignore`.
+
+The `PrusaSlicer-2.9.6/` folder is listed in `.gitignore` and will never be committed — this is intentional.
+
+### Run in development
+```bash
+# Backend (Python)
+pip install -r requirements.txt
+python server.py            # serves on http://127.0.0.1:8000
+
+# Frontend (separate terminal)
+npm install
+npm run dev                 # Vite dev server
+```
+
+## Testing
+
+The project ships with a unit-test suite covering the two most critical pieces of pure logic: the **Z-Zone resolver** (TypeScript) and the **pore-detection algorithm** (Python).
+
+```bash
+# TypeScript tests (Vitest)
+npm test                    # run once
+npm run test:watch          # watch mode
+
+# Python tests (pytest) — run from project root
+python -m pytest tests/ -v
+# or
+npm run test:python
+```
+
+Tests live in `tests/`. The Python tests write synthetic G-code to a temp dir (no fixtures checked into the repo), so they are self-contained. Some cases document intentionally-pinned non-intuitive behavior (e.g. the `mmToLayer` epsilon boundary) — see the comments in each test file.
+
 ## Key Features
 
 ### 1. Modern, Responsive User Interface

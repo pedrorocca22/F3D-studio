@@ -43,7 +43,7 @@ else:
 DIST_DIR = BASE_DIR / "dist"
 
 # Configuracion
-PRUSA_SLICER_CONSOLE = str(BASE_DIR / "PrusaSlicer-2.9.3" / "prusa-slicer-console.exe")
+PRUSA_SLICER_CONSOLE = str(BASE_DIR / "PrusaSlicer-2.9.6" / "prusa-slicer-console.exe")
 DEFAULT_CONFIG_INI = str(BASE_DIR / "config.ini")
 FDM_CONFIG_INI = str(BASE_DIR / "config.ini")  # NEW: FDM uses the replaced config.ini array
 
