@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import { ModelData, GlobalSettings, ToolheadConfig, ZZone, INFILL_PATTERN_LABELS, InfillPattern } from '../../types';
 import { TOOLHEAD_COLORS } from '../Viewport/constants';
-import { SCAFFOLD_FEATURE_META, DEFAULT_SCAFFOLD_TOOLS, ToolheadSelect } from '../ToolheadPanel/ToolheadPanel';
+import { SCAFFOLD_FEATURE_META, ToolheadSelect } from '../ToolheadPanel/ToolheadPanel';
 import { NumericInput } from './NumericInput';
 
 interface Step3MappingProps {
@@ -26,6 +26,12 @@ export const Step3Mapping: React.FC<Step3MappingProps> = ({
   totalLayers,
   zZones
 }) => {
+  const EMPTY_SCAFFOLD_TOOLS = {
+    perimeter: 'none' as const,
+    infill: 'none' as const,
+    solidInfill: 'none' as const,
+    support: 'none' as const,
+  };
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
 
   const toggleModelExpand = (id: string) => {
@@ -48,9 +54,9 @@ export const Step3Mapping: React.FC<Step3MappingProps> = ({
       ) : (
         <div className="space-y-3">
           {models.map(m => {
-            const scTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
+            const scTools = m.scaffoldTools || EMPTY_SCAFFOLD_TOOLS;
             const isSelected = selectedModelId === m.id;
-            const thColor = TOOLHEAD_COLORS[m.toolhead || 'fdm'];
+            const thColor = TOOLHEAD_COLORS[m.toolhead || 'none'];
             const modelZZones = zZones.filter(z => z.modelScope === 'all' || z.modelScope === m.id);
             const totalHeightMm = totalLayers > 0 
               ? ((totalLayers - 1) * (globalSettings.layerHeight || 200) / 1000) + (globalSettings.firstLayerHeight || 300) / 1000

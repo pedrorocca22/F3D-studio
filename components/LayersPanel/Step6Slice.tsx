@@ -1,12 +1,17 @@
 import React from 'react';
 import { Icon } from '../Icon';
-import { ModelData, GlobalSettings, ZZone } from '../../types';
+import { ModelData, GlobalSettings, MaterialProfile, ToolheadConfig, ZZone } from '../../types';
+import { buildPoreProtocolPreflight } from '../../utils/poreProtocol';
 
 interface Step6SliceProps {
   models: ModelData[];
   globalSettings: GlobalSettings;
   zZones: ZZone[];
-  jobInfo?: { jobId: string; estimatedTimeSec: number; filamentUsedMm?: number; layerCount: number; };
+  toolheads: ToolheadConfig[];
+  selectedMaterials: Record<string, string>;
+  userMaterials: MaterialProfile[];
+  dryRunStatus?: 'not_run' | 'ready' | 'blocked';
+  jobInfo?: { jobId: string; estimatedTimeSec?: number; filamentUsedMm?: number; layerCount: number; };
   onSaveToGallery: (name: string, author: string, jobInfo: any, notes?: string, description?: string, tags?: string[]) => void;
 }
 
@@ -14,6 +19,10 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
   models,
   globalSettings,
   zZones,
+  toolheads,
+  selectedMaterials,
+  userMaterials,
+  dryRunStatus = 'not_run',
   jobInfo,
   onSaveToGallery
 }) => {
@@ -33,9 +42,49 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
   const maxZ = Math.max(modelMaxZ, zonesMaxZ, 1); // Evitamos división por cero
   
   const layerHeightMm = (globalSettings.layerHeight || 200) / 1000;
+  const porePreflight = buildPoreProtocolPreflight({
+    globalSettings,
+    models,
+    zZones,
+    toolheads,
+    selectedMaterials,
+    userMaterials,
+  });
 
   return (
     <div className="space-y-4 px-1 animate-in fade-in slide-in-from-left-1">
+        {porePreflight.status !== 'inactive' && (
+          <div className={`rounded-xl border p-3 space-y-2 ${porePreflight.status === 'blocked' ? 'border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/20' : porePreflight.status === 'warning' ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Pore Protocol Preflight</h3>
+                <p className="text-[8px] text-slate-500 dark:text-slate-400 mt-0.5">Preview before generating executable G-code</p>
+              </div>
+              <span className="text-[8px] font-black uppercase tracking-widest">{porePreflight.status}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Pore cells</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.estimatedPoreCount}</span></div>
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Available</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.availableVolumeUl.toFixed(1)} µL</span></div>
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Requested</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.requestedVolumeUl.toFixed(1)} µL</span></div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[8px] font-bold uppercase">
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Bioink: {porePreflight.bioinkName || 'NOT SET'}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Tip: {porePreflight.tipId || 'NOT SET'}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Calibration: {porePreflight.calibrationUlPerMm ? `${porePreflight.calibrationUlPerMm} µL/mm` : 'NOT SET'}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[7px] font-black uppercase tracking-wider">
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Geometry: {porePreflight.checks.geometry}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Volume: {porePreflight.checks.volume}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Collisions: {porePreflight.checks.collisions.replace('_', ' ')}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Dry-run: {dryRunStatus.replace('_', ' ')}</span>
+            </div>
+            {porePreflight.issues.length > 0 && (
+              <div className="space-y-1 border-t border-current/10 pt-2">
+                {porePreflight.issues.map(issue => <p key={issue.code} className={`text-[8px] font-bold ${issue.severity === 'blocked' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>• {issue.message}</p>)}
+              </div>
+            )}
+          </div>
+        )}
         {/* Resumen de Parámetros Críticos */}
         <div className="grid grid-cols-2 gap-2">
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">

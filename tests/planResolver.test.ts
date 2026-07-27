@@ -21,7 +21,11 @@ function makeModel(overrides: Partial<ModelData> & { id: string } = { id: 'm1' }
     name: overrides.name ?? `model-${overrides.id}`,
     // The resolver never reads these; stubbed to satisfy the type.
     url: '',
-    transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } as ModelData['transform'],
+    transform: {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    },
     settings: {} as ModelData['settings'],
     advancedSettings: {} as ModelData['advancedSettings'],
     ...overrides,

@@ -146,8 +146,8 @@ export const Viewport: React.FC = () => {
   }, [project.models]);
 
   return (
-    <div className="absolute inset-0 bg-white dark:bg-slate-950 overflow-hidden flex">
-      <div className="flex-1 relative h-full">
+    <div className="absolute inset-0 min-w-0 bg-white dark:bg-slate-950 overflow-hidden flex">
+      <div className="min-w-0 flex-1 relative h-full">
         <div className="absolute inset-0 z-0">
           <Canvas
             shadows
@@ -457,7 +457,7 @@ export const Viewport: React.FC = () => {
       </div>
 
       {/* Right Sidebar - Inspector */}
-      <div className="relative flex-shrink-0 flex items-center h-full">
+        <div className="f3d-inspector-shell relative flex-shrink-0 flex items-center h-full">
         <button
           onClick={() => ui.setIsInspectorCollapsed(!ui.isInspectorCollapsed)}
           className={`absolute -left-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-l-lg shadow-sm z-40 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isInspectorCollapsed ? 'rotate-180' : ''}`}

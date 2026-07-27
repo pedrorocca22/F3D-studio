@@ -13,6 +13,7 @@ export const useAppUI = () => {
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [workflowNotice, setWorkflowNotice] = useState<string | null>(null);
 
   // Sync dark mode with HTML class
   useEffect(() => {
@@ -49,6 +50,8 @@ export const useAppUI = () => {
     isSidebarCollapsed,
     setIsSidebarCollapsed,
     isInspectorCollapsed,
-    setIsInspectorCollapsed
+    setIsInspectorCollapsed,
+    workflowNotice,
+    setWorkflowNotice
   };
 };

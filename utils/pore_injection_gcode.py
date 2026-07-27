@@ -1,6 +1,7 @@
 import math
 from pathlib import Path
 import re
+from utils.gcode_injector import RETURN_TOOL_PLACEHOLDER
 
 def build_multilayer_injection_gcode(
     centroids: list,
@@ -11,7 +12,7 @@ def build_multilayer_injection_gcode(
     travel_feedrate: float,
     inject_feedrate: float,
     syringe_tool: str = "T1",
-    fdm_tool: str = "T0"
+    return_tool: str = RETURN_TOOL_PLACEHOLDER
 ) -> list[str]:
     """
     Generates G-code block for multilayer pore injection.
@@ -53,8 +54,8 @@ def build_multilayer_injection_gcode(
         # 4. Safe hop before next pore
         gcode.append(f"G0 Z{z_safe_hop:.3f} F600 ; Safe Z hop")
 
-    gcode.append(f"{fdm_tool} ; Switch back to FDM tool")
-    gcode.append("M83 ; Ensure FDM stays in relative extrusion mode")
+    gcode.append(f"{return_tool} ; Restore previously active tool")
+    gcode.append("M83 ; Keep relative extrusion mode")
     gcode.append("; --- MULTILAYER PORE INJECTION END ---")
     
     return gcode

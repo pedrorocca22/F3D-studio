@@ -217,7 +217,7 @@ const ProjectCard: React.FC<{
                                         </div>
                                         <div className="flex items-center justify-between text-[9px]">
                                             <span className="text-slate-400">Process Speed</span>
-                                            <span className="font-bold text-slate-600 dark:text-slate-300">{fdm?.perimeterSpeed ?? protocol.globalSettings.perimeterSpeed} mm/s</span>
+                                            <span className="font-bold text-slate-600 dark:text-slate-300">{fdm?.perimeterSpeedMmS ?? protocol.globalSettings.perimeterSpeed} mm/s</span>
                                         </div>
                                         <div className="flex items-center justify-between text-[9px]">
                                             <span className="text-slate-400">Layer Logic</span>
@@ -236,7 +236,7 @@ const ProjectCard: React.FC<{
                                                 <span className="text-[8px] font-black text-purple-600 uppercase tracking-tighter">UV Power Set</span>
                                             </div>
                                             <div className="flex gap-2 text-[9px] font-bold text-purple-700 dark:text-purple-400">
-                                                <span>{z.processEvent?.uvExposureTimeSec}s @ {z.processEvent?.uvPowerPercent}%</span>
+                                                <span>{z.processEvent?.uvExposureTimeSec}s @ {z.processEvent?.powerPercentage ?? 100}%</span>
                                                 <span className="opacity-40">|</span>
                                                 <span className="capitalize text-[8px]">{z.processEvent?.trigger?.replace('_', ' ')}</span>
                                             </div>

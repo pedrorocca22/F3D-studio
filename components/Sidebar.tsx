@@ -1,6 +1,8 @@
 import React from 'react';
 import { Icon } from './Icon';
 import { useUIContext } from '../contexts/UIContext';
+import { useProjectContext } from '../contexts/ProjectContext';
+import { getStepBlocker } from '../utils/workflowValidation';
 
 interface SidebarProps {
   activeStep: number;
@@ -29,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLoadProject,
 }) => {
   const { ui } = useUIContext();
+  const { project } = useProjectContext();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
@@ -86,6 +89,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <React.Fragment key={step.id}>
               <button
                 onClick={() => {
+                  if (step.id > activeStep) {
+                    const blocker = getStepBlocker(
+                      {
+                        globalSettings: project.globalSettings,
+                        models: project.models,
+                        toolheads: project.toolheads,
+                        zZones: project.zZones,
+                        selectedMaterials: project.selectedMaterials,
+                      },
+                      Math.max(1, step.id - 1) as 1 | 2 | 3 | 4 | 5 | 6,
+                    );
+                    if (blocker) {
+                      ui.setWorkflowNotice(blocker.message);
+                      ui.setActiveStep(blocker.step);
+                      setCurrentView('editor');
+                      return;
+                    }
+                  }
+                  ui.setWorkflowNotice(null);
                   setActiveStep(step.id);
                   setCurrentView('editor');
                 }}

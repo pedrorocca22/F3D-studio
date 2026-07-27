@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../Icon';
+import { BACKEND_URL } from '../../config';
 
 interface WifiNetwork {
     ssid: string;
@@ -24,7 +25,7 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
         setScanning(true);
         setError(null);
         try {
-            const res = await fetch('/api/wifi/scan');
+            const res = await fetch(`${BACKEND_URL}/api/wifi/scan`);
             if (!res.ok) throw new Error('Failed to scan for networks');
             const data = await res.json();
             setNetworks(data);
@@ -45,7 +46,7 @@ export const WifiConfig: React.FC<WifiConfigProps> = ({ onClose }) => {
         setError(null);
         setSuccess(null);
         try {
-            const res = await fetch('/api/wifi/connect', {
+            const res = await fetch(`${BACKEND_URL}/api/wifi/connect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ssid: selectedSsid, password })

@@ -39,7 +39,7 @@ export function resolveLayerPlans(
     if (z.parameterOverride) {
       action.fdmSettings = z.parameterOverride.fdm;
       action.syringeSettings = z.parameterOverride.syringe;
-      action.poreInjectionEnabled = z.parameterOverride.poreInjectionEnabled;
+      action.poreInjection = z.parameterOverride.poreInjection;
     }
 
     if (z.processEvent) {
@@ -55,8 +55,8 @@ export function resolveLayerPlans(
 
   // Sort by priority if applicable
   const sortedActions = [...allActions].sort((a, b) => {
-     const pA = (a as any).priority || 0;
-     const pB = (b as any).priority || 0;
+     const pA = a.priority ?? 0;
+     const pB = b.priority ?? 0;
      return pA - pB;
   });
 
@@ -65,10 +65,10 @@ export function resolveLayerPlans(
     const baseMapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId> = model.scaffoldTools 
       ? { ...model.scaffoldTools }
       : {
-          perimeter: model.toolhead || 'fdm',
-          infill: model.toolhead || 'fdm',
-          solidInfill: model.toolhead || 'fdm',
-          support: model.toolhead || 'fdm',
+          perimeter: model.toolhead || 'none',
+          infill: model.toolhead || 'none',
+          solidInfill: model.toolhead || 'none',
+          support: model.toolhead || 'none',
         };
 
     // 2. Resolve every layer independently first (1-indexed to match PrusaSlicer)
@@ -133,8 +133,8 @@ export function resolveLayerPlans(
           if (action.postMacro) settings.postMacro = action.postMacro;
         }
 
-        if (action.poreInjectionEnabled !== undefined) {
-          settings.poreInjectionEnabled = action.poreInjectionEnabled;
+        if (action.poreInjection !== undefined) {
+          settings.poreInjection = action.poreInjection;
         }
       });
 

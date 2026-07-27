@@ -272,15 +272,18 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                     value={assignedTool?.id || ''}
                     onChange={e => {
                       const toolId = e.target.value;
-                      if (toolId) {
-                        const toolToAssign = toolheads.find(t => t.id === toolId);
-                        if (toolToAssign) {
-                          onUpdateToolheads(toolheads.map(t => {
-                            if (t.id === toolId) return { ...t, slot: slotIndex };
-                            return t;
-                          }));
+                      onUpdateToolheads(toolheads.map(t => {
+                        // A slot can contain only one physical head and a head
+                        // can only be active in one slot at a time.
+                        if (t.slot === slotIndex || t.id === toolId) {
+                          return {
+                            ...t,
+                            slot: toolId ? (t.id === toolId ? slotIndex : undefined) : undefined,
+                            installed: toolId ? t.id === toolId : t.id === assignedTool?.id ? false : t.installed,
+                          };
                         }
-                      }
+                        return t;
+                      }));
                     }}
                     className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-1 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary min-w-0"
                   >
@@ -302,7 +305,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                         <Icon name="settings" className="text-[14px]" />
                       </button>
                       <button
-                        onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined } : t))}
+                        onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined, installed: false } : t))}
                         className="p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:dark:bg-red-900/30 rounded transition-colors"
                         title="Remove Tool"
                       >

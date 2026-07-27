@@ -1,6 +1,5 @@
 import React from 'react';
 import * as THREE from 'three';
-import { Text } from '@react-three/drei';
 import { GlobalSettings } from '../../../types';
 import { MULTIWELL_SPECS } from '../../../constants/wellplate';
 
@@ -28,6 +27,20 @@ export const BuildPlate: React.FC<BuildPlateProps> = ({ globalSettings }) => {
 
   return (
     <group>
+      {bedType === 'glass_bed' && (
+        <>
+          {/* A real surface keeps the bed visible even when line rendering is faint. */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+            <planeGeometry args={[width, depth]} />
+            <meshBasicMaterial color="#e2e8f0" transparent opacity={0.42} side={THREE.DoubleSide} />
+          </mesh>
+          <gridHelper
+            args={[Math.max(width, depth), 10, '#94a3b8', '#cbd5e1']}
+            position={[0, 0.04, 0]}
+          />
+        </>
+      )}
+
       {/* 1. GLASS BED - ONLY OUTLINE */}
       {bedType === 'glass_bed' && (
         <lineSegments rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
@@ -68,11 +81,6 @@ export const BuildPlate: React.FC<BuildPlateProps> = ({ globalSettings }) => {
                       <ringGeometry args={[(spec.dia / 2) - 0.3, spec.dia / 2, 64]} />
                       <meshBasicMaterial color="#3b82f6" opacity={0.2} transparent />
                     </mesh>
-                    <group position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                      <Text fontSize={2} color="#94a3b8" opacity={0.4} transparent>
-                        {String.fromCharCode(65 + r)}{c + 1}
-                      </Text>
-                    </group>
                   </group>
                 );
               }
@@ -82,17 +90,6 @@ export const BuildPlate: React.FC<BuildPlateProps> = ({ globalSettings }) => {
         </group>
       )}
 
-      {/* Dimensions labels */}
-      <group position={[0, 0.01, depth / 2 + 5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <Text fontSize={3} color="#94a3b8" opacity={0.4} transparent>
-          {width.toFixed(1)}mm
-        </Text>
-      </group>
-      <group position={[width / 2 + 5, 0.01, 0]} rotation={[-Math.PI / 2, 0, -Math.PI / 2]}>
-        <Text fontSize={3} color="#94a3b8" opacity={0.4} transparent>
-          {depth.toFixed(1)}mm
-        </Text>
-      </group>
     </group>
   );
 };

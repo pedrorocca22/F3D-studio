@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from '../Icon';
 import { MULTIWELL_SPECS } from '../../constants/wellplate';
 
@@ -14,16 +14,68 @@ import { Step6Slice } from './Step6Slice';
 import { useUIContext } from '../../contexts/UIContext';
 import { useProjectContext } from '../../contexts/ProjectContext';
 import { BACKEND_URL } from '../../config';
+import { getStepBlocker, WorkflowValidationContext } from '../../utils/workflowValidation';
+import { buildPoreProtocolPreflight } from '../../utils/poreProtocol';
 
 export const LayersPanel: React.FC = () => {
   const { ui } = useUIContext();
   const { project, slicer } = useProjectContext();
   
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [dryRunStatus, setDryRunStatus] = useState<'not_run' | 'ready' | 'blocked'>('not_run');
+  const workflowContext: WorkflowValidationContext = {
+    globalSettings: project.globalSettings,
+    models: project.models,
+    toolheads: project.toolheads,
+    zZones: project.zZones,
+    selectedMaterials: project.selectedMaterials,
+  };
+  const visibleValidationError = validationError || ui.workflowNotice;
+  const porePreflight = buildPoreProtocolPreflight({
+    globalSettings: project.globalSettings,
+    models: project.models,
+    zZones: project.zZones,
+    toolheads: project.toolheads,
+    selectedMaterials: project.selectedMaterials,
+    userMaterials: project.userMaterials,
+  });
+
+  useEffect(() => {
+    setDryRunStatus('not_run');
+  }, [slicer.gcodePreviewJob?.jobId]);
   
   // Clone to wells state
   const [cloneWellDialogFor, setCloneWellDialogFor] = useState<string | null>(null);
   const [selectedCloneWells, setSelectedCloneWells] = useState<Set<string>>(new Set());
+
+  const handleExecutePrint = async () => {
+    if (!slicer.gcodePreviewJob?.jobId) return;
+    try {
+      const dryRun = await fetch(`${BACKEND_URL}/moonraker/print/dry-run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: slicer.gcodePreviewJob.jobId }),
+      });
+      const report = await dryRun.json();
+      if (!dryRun.ok || report.status !== 'ready') {
+        setDryRunStatus('blocked');
+        const message = report.issues?.map((issue: { message: string }) => issue.message).join('\n') || 'Dry-run blocked the print.';
+        setValidationError(message);
+        return;
+      }
+      setDryRunStatus('ready');
+      if (!window.confirm(`Dry-run OK: ${report.summary?.pore_injection_blocks ?? 0} pore injection blocks. Send this protocol to the printer?`)) return;
+      const res = await fetch(`${BACKEND_URL}/moonraker/print/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: slicer.gcodePreviewJob.jobId }),
+      });
+      if (!res.ok) alert(`Print failed: ${await res.text()}`);
+    } catch (err) {
+      setDryRunStatus('blocked');
+      setValidationError(`Dry-run failed: ${(err as Error).message}`);
+    }
+  };
 
   const handleOpenCloneDialog = (modelId: string, initialWellId?: string) => {
     setCloneWellDialogFor(modelId);
@@ -111,6 +163,10 @@ export const LayersPanel: React.FC = () => {
              models={project.models}
              globalSettings={project.globalSettings}
              zZones={project.zZones}
+             toolheads={project.toolheads}
+             selectedMaterials={project.selectedMaterials}
+             userMaterials={project.userMaterials}
+             dryRunStatus={dryRunStatus}
              jobInfo={slicer.gcodePreviewJob}
              onSaveToGallery={project.handleSaveToGallery}
           />
@@ -118,10 +174,10 @@ export const LayersPanel: React.FC = () => {
       </div>
 
       {/* VALIDATION MESSAGE */}
-      {validationError && (
+      {visibleValidationError && (
         <div className="mx-3 mb-2 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 animate-in slide-in-from-bottom-2">
           <Icon name="warning" className="text-red-500 text-sm flex-shrink-0" />
-          <span className="text-[11px] text-red-700 dark:text-red-400 font-medium">{validationError}</span>
+          <span className="text-[11px] text-red-700 dark:text-red-400 font-medium">{visibleValidationError}</span>
         </div>
       )}
 
@@ -131,6 +187,7 @@ export const LayersPanel: React.FC = () => {
              disabled={ui.activeStep === 1}
              onClick={() => {
                setValidationError(null);
+               ui.setWorkflowNotice(null);
                ui.setActiveStep(ui.activeStep - 1);
              }}
              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium text-[11px] rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
@@ -150,20 +207,14 @@ export const LayersPanel: React.FC = () => {
           {ui.activeStep < 6 ? (
               <button 
                  onClick={() => {
-                    if (ui.activeStep === 1) {
-                      const hasTool = project.toolheads.some(t => t.slot !== undefined);
-                      if (!hasTool) {
-                        setValidationError("Assign at least one toolhead to a machine slot to continue.");
-                        return;
-                      }
-                    }
-                    if (ui.activeStep === 2) {
-                      if (project.models.length === 0) {
-                        setValidationError("Load at least one model before proceeding.");
-                        return;
-                      }
+                    const blocker = getStepBlocker(workflowContext, ui.activeStep as 1 | 2 | 3 | 4 | 5 | 6);
+                    if (blocker) {
+                      setValidationError(blocker.message);
+                      ui.setWorkflowNotice(null);
+                      return;
                     }
                     setValidationError(null);
+                    ui.setWorkflowNotice(null);
                     ui.setActiveStep(ui.activeStep === 6 ? 6 : ui.activeStep + 1);
                  }}
                  className="px-4 py-1.5 bg-primary hover:bg-primary-dark text-white font-medium text-[11px] rounded-md transition-colors flex items-center gap-1.5"
@@ -173,19 +224,19 @@ export const LayersPanel: React.FC = () => {
           ) : (
               <button
                 onClick={() => {
+                  const blocker = getStepBlocker(workflowContext, 6);
+                  if (blocker) {
+                    setValidationError(blocker.message);
+                    ui.setActiveStep(blocker.step);
+                    return;
+                  }
+                  if (porePreflight.status === 'blocked') {
+                    setValidationError(porePreflight.issues.find(issue => issue.severity === 'blocked')?.message || 'Pore Injection preflight is incomplete.');
+                    ui.setActiveStep(6);
+                    return;
+                  }
                   if (slicer.gcodePreviewJob && !slicer.isSlicing) {
-                    // Start print
-                    (async () => {
-                      if (!slicer.gcodePreviewJob?.jobId) return;
-                      try {
-                        const res = await fetch(`${BACKEND_URL}/moonraker/print/start`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ job_id: slicer.gcodePreviewJob.jobId }),
-                        });
-                        if (!res.ok) alert(`Print failed: ${await res.text()}`);
-                      } catch (err) { alert(`Error: ${(err as Error).message}`); }
-                    })();
+                    handleExecutePrint();
                   } else if (!slicer.isSlicing) {
                     slicer.handleSlice();
                   }

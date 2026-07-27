@@ -23,9 +23,9 @@ from PIL import Image, ImageOps
 from flask_cors import CORS
 from moonraker_client import MoonrakerClient
 from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_default_toolhead_actions
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.gcode_infill_parser import parse_infill_lines, detect_perfect_squares, compute_centroids
-from utils.gcode_injector import build_pore_injection_gcode, inject_pore_gcode_into_file
+from utils.gcode_injector import build_pore_injection_gcode, inject_pore_gcode_into_file, ensure_initial_toolhead
 from utils.pore_injection_gcode import build_multilayer_injection_gcode
 
 def _debug_log_to_file(filename, content):
@@ -725,6 +725,36 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
+def _primary_structural_tool(models_meta: list, layer_plans: list) -> str | None:
+    """Return a deterministic startup tool when the scaffold map is uniform."""
+    candidates = []
+    feature_keys = ("perimeter", "infill", "solidInfill", "support")
+    for plan in layer_plans or []:
+        for range_item in plan.get("ranges", []):
+            mapping = ((range_item.get("settings") or {}).get("mapping") or {})
+            for key in feature_keys:
+                tool = mapping.get(key)
+                if tool and str(tool).lower() != "none":
+                    candidates.append(str(tool).lower())
+                    break
+
+    if not candidates:
+        for meta in models_meta or []:
+            mapping = meta.get("scaffoldTools") or meta.get("scaffold_tools") or {}
+            for key in feature_keys:
+                tool = mapping.get(key)
+                if tool and str(tool).lower() != "none":
+                    candidates.append(str(tool).lower())
+                    break
+            if not mapping and meta.get("toolhead") and str(meta.get("toolhead")).lower() != "none":
+                candidates.append(str(meta.get("toolhead")).lower())
+
+    unique = set(candidates)
+    if len(unique) != 1:
+        return None
+    return {"fdm": "T0", "syringe": "T1", "uv": "T2"}.get(next(iter(unique)))
+
+
 # WiFi AP Configuration Routes
 # ----------------------------
 @app.get("/api/wifi/scan")
@@ -835,7 +865,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         supports_raw = form_params.get("supports")
         supports = (supports_raw is True or supports_raw == "true" or supports_raw == "1")
 
-        infill_pattern = form_params.get("infill_pattern", "gyroid")
+        infill_pattern = form_params.get("infill_pattern", "grid")
         perimeters = form_params.get("perimeters", "3")
         models_meta = json.loads(form_params.get("models_metadata", "[]"))
         layer_actions_raw = json.loads(form_params.get("layer_actions", "[]"))
@@ -1169,9 +1199,42 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
             _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config, model_bboxes)
 
+        # Prusa profiles may start with their default extruder (commonly T1)
+        # even when the resolved scaffold mapping is uniformly FDM. Normalize
+        # that startup selection before pore blocks are appended; injection
+        # blocks still switch to the syringe and restore the active tool.
+        startup_tool = _primary_structural_tool(models_meta, layer_plans)
+        if startup_tool:
+            ensure_initial_toolhead(gcode_out, startup_tool)
+
         # ── Pore Injection Post-Processing (Segment-Based) ──
         z_zones_raw = form_params.get("z_zones", "[]")
         z_zones = json.loads(z_zones_raw)
+        global_pore_raw = form_params.get("pore_injection")
+        global_pore = None
+        if global_pore_raw:
+            try:
+                global_pore = json.loads(global_pore_raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                global_pore = None
+        has_zonal_pore = any(
+            isinstance(zone, dict)
+            and ((zone.get("parameterOverride") or {}).get("poreInjection") or {}).get("enabled")
+            for zone in z_zones
+        )
+        # The direct UI mode is represented as a synthetic all-height zone so it
+        # uses exactly the same detector and G-code path as zonal injection.
+        if isinstance(global_pore, dict) and global_pore.get("enabled") and not has_zonal_pore:
+            z_zones = [
+                *z_zones,
+                {
+                    "id": "__global_pore__",
+                    "modelScope": "all",
+                    "zStartMm": 0.0,
+                    "zEndMm": 0.0,
+                    "parameterOverride": {"poreInjection": global_pore},
+                },
+            ]
         detected_pores_for_metadata = []
         
         if z_zones and not preview_only:
@@ -1202,8 +1265,11 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                     if not (pore_config and pore_config.get("enabled")):
                         continue
                     
-                    z_start = float(zone.get("zStartMm", 0.0))
+                    is_global_zone = zone.get("id") == "__global_pore__"
+                    z_start = 0.0 if is_global_zone else float(zone.get("zStartMm", 0.0))
                     z_end = float(zone.get("zEndMm", 10.0))
+                    if is_global_zone:
+                        z_end = max((float(data.get("z", 0.0)) for data in infill_data.values()), default=10.0)
                     print(f"[PORE] Scanning zone '{zone.get('label')}' ({z_start}-{z_end} mm)")
                     
                     mode = pore_config.get("mode", "layer_by_layer")
@@ -1232,8 +1298,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                                     ul_per_mm=165.0, # Approximate for 10ml syringe
                                     travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
                                     inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
-                                    syringe_tool=syringe_tool,
-                                    fdm_tool="T0"
+                                    syringe_tool=syringe_tool
                                 )
                                 
                                 if layer_idx in all_layer_injections:
@@ -1278,8 +1343,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                                     ul_per_mm=165.0,
                                     travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
                                     inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
-                                    syringe_tool=syringe_tool,
-                                    fdm_tool="T0"
+                                    syringe_tool=syringe_tool
                                 )
                                 
                                 if highest_layer_idx in all_layer_injections:
@@ -1338,7 +1402,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "layer_height_mm": float(layer_height),
             "filament_used_mm": filament_used,
             "toolhead_actions": layer_actions_raw,
-            "created_at": datetime.utcnow().isoformat(),
+            "toolheads": json.loads(form_params.get("toolheads", "[]")),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "xy_compensation": {
                 "applied": False,
                 "bed_center_x": bed_center_x,
@@ -1364,6 +1429,227 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
 
 
+def _build_fdm_form_params(form) -> dict:
+    """Normalize the multipart form contract used by the background slicer job."""
+    return {
+        "layer_height": form.get("layer_height", "0.2"),
+        "infill": form.get("infill", "15"),
+        "nozzle_temp": form.get("nozzle_temp", "210"),
+        "bed_temp": form.get("bed_temp", "60"),
+        "infill_pattern": form.get("infill_pattern", "grid"),
+        "perimeters": form.get("perimeters", "3"),
+        "supports": form.get("supports", "false") == "true",
+        "toolheads": form.get("toolheads", "[]"),
+        "layer_actions": form.get("layer_actions", "[]"),
+        "resolved_layer_plans": form.get("resolved_layer_plans", "[]"),
+        "models_metadata": form.get("models_metadata", "[]"),
+        "nozzle_diameter": form.get("nozzle_diameter", "0.4"),
+        "first_layer_height": form.get("first_layer_height", "0.3"),
+        "skirt_count": form.get("skirt_count", "1"),
+        "skirt_distance": form.get("skirt_distance", "6"),
+        "skirt_height": form.get("skirt_height", "1"),
+        "brim_width": form.get("brim_width", "0"),
+        "top_shell": form.get("top_shell", "3"),
+        "bottom_shell": form.get("bottom_shell", "3"),
+        "fill_angle": form.get("fill_angle", "45"),
+        "first_layer_speed": form.get("first_layer_speed", "20"),
+        "perimeter_speed": form.get("perimeter_speed", "45"),
+        "external_perimeter_speed": form.get("external_perimeter_speed", "25"),
+        "infill_speed": form.get("infill_speed", "80"),
+        "travel_speed": form.get("travel_speed", "130"),
+        "retract_length": form.get("retraction_length", "1.0"),
+        "retract_speed": form.get("retraction_speed", "45"),
+        "extrusion_multiplier": form.get("extrusion_multiplier", "1.0"),
+        "fan_always_on": form.get("fan_always_on", "1"),
+        "min_fan_speed": form.get("min_fan_speed", "100"),
+        "max_fan_speed": form.get("max_fan_speed", "100"),
+        "disable_fan_first_layers": form.get("disable_fan_first_layers", "1"),
+        "cooling": form.get("cooling", "1"),
+        "pore_injection": form.get("pore_injection"),
+        "z_zones": form.get("z_zones", "[]"),
+        "print_bed": form.get("print_bed"),
+    }
+
+
+def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
+    """Validate workflow invariants before creating a background slicer job."""
+    issues: list[dict] = []
+
+    def issue(code: str, step: int, message: str) -> None:
+        issues.append({"code": code, "step": step, "severity": "error", "message": message})
+
+    if not files:
+        issue("models.missing", 2, "At least one STL file is required.")
+
+    def parse_json(name: str, fallback):
+        raw = form_params.get(name)
+        if not raw:
+            return fallback
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            issue(f"request.{name}.json", 6, f"Field '{name}' is not valid JSON.")
+            return fallback
+
+    bed = parse_json("print_bed", None)
+    if not isinstance(bed, dict):
+        issue("environment.bed.missing", 1, "A print surface must be selected before slicing.")
+    else:
+        bed_type = bed.get("type")
+        if bed_type == "glass_bed":
+            dimensions = bed.get("dimensions") or {}
+            if float(dimensions.get("width", 0) or 0) <= 0 or float(dimensions.get("height", 0) or 0) <= 0:
+                issue("environment.bed.dimensions", 1, "Glass bed dimensions must be greater than zero.")
+        elif bed_type == "petri_dish":
+            if bed.get("petriDiameter") not in (35, 60, 90):
+                issue("environment.bed.diameter", 1, "A valid Petri dish diameter is required.")
+        elif bed_type == "multiwell_plate":
+            if bed.get("multiwellFormat") not in (6, 12, 24, 48):
+                issue("environment.bed.format", 1, "A valid multiwell plate format is required.")
+        else:
+            issue("environment.bed.type", 1, "The selected print surface is not supported.")
+
+    toolheads = parse_json("toolheads", [])
+    if not isinstance(toolheads, list):
+        toolheads = []
+    assigned_tools = {
+        str(tool.get("id"))
+        for tool in toolheads
+        if isinstance(tool, dict) and tool.get("slot") is not None
+    }
+    if not assigned_tools:
+        issue("environment.toolheads.missing", 1, "Assign at least one toolhead to a machine slot.")
+
+    models_metadata = parse_json("models_metadata", [])
+    if not isinstance(models_metadata, list) or not models_metadata:
+        issue("models.metadata.missing", 2, "Model metadata is required for slicing.")
+
+    global_pore = parse_json("pore_injection", None)
+    z_zones_for_validation = parse_json("z_zones", [])
+    active_zone_pores = [
+        zone for zone in (z_zones_for_validation if isinstance(z_zones_for_validation, list) else [])
+        if isinstance(zone, dict) and ((zone.get("parameterOverride") or {}).get("poreInjection") or {}).get("enabled")
+    ]
+    if isinstance(global_pore, dict) and global_pore.get("enabled"):
+        if active_zone_pores:
+            issue("pore.scope.conflict", 5, "Choose either whole-scaffold or zonal Pore Injection, not both.")
+        global_patterns = [
+            (model.get("fdm_settings") or {}).get("infillPattern") or form_params.get("infill_pattern", "grid")
+            for model in models_metadata if isinstance(model, dict)
+        ]
+        if any(pattern != "grid" for pattern in global_patterns):
+            issue("pore.pattern.global", 5, "Whole-scaffold Pore Injection requires the GRID infill pattern for every model.")
+        syringe_id = global_pore.get("syringeToolhead", "syringe")
+        if syringe_id not in assigned_tools:
+            issue("pore.toolhead.global", 5, "Whole-scaffold Pore Injection requires an assigned syringe toolhead.")
+        try:
+            if float(global_pore.get("injectionDepthMm", 0)) <= 0 or float(global_pore.get("flowRateUlPerCell", 0)) <= 0:
+                issue("pore.parameters.global", 5, "Whole-scaffold Pore Injection flow and depth must be greater than zero.")
+        except (TypeError, ValueError):
+            issue("pore.parameters.global", 5, "Whole-scaffold Pore Injection numeric parameters are invalid.")
+
+    supports_enabled = bool(form_params.get("supports"))
+    for model in models_metadata if isinstance(models_metadata, list) else []:
+        if not isinstance(model, dict):
+            continue
+        mapping = model.get("scaffoldTools") or {}
+        required = {
+            mapping.get("perimeter") or model.get("toolhead") or "none",
+            mapping.get("infill") or model.get("toolhead") or "none",
+            mapping.get("solidInfill") or model.get("toolhead") or "none",
+        }
+        if supports_enabled:
+            required.add(mapping.get("support") or model.get("toolhead") or "none")
+        if not (required - {"none", "None", None}):
+            issue(
+                f"mapping.model.missing.{model.get('id', 'unknown')}",
+                3,
+                f"Assign a toolhead to model '{model.get('name', model.get('id', 'unknown'))}' before slicing.",
+            )
+        for tool_id in required - {"none", "None", None}:
+            if tool_id not in assigned_tools:
+                issue(
+                    f"mapping.toolhead.{model.get('id', 'unknown')}.{tool_id}",
+                    3,
+                    f"Model '{model.get('name', model.get('id', 'unknown'))}' references an unassigned toolhead.",
+                )
+
+    try:
+        layer_height = float(form_params.get("layer_height", 0.2))
+        infill = float(form_params.get("infill", 15))
+        nozzle = float(form_params.get("nozzle_diameter", 0.4))
+        if not 0.05 <= layer_height <= 0.4:
+            issue("settings.layer_height", 4, "Layer height must be between 0.05 and 0.4 mm.")
+        if not 0 <= infill <= 100:
+            issue("settings.infill", 4, "Infill must be between 0 and 100%.")
+        if nozzle <= 0:
+            issue("settings.nozzle", 4, "Nozzle diameter must be greater than zero.")
+    except (TypeError, ValueError):
+        issue("settings.numeric", 4, "One or more numeric print settings are invalid.")
+
+    z_zones = z_zones_for_validation
+    if not isinstance(z_zones, list):
+        z_zones = []
+    for zone in z_zones:
+        if not isinstance(zone, dict):
+            continue
+        try:
+            z_start = float(zone.get("zStartMm", 0))
+            z_end = float(zone.get("zEndMm", 0))
+        except (TypeError, ValueError):
+            z_start, z_end = 0, 0
+        if z_start < 0 or z_end <= z_start:
+            issue(f"zones.range.{zone.get('id', 'unknown')}", 5, "Every Z-zone must have zStart < zEnd.")
+
+        pore = (zone.get("parameterOverride") or {}).get("poreInjection")
+        if not isinstance(pore, dict) or not pore.get("enabled"):
+            continue
+        zone_pattern = ((zone.get("parameterOverride") or {}).get("fdm") or {}).get("infillPattern")
+        scope = zone.get("modelScope", "all")
+        scoped_models = models_metadata if scope == "all" else [
+            model for model in models_metadata
+            if isinstance(model, dict) and model.get("id") == scope
+        ]
+        if scoped_models:
+            patterns = [
+                zone_pattern
+                or (model.get("fdm_settings") or {}).get("infillPattern")
+                or form_params.get("infill_pattern", "grid")
+                for model in scoped_models
+                if isinstance(model, dict)
+            ]
+        else:
+            patterns = [zone_pattern or form_params.get("infill_pattern", "grid")]
+        if any(pattern != "grid" for pattern in patterns):
+            issue(
+                f"pore.pattern.{zone.get('id', 'unknown')}",
+                5,
+                "Pore Injection requires the GRID infill pattern.",
+            )
+        syringe_id = pore.get("syringeToolhead", "syringe")
+        if syringe_id not in assigned_tools:
+            issue(
+                f"pore.toolhead.{zone.get('id', 'unknown')}",
+                5,
+                "Pore Injection requires an assigned syringe toolhead.",
+            )
+        try:
+            if float(pore.get("injectionDepthMm", 0)) <= 0 or float(pore.get("flowRateUlPerCell", 0)) <= 0:
+                issue(
+                    f"pore.parameters.{zone.get('id', 'unknown')}",
+                    5,
+                    "Pore Injection flow and depth must be greater than zero.",
+                )
+        except (TypeError, ValueError):
+            issue(
+                f"pore.parameters.{zone.get('id', 'unknown')}",
+                5,
+                "Pore Injection numeric parameters are invalid.",
+            )
+
+    return issues
+
+
 @app.post("/fdm/slice")
 def fdm_slice():
     """
@@ -1386,41 +1672,11 @@ def fdm_slice():
     if not files:
         return jsonify({"error": "No files[] received"}), 400
 
-    form_params = {
-        "layer_height": request.form.get("layer_height", "0.2"),
-        "infill": request.form.get("infill", "15"),
-        "nozzle_temp": request.form.get("nozzle_temp", "210"),
-        "bed_temp": request.form.get("bed_temp", "60"),
-        "infill_pattern": request.form.get("infill_pattern", "gyroid"),
-        "perimeters": request.form.get("perimeters", "3"),
-        "supports": request.form.get("supports", "false") == "true",
-        "layer_actions": request.form.get("layer_actions", "[]"),
-        "resolved_layer_plans": request.form.get("resolved_layer_plans", "[]"),  # FIX: was missing — segments never reached the slicer
-        "models_metadata": request.form.get("models_metadata", "[]"),
-        "nozzle_diameter": request.form.get("nozzle_diameter", "0.4"),
-        "first_layer_height": request.form.get("first_layer_height", "0.3"),
-        "skirt_count": request.form.get("skirt_count", "1"),
-        "skirt_distance": request.form.get("skirt_distance", "6"),
-        "brim_width": request.form.get("brim_width", "0"),
-        "top_shell": request.form.get("top_shell", "3"),
-        "bottom_shell": request.form.get("bottom_shell", "3"),
-        "fill_angle": request.form.get("fill_angle", "45"),
-        "first_layer_speed": request.form.get("first_layer_speed", "20"),
-        "perimeter_speed": request.form.get("perimeter_speed", "45"),
-        "external_perimeter_speed": request.form.get("external_perimeter_speed", "25"),
-        "infill_speed": request.form.get("infill_speed", "80"),
-        "travel_speed": request.form.get("travel_speed", "130"),
-        "retract_length": request.form.get("retraction_length", "1.0"),
-        "retract_speed": request.form.get("retraction_speed", "45"),
-        "extrusion_multiplier": request.form.get("extrusion_multiplier", "1.0"),
-        "fan_always_on": request.form.get("fan_always_on", "1"),
-        "min_fan_speed": request.form.get("min_fan_speed", "100"),
-        "max_fan_speed": request.form.get("max_fan_speed", "100"),
-        "disable_fan_first_layers": request.form.get("disable_fan_first_layers", "1"),
-        "cooling": request.form.get("cooling", "1"),
-        "pore_injection": request.form.get("pore_injection"),
-        "z_zones": request.form.get("z_zones", "[]")
-    }
+    form_params = _build_fdm_form_params(request.form)
+
+    validation_issues = _validate_fdm_slice_request(files, form_params)
+    if validation_issues:
+        return jsonify({"error": "workflow_validation_failed", "issues": validation_issues}), 422
     
     # DEBUG: Log raw request
     import json as debug_json
@@ -1596,6 +1852,65 @@ def moonraker_start_print():
         return jsonify({"status": "started", "job_id": job_id})
     else:
         return jsonify({"error": fm.state.message}), 500
+
+
+@app.post("/moonraker/print/dry-run")
+def moonraker_print_dry_run():
+    """Static safety pass over a generated G-code file; never moves the printer."""
+    data = request.json or {}
+    job_id = data.get("job_id")
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
+
+    job_dir = JOBS_DIR / job_id
+    gcode_path = job_dir / "print.gcode"
+    manifest_path = job_dir / "job_fdm.json"
+    if not gcode_path.exists() or not manifest_path.exists():
+        return jsonify({"error": f"Generated job not found: {job_id}"}), 404
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    lines = gcode_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    tool_re = re.compile(r"^T(\d+)\b", re.IGNORECASE)
+    move_re = re.compile(r"^G[01]\b", re.IGNORECASE)
+    used_tools = {f"T{match.group(1)}" for line in lines if (match := tool_re.match(line.strip()))}
+    assigned_tools = set()
+    for tool in manifest.get("toolheads", []):
+        if not isinstance(tool, dict) or tool.get("slot") is None:
+            continue
+        klipper_tool = str(tool.get("klipper_tool", "")).upper()
+        if klipper_tool.startswith("T"):
+            assigned_tools.add(klipper_tool)
+        elif str(tool.get("id", "")).lower() == "fdm":
+            assigned_tools.add("T0")
+        elif str(tool.get("id", "")).lower() == "syringe":
+            assigned_tools.add("T1")
+        elif str(tool.get("id", "")).lower() == "uv":
+            assigned_tools.add("T2")
+
+    issues = []
+    unknown_tools = sorted(used_tools - assigned_tools)
+    if unknown_tools:
+        issues.append({"code": "dry_run.toolhead.unassigned", "severity": "blocked", "message": f"G-code references unassigned toolhead(s): {', '.join(unknown_tools)}."})
+    if not any(move_re.match(line.strip()) for line in lines):
+        issues.append({"code": "dry_run.gcode.empty", "severity": "blocked", "message": "G-code contains no movement commands."})
+
+    pore_blocks = sum(1 for line in lines if "PORE INJECTION START" in line)
+    extrusion_moves = sum(1 for line in lines if move_re.match(line.strip()) and " E" in f" {line} ")
+    report = {
+        "status": "blocked" if issues else "ready",
+        "issues": issues,
+        "summary": {
+            "lines": len(lines),
+            "used_tools": sorted(used_tools),
+            "assigned_tools": sorted(assigned_tools),
+            "pore_injection_blocks": pore_blocks,
+            "extrusion_moves": extrusion_moves,
+            "layer_count": manifest.get("layer_count", 0),
+        },
+    }
+    manifest["dry_run"] = {**report, "executed_at": datetime.now(timezone.utc).isoformat()}
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return jsonify(report), 422 if issues else 200
 
 
 @app.post("/moonraker/print/pause")

@@ -66,6 +66,7 @@ export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: Toolhea
             onChange={e => onChange(e.target.value as ToolheadId)}
             className={`bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[9px] font-bold uppercase px-1.5 py-1 rounded outline-none focus:ring-1 focus:ring-primary cursor-pointer ${className || 'w-20'}`}
         >
+            <option value="none">-- NONE / UNASSIGNED --</option>
             {toolheads.map(th => (
                 <option key={th.id} value={th.id} className={th.slot !== undefined ? '' : 'text-slate-400 italic'}>
                    {th.id.toUpperCase()}{th.slot === undefined ? ' (OFFLINE)' : ''}
@@ -247,10 +248,10 @@ export const LayerActionRow: React.FC<{
                                     <input
                                         type="number"
                                         placeholder="100"
-                                        value={action.fdmSettings?.printSpeedMmS ? Math.round((action.fdmSettings.printSpeedMmS / 60) * 100) : ''}
+                                        value={action.fdmSettings?.perimeterSpeedMmS ? Math.round((action.fdmSettings.perimeterSpeedMmS / 60) * 100) : ''}
                                         onChange={e => onUpdate({ 
                                             ...action, 
-                                            fdmSettings: { ...action.fdmSettings, printSpeedMmS: (+e.target.value / 100) * 60 }
+                                            fdmSettings: { ...action.fdmSettings, perimeterSpeedMmS: (+e.target.value / 100) * 60 }
                                         })}
                                         className="w-full bg-slate-50 border border-outline-variant/20 rounded px-2 py-1 text-[10px] font-bold outline-none"
                                     />
@@ -659,7 +660,12 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                         <div className="space-y-3">
                             {models.map(m => {
                                 const isScaffold = !!m.scaffoldTools;
-                                const scaffoldTools = m.scaffoldTools || DEFAULT_SCAFFOLD_TOOLS;
+                                const scaffoldTools = m.scaffoldTools || {
+                                    perimeter: 'none' as const,
+                                    infill: 'none' as const,
+                                    solidInfill: 'none' as const,
+                                    support: 'none' as const,
+                                };
 
                                 return (
                                     <div key={m.id} className="bg-white border border-outline-variant/20 overflow-hidden">
@@ -700,7 +706,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                         {!isScaffold && (
                                             <div className="p-3">
                                                 <ToolheadSelect
-                                                    value={m.toolhead || 'fdm'}
+                                                    value={m.toolhead || 'none'}
                                                     onChange={v => onUpdateModel(m.id, { toolhead: v })}
                                                     className="w-full"
                                                     toolheads={toolheads}

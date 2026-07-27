@@ -107,10 +107,9 @@ export const useProject = () => {
     topSolidLayers: 3,
     bottomSolidLayers: 3,
     fillAngle: 0,
-    printBed: {
-      type: 'glass_bed',
-      dimensions: { width: 100, height: 100 }
-    }
+    // The print surface is intentionally unset until the user chooses one in
+    // Machine Setup. The viewport still renders a neutral fallback bed.
+    printBed: undefined
   });
 
   const handleUpdateMaterial = (id: string, updates: Partial<MaterialProfile>) => {
@@ -199,7 +198,9 @@ export const useProject = () => {
         enabled: false,
         segments: []
       },
-      toolhead: 'fdm',
+      // A new model must not silently claim an FDM head that may not exist.
+      // The mapping step will require an explicit assignment before slicing.
+      toolhead: 'none',
       fdmSettings: {
         infillPercent: globalSettings.infill ?? 15,
         infillPattern: globalSettings.infillPattern ?? 'grid',

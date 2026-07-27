@@ -112,6 +112,10 @@ export interface PoreInjectionConfig {
   flowRateUlPerCell: number;
   travelFeedrateMmMin: number;
   injectionFeedrateMmMin: number;
+  /** Geometry detector tolerance used when matching square GRID cells. */
+  cellSizeToleranceMm?: number;
+  /** Minimum square-cell size accepted by the pore detector. */
+  minCellSizeMm?: number;
   // ── Multilayer params ──
   /** Target injection volume (µL) — capped to maxAvailableVolumeUl */
   targetVolumeUl?: number;
@@ -119,6 +123,39 @@ export interface PoreInjectionConfig {
   maxAvailableVolumeUl?: number;
   /** Number of FDM layers accumulated for depth calculation */
   accumulatedLayerCount?: number;
+  /** Calibrated syringe displacement for the selected bioink/tip pair. */
+  calibrationUlPerMm?: number;
+  calibrationBioinkId?: string;
+  calibrationTipId?: string;
+}
+
+export type PoreProtocolStatus = 'inactive' | 'ready' | 'warning' | 'blocked';
+
+export interface PoreProtocolIssue {
+  code: string;
+  severity: 'warning' | 'blocked';
+  message: string;
+}
+
+export interface PoreProtocolPreflight {
+  status: PoreProtocolStatus;
+  scope: 'none' | 'global' | 'zonal';
+  estimatedPoreCount: number;
+  availableVolumeUl: number;
+  requestedVolumeUl: number;
+  marginVolumeUl: number;
+  calibrationUlPerMm?: number;
+  bioinkId?: string;
+  bioinkName?: string;
+  tipId?: string;
+  issues: PoreProtocolIssue[];
+  checks: {
+    geometry: 'ready' | 'warning' | 'blocked';
+    calibration: 'ready' | 'warning' | 'blocked';
+    volume: 'ready' | 'warning' | 'blocked';
+    collisions: 'not_checked' | 'ready' | 'warning' | 'blocked';
+    dryRun: 'not_run' | 'ready' | 'blocked';
+  };
 }
 
 export interface GlobalSettings {

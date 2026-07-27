@@ -80,7 +80,7 @@ export default function App() {
           ) : (
             <>
               <LayersPanel />
-              <main className="flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
+              <main className="min-w-0 flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
                 <Viewport />
                 {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
                 {ui.isDragging && (

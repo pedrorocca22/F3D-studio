@@ -66,7 +66,7 @@ export const useSlicer = (
       id: m.id,
       name: m.file?.name ?? m.name,
       transform: m.transform,
-      toolhead: m.toolhead || 'fdm',
+      toolhead: m.toolhead || 'none',
       scaffoldTools: m.scaffoldTools,
       fdm_settings: m.fdmSettings,
     }));
@@ -108,6 +108,7 @@ export const useSlicer = (
     formData.append('max_fan_speed', String(globalSettings.coolingEnabled !== false ? (globalSettings.maxFanSpeed ?? 100) : 0));
     formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
     formData.append('z_zones', JSON.stringify(zZones));
+    formData.append('print_bed', JSON.stringify(globalSettings.printBed ?? null));
 
     const resolvedPlans = resolveLayerPlans(models, calculatedTotalLayers, zZones, globalSettings.layerHeight / 1000, (globalSettings.firstLayerHeight || 300) / 1000);
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
@@ -127,7 +128,7 @@ export const useSlicer = (
         kind: zz.featureOverride ? 'feature_override' : (zz.parameterOverride ? 'parameter_override' : 'process_event'),
         toolOverride: zz.featureOverride?.toolhead, fdmSettings: zz.parameterOverride?.fdm,
         syringeSettings: zz.parameterOverride?.syringe, uvSettings: zz.processEvent,
-        poreInjectionEnabled: zz.parameterOverride?.poreInjectionEnabled,
+        poreInjection: zz.parameterOverride?.poreInjection,
         label: zz.label, color: zz.color
       };
     });
