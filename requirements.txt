@@ -5,3 +5,5 @@ flask-cors
 requests
 Pillow
 opencv-python
+# Test dependencies (dev only)
+pytest>=8.0
