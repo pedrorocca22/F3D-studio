@@ -4,7 +4,7 @@ import { ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { Icon } from '../Icon';
-import { useGCodeLoader, GCodeScene, ColorMode } from '../GCodePreview/GCodePreview';
+import { useGCodeLoader, GCodeScene, ColorMode, getGCodeToolColor } from '../GCodePreview/GCodePreview';
 
 import './subcomponents/three-types';
 
@@ -30,6 +30,7 @@ import { BACKEND_URL } from '../../config';
 
 import { MaterialPresetPanel } from './subcomponents/MaterialPresetPanel';
 import { TipsLibraryPanel } from './subcomponents/TipsLibraryPanel';
+import { getToolheadType, isFdmToolhead, isSyringeToolhead, TOOLHEAD_TYPE_LABELS } from '../../utils/toolheads';
 
 type CameraMode = 'orbit' | 'pan';
 
@@ -44,6 +45,7 @@ export const Viewport: React.FC = () => {
   const [gcodeMoveIndex, setGcodeMoveIndex] = useState<number>(0);
   const [isGCodePlaying, setIsGCodePlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [gcodeTimelineMode, setGcodeTimelineMode] = useState<'layers' | 'segments'>('layers');
 
   const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw, loading: gcodeLoading, error: gcodeError } = useGCodeLoader(
     gcodeUrl, 
@@ -97,11 +99,24 @@ export const Viewport: React.FC = () => {
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
-  const [gcodeNozzle, setGcodeNozzle] = useState(project.globalSettings.nozzleDiameter || 0.4);
+  const fdmToolhead = project.toolheads.find(isFdmToolhead);
+  const configuredNozzleDiameter = fdmToolhead?.nozzleDiameter ?? (project.globalSettings.nozzleDiameter || 0.4);
+  const [gcodeNozzle, setGcodeNozzle] = useState(configuredNozzleDiameter);
   const [gcodeColorMode, setGcodeColorMode] = useState<ColorMode>('toolhead');
   const [gcodeRenderMode, setGcodeRenderMode] = useState<'solid' | 'wire'>('solid');
-  const [gcodeShowTip, setGcodeShowTip] = useState(true);
+  const [gcodeShowTip, setGcodeShowTip] = useState(false);
   const isGCodeMode = !!slicer.gcodePreviewJob;
+  const gcodeToolheadTypes = useMemo(() => Object.fromEntries(
+    project.toolheads
+      .filter(tool => tool.slot !== undefined)
+      .map(tool => [`T${tool.slot}`, getToolheadType(tool)]),
+  ), [project.toolheads]);
+  const gcodeMoveMax = useMemo(() => {
+    if (!gcodeParsed) return 0;
+    const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
+    const end = gcodeParsed.layerMoveIndices[gcodeLayer + 1] || gcodeParsed.moves.length;
+    return Math.max(0, end - start);
+  }, [gcodeParsed, gcodeLayer]);
 
   // ── Viewport State ───────────────────────────────────────
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
@@ -127,8 +142,8 @@ export const Viewport: React.FC = () => {
   }, [gcodeLayer, inspectorTab]);
 
   useEffect(() => {
-    setGcodeNozzle(project.globalSettings.nozzleDiameter || 0.4);
-  }, [slicer.gcodePreviewJob, project.globalSettings.nozzleDiameter]);
+    setGcodeNozzle(slicer.gcodePreviewJob?.nozzleDiameter || configuredNozzleDiameter);
+  }, [slicer.gcodePreviewJob, configuredNozzleDiameter]);
 
   useEffect(() => {
     clippingPlane.constant = clippingHeight;
@@ -172,7 +187,9 @@ export const Viewport: React.FC = () => {
               globalSettings={project.globalSettings}
               zZones={project.zZones}
               detectedPores={slicer.gcodePreviewJob?.detectedPores}
+              bottomSolidTopMm={slicer.gcodePreviewJob?.bottomSolidTopMm}
               bedCenter={slicer.gcodePreviewJob?.bedCenter}
+              nozzleDiameterMm={configuredNozzleDiameter}
               isClipping={isClipping}
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
@@ -204,7 +221,11 @@ export const Viewport: React.FC = () => {
                   adhesionOffset={(project.globalSettings.adhesion?.enabled) ? (project.globalSettings.adhesion.layers * project.globalSettings.adhesion.layerHeight) / 1000 : 0}
                   isClipping={isClipping}
                   clippingHeight={clippingHeight}
-                  toolheadColor={TOOLHEAD_COLORS[model.toolhead || 'none'] || TOOLHEAD_COLORS.none}
+                  toolheadColor={TOOLHEAD_COLORS[
+                    project.toolheads.find(tool => tool.id === model.toolhead)
+                      ? getToolheadType(project.toolheads.find(tool => tool.id === model.toolhead)!)
+                      : model.toolhead || 'none'
+                  ] || TOOLHEAD_COLORS.none}
                   globalSettings={project.globalSettings}
                   wellAssignment={model.transform.wellAssignment}
                 />
@@ -212,7 +233,7 @@ export const Viewport: React.FC = () => {
             </Suspense>
 
             {isGCodeMode && gcodeParsed && (() => {
-              const syringeTool = project.toolheads.find(t => t.id === 'syringe') as any;
+              const syringeTool = project.toolheads.find(isSyringeToolhead);
               return (
                 <GCodeScene
                   parsed={gcodeParsed}
@@ -224,6 +245,7 @@ export const Viewport: React.FC = () => {
                   renderMode={gcodeRenderMode}
                   activeTipId={syringeTool?.tipId}
                   showTip={gcodeShowTip}
+                  toolheadTypes={gcodeToolheadTypes}
                 />
               );
             })()}
@@ -280,28 +302,8 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex flex-col gap-2 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-200 dark:border-slate-800">
-              {/* LAYERS ROW */}
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 shrink-0 w-24">
-                  <Icon name="layers" className="text-primary text-sm" />
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Layers</span>
-                </div>
-                <input
-                  type="range" min={0} max={gcodeParsed.layerCount} step={1}
-                  value={gcodeLayer}
-                  onChange={e => setGcodeLayer(+e.target.value)}
-                  className="flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
-                />
-                <div className="shrink-0 w-20 text-right">
-                  <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">{gcodeLayer} <span className="opacity-30">/ {gcodeParsed.layerCount}</span></span>
-                </div>
-              </div>
-
-              {/* MOVES/PLAYBACK ROW */}
-              <div className="flex items-center gap-4 py-1 border-t border-slate-100 dark:border-slate-800/50 mt-1 pt-2">
-                <div className="flex items-center gap-2 shrink-0 w-24">
-                   <button 
+            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-2.5 p-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-200 dark:border-slate-800">
+              <button
                     onClick={() => {
                         const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
                         const end = gcodeParsed.layerMoveIndices[gcodeLayer+1] || gcodeParsed.moves.length;
@@ -312,57 +314,73 @@ export const Viewport: React.FC = () => {
                         }
                         setIsGCodePlaying(!isGCodePlaying);
                     }}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isGCodePlaying ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary'}`}
-                   >
-                     <Icon name={isGCodePlaying ? 'pause' : 'play_arrow'} className="text-xs" />
-                   </button>
-                   
-                   <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 ml-1">
-                      {[1, 2, 4, 8].map(s => (
-                        <button 
-                          key={s} 
-                          onClick={() => setPlaybackSpeed(s)}
-                          className={`px-1.5 py-0.5 text-[8px] font-black rounded transition-all ${playbackSpeed === s ? 'bg-white dark:bg-slate-700 text-primary' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                          {s}x
-                        </button>
-                      ))}
-                   </div>
-                </div>
-                
-                {(() => {
-                    const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
-                    const end = gcodeParsed.layerMoveIndices[gcodeLayer+1] || gcodeParsed.moves.length;
-                    const max = Math.max(0, end - start);
-                    return (
-                        <>
-                            <input
-                                type="range" min={0} max={max} step={1}
-                                value={gcodeMoveIndex}
-                                onChange={e => {
-                                    setGcodeMoveIndex(+e.target.value);
-                                    if (isGCodePlaying) setIsGCodePlaying(false);
-                                }}
-                                className="flex-1 h-1 accent-emerald-500 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
-                            />
-                            <div className="shrink-0 w-20 text-right">
-                                <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">{gcodeMoveIndex} <span className="opacity-30">/ {max}</span></span>
-                            </div>
-                        </>
-                    );
-                })()}
+                    className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-colors ${isGCodePlaying ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary'}`}
+                  >
+                    <Icon name={isGCodePlaying ? 'pause' : 'play_arrow'} className="text-xs" />
+              </button>
 
-                <div className="ml-2 flex gap-2">
+              <div className="flex shrink-0 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
+                {[1, 2, 4, 8].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setPlaybackSpeed(s)}
+                    className={`px-1.5 py-0.5 text-[8px] font-black rounded transition-all ${playbackSpeed === s ? 'bg-white dark:bg-slate-700 text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex shrink-0 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {(['layers', 'segments'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setGcodeTimelineMode(mode);
+                      if (isGCodePlaying) setIsGCodePlaying(false);
+                    }}
+                    className={`px-2 py-1 text-[8px] font-black uppercase tracking-wide transition-colors ${
+                      gcodeTimelineMode === mode
+                        ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900'
+                        : 'bg-white dark:bg-slate-900 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="range"
+                min={0}
+                max={gcodeTimelineMode === 'layers' ? gcodeParsed.layerCount : gcodeMoveMax}
+                step={1}
+                value={gcodeTimelineMode === 'layers' ? gcodeLayer : gcodeMoveIndex}
+                onChange={e => {
+                  const value = +e.target.value;
+                  if (gcodeTimelineMode === 'layers') setGcodeLayer(value);
+                  else setGcodeMoveIndex(value);
+                  if (isGCodePlaying) setIsGCodePlaying(false);
+                }}
+                aria-label={gcodeTimelineMode === 'layers' ? 'Layer progress' : 'Segment progress'}
+                className="min-w-24 flex-1 h-1 accent-primary bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer appearance-none"
+              />
+
+              <span className="shrink-0 min-w-16 text-right text-[9px] font-mono font-bold text-slate-700 dark:text-slate-200">
+                {gcodeTimelineMode === 'layers' ? gcodeLayer : gcodeMoveIndex}
+                <span className="opacity-30"> / {gcodeTimelineMode === 'layers' ? gcodeParsed.layerCount : gcodeMoveMax}</span>
+              </span>
+
+                <div className="ml-1 flex shrink-0 gap-1">
                   <div className="relative group/legend">
                     <button
                       onClick={() => setGcodeColorMode(m => m === 'toolhead' ? 'linetype' : 'toolhead')}
-                      className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                      className={`px-2 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all ${
                         gcodeColorMode === 'linetype'
                           ? 'bg-primary text-white border-primary'
                           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                       }`}
                     >
-                      <Icon name="palette" className="text-[12px]" />
                       {gcodeColorMode === 'toolhead' ? 'TOOL' : 'TYPE'}
                     </button>
 
@@ -371,18 +389,17 @@ export const Viewport: React.FC = () => {
                       <div className="space-y-1.5">
                         {gcodeColorMode === 'toolhead' ? (
                           <div className="space-y-1">
-                            <div className="flex items-center gap-2 px-1 py-0.5">
-                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#14b8a6' }} />
-                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T0: FDM</span>
-                            </div>
-                            <div className="flex items-center gap-2 px-1 py-0.5">
-                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#f59e0b' }} />
-                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T1: Syringe</span>
-                            </div>
-                            <div className="flex items-center gap-2 px-1 py-0.5">
-                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#8b5cf6' }} />
-                              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">T2: UV</span>
-                            </div>
+                            {project.toolheads
+                              .filter(tool => tool.slot !== undefined)
+                              .sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))
+                              .map(tool => (
+                                <div key={tool.id} className="flex items-center gap-2 px-1 py-0.5">
+                                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getGCodeToolColor(`T${tool.slot}`) }} />
+                                  <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                                    T{tool.slot}: {TOOLHEAD_TYPE_LABELS[getToolheadType(tool)]}
+                                  </span>
+                                </div>
+                              ))}
                           </div>
                         ) : (
                           <div className="space-y-1">
@@ -425,32 +442,29 @@ export const Viewport: React.FC = () => {
 
                   <button
                     onClick={() => setGcodeShowTip(v => !v)}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-2 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all ${
                       gcodeShowTip
                         ? 'bg-primary text-white border-primary'
                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                     }`}
                     title={gcodeShowTip ? "Hide Toolhead Tip" : "Show Toolhead Tip"}
                   >
-                    <Icon name="hardware" className="text-[12px]" />
                     TIP
                   </button>
 
                   <button
                     onClick={() => setGcodeRenderMode(m => m === 'solid' ? 'wire' : 'solid')}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-2 py-1 rounded-md border text-[8px] font-black uppercase tracking-wide transition-all ${
                       gcodeRenderMode === 'wire'
                         ? 'bg-primary text-white border-primary'
                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-primary'
                     }`}
                     title={gcodeRenderMode === 'solid' ? "Switch to Wireframe" : "Switch to Solid"}
                   >
-                    <Icon name={gcodeRenderMode === 'solid' ? "view_in_ar" : "polyline"} className="text-[12px]" />
                     {gcodeRenderMode === 'solid' ? 'SOLID' : 'WIRE'}
                   </button>
                 </div>
               </div>
-            </div>
           )}
         </div>
         <CameraControls isGCodeMode={isGCodeMode} setView={setView} />

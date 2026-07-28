@@ -20,7 +20,6 @@ def test_pore_injection_restores_the_active_syringe_tool(tmp_path):
     injection = build_pore_injection_gcode(
         centroids=[(10.0, 12.0)],
         current_z=0.2,
-        injection_depth_mm=0.1,
         flow_ul_per_cell=0.5,
         ul_per_mm=165.0,
         travel_feedrate=6000,
@@ -49,7 +48,6 @@ def test_pore_injection_does_not_invent_a_return_tool(tmp_path):
     injection = build_pore_injection_gcode(
         centroids=[(10.0, 12.0)],
         current_z=0.2,
-        injection_depth_mm=0.1,
         flow_ul_per_cell=0.5,
         ul_per_mm=165.0,
         travel_feedrate=6000,
@@ -86,3 +84,44 @@ def test_initial_tool_is_not_changed_when_already_correct(tmp_path):
     gcode_path.write_text("T0 ; profile default\n;LAYER_CHANGE\n", encoding="utf-8")
 
     assert ensure_initial_toolhead(gcode_path, "T0") is False
+
+
+def test_injection_extrusion_uses_the_supplied_calibration():
+    block = build_pore_injection_gcode(
+        centroids=[(1.0, 1.0)],
+        current_z=0.2,
+        flow_ul_per_cell=0.5,
+        ul_per_mm=0.5,
+        travel_feedrate=6000,
+        inject_feedrate=120,
+    )
+
+    assert "G1 E1.0000 F120 ; Deposit into open pore from layer surface" in block
+    assert "E0.0030" not in "\n".join(block)
+
+
+def test_surface_deposition_never_moves_the_syringe_down_in_z():
+    block = build_pore_injection_gcode(
+        centroids=[(1.0, 1.0)],
+        current_z=0.2,
+        flow_ul_per_cell=0.5,
+        ul_per_mm=0.5,
+        travel_feedrate=6000,
+        inject_feedrate=120,
+    )
+
+    assert not any(line.startswith("G1 Z") for line in block)
+
+
+def test_pore_retraction_uses_the_central_syringe_profile_value():
+    block = build_pore_injection_gcode(
+        centroids=[(1.0, 1.0)],
+        current_z=0.2,
+        flow_ul_per_cell=0.5,
+        ul_per_mm=0.5,
+        travel_feedrate=6000,
+        inject_feedrate=120,
+        retract_mm=0.2,
+    )
+
+    assert "G1 E-0.2000 F1200 ; Retract to prevent stringing" in block

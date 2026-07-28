@@ -24,6 +24,7 @@ export interface NozzleTip {
   innerDiameterMm: number;
   /** Diámetro interior en pulgadas */
   innerDiameterIn: number;
+  /** Diámetro exterior nominal en mm. Undefined means the physical envelope is unknown. */
   /** Número de referencia */
   standardRef: string;
   isCustom?: boolean;

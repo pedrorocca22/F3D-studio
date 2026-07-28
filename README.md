@@ -1,95 +1,196 @@
-#  F3D Studio
-<img width="1916" height="1040" alt="Screenshot_F3D" src="https://github.com/user-attachments/assets/8be57a5d-cdad-4fd5-961d-9d398acf5271" />
+# F3D Studio
+
+<img width="1916" height="1040" alt="F3D Studio workspace" src="https://github.com/user-attachments/assets/8be57a5d-cdad-4fd5-961d-9d398acf5271" />
 
 <div align="center">
-  <i>Professional software suite for Advanced Bioprinting and Fused Filament Fabrication</i>
+  <i>Multi-process slicing and protocol design for advanced fabrication and bioprinting</i>
 </div>
-<br/>
 
-F3D Studio is a comprehensive, professional-grade software suite designed for advanced bioprinting workflows. Built with a modern web interface and a robust Python backend, F3D Studio bridges the gap between 3D slicing parameters and user-friendly G-code generation. It enables precise control over print parameters across different heights (Z-Zones) and introduces advanced features tailored for biological and soft-material printing, such as Pore Injection.
+F3D Studio is a research-oriented workspace for preparing hybrid 3D-printing
+protocols that combine thermoplastic extrusion, hydrogel dispensing and UV
+processing. It connects a React/Three.js interface to a Python slicing pipeline
+built around PrusaSlicer, with explicit hardware mapping, process constraints,
+G-code inspection and Klipper/Moonraker integration.
 
-> **Disclaimer:** This software is currently a beta version and is still under active development. Features and performance are subject to change.
+> **Development status:** F3D Studio is beta software under active development.
+> It is intended for research workflows and does not replace experimental,
+> biological or medical validation.
 
-## Prerequisites & Setup
+## Current capabilities
 
-F3D Studio relies on **PrusaSlicer's CLI** to perform geometry slicing. Because the binary is large, it is **not** included in this repository — you must download and place it manually.
+- **Machine-agnostic toolheads:** define the number of physical slots and assign
+  any combination of FDM, hydrogel syringe and UV tools, including multiple
+  tools of the same type.
+- **Per-process assignment:** independently map perimeters, infill, solid infill,
+  bottom layers, top layers and supports to installed toolheads.
+- **Centralized process profiles:** configure FDM, syringe and UV hardware in one
+  place and reuse those values throughout the workflow.
+- **Height-based zones:** override process assignments and parameters over
+  selected Z ranges or model scopes.
+- **Multimaterial slicing:** generate physical tool changes from instance-based
+  toolhead assignments while retaining compatibility with older projects.
+- **Interactive G-code preview:** inspect layers or individual segments with one
+  timeline, color paths by tool or line type, and switch between solid and
+  wireframe rendering.
+- **Process-aware tool visualization:** display the correct FDM nozzle or syringe
+  tip while a mixed-tool program is simulated.
+- **Labware and materials:** work with flat beds, Petri dishes and multiwell
+  plates, plus reusable thermoplastic, hydrogel and support-material profiles.
+- **Protocol archive:** save configured projects with materials, toolheads,
+  zones, metadata and slicing results for later review.
 
-1. Download the **PrusaSlicer Console** package for Windows from the [official releases page](https://github.com/prusa3d/PrusaSlicer/releases).
-2. Extract it and **rename the folder** to exactly `PrusaSlicer-2.9.6`.
-3. Place the folder at the **root of the project**, so the executable is reachable at:
-   ```
-   E:\F3D-studio\PrusaSlicer-2.9.6\prusa-slicer-console.exe
-   ```
+## Layer-by-layer Pore Injection
 
-```
-E:\F3D-studio\
-├── server.py
-├── config.ini
-├── ...
-└── PrusaSlicer-2.9.6\          ← place here
+Pore Injection is an experimental workflow for depositing a secondary material
+inside detected GRID infill cells while the scaffold is being constructed.
+F3D Studio currently implements the physically conservative **layer-by-layer**
+strategy: a scaffold layer is printed, accessible cells are detected, and the
+assigned syringe deposits from the surface of that fresh layer.
+
+The current implementation includes:
+
+- Whole-scaffold or explicitly zonal activation.
+- GRID compatibility checks without implicitly enabling injection in other
+  GRID-configured zones.
+- Selection of a dedicated syringe toolhead and its central calibration.
+- Protection of the configured bottom solid envelope.
+- Geometric estimation of available volume for every detected cell.
+- Requested-versus-available volume summaries and over-capacity warnings.
+- 3D pore-site previews whose footprint represents the requested fill ratio.
+- Preflight validation and a dry-run before a job is sent to the printer.
+
+Post-print needle penetration through an already completed scaffold is not
+currently supported. This avoids presenting a theoretically possible toolpath
+as a mechanically reliable process without accounting for tip geometry,
+material behavior and scaffold accessibility.
+
+## Workflow
+
+1. **Machine Setup** — choose the print surface and configure physical tool
+   slots.
+2. **Models** — import STL geometry or create basic primitives.
+3. **Essential** — assign tools to scaffold features and configure the active
+   FDM, syringe and UV profiles.
+4. **Expert** — add Z zones, parameter overrides, UV events or localized pore
+   injection when required.
+5. **Slice** — resolve constraints, generate G-code, inspect the preview and run
+   the final checks.
+
+Blocking validation prevents progression when required surfaces, models,
+toolheads, material metadata or process-specific parameters are missing.
+
+## Requirements
+
+- Node.js and npm
+- Python 3.10+
+- PrusaSlicer 2.9.6 console executable
+- Windows for the repository's default PrusaSlicer binary path
+
+The PrusaSlicer distribution is intentionally not committed. Download the
+Windows console package from the
+[official PrusaSlicer releases](https://github.com/prusa3d/PrusaSlicer/releases),
+extract it and place it at:
+
+```text
+F3D-studio/
+└── PrusaSlicer-2.9.6/
     └── prusa-slicer-console.exe
 ```
 
-> **Version note:** the backend resolves the slicer from `server.py` as `BASE_DIR / "PrusaSlicer-2.9.6" / "prusa-slicer-console.exe"`. If you use a different PrusaSlicer version, either rename the folder to `PrusaSlicer-2.9.6` or update the three references: `server.py`, `f3d_studio.spec`, and `.gitignore`.
+The path is currently resolved in `server.py` as:
 
-The `PrusaSlicer-2.9.6/` folder is listed in `.gitignore` and will never be committed — this is intentional.
-
-### Run in development
-```bash
-# Backend (Python)
-pip install -r requirements.txt
-python server.py            # serves on http://127.0.0.1:8000
-
-# Frontend (separate terminal)
-npm install
-npm run dev                 # Vite dev server
+```text
+PrusaSlicer-2.9.6/prusa-slicer-console.exe
 ```
+
+## Development setup
+
+Install dependencies:
+
+```bash
+npm install
+python -m pip install -r requirements.txt
+```
+
+Start the backend:
+
+```bash
+python -m flask --app server run --host 127.0.0.1 --port 8000 --no-debugger --no-reload
+```
+
+In a second terminal, start the frontend:
+
+```bash
+npm run dev
+```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
+
+To use another backend address, define `VITE_BACKEND_URL` before starting or
+building the frontend.
+
+## Local production build
+
+```bash
+npm run build
+python server.py
+```
+
+`server.py` serves the compiled frontend and API at
+[http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Testing
 
-The project ships with a unit-test suite covering the two most critical pieces of pure logic: the **Z-Zone resolver** (TypeScript) and the **pore-detection algorithm** (Python).
-
 ```bash
-# TypeScript tests (Vitest)
-npm test                    # run once
-npm run test:watch          # watch mode
+# TypeScript unit tests
+npm test
 
-# Python tests (pytest) — run from project root
+# Python unit and integration tests
 python -m pytest tests/ -v
-# or
-npm run test:python
+
+# Production build
+npm run build
 ```
 
-Tests live in `tests/`. The Python tests write synthetic G-code to a temp dir (no fixtures checked into the repo), so they are self-contained. Some cases document intentionally-pinned non-intuitive behavior (e.g. the `mmToLayer` epsilon boundary) — see the comments in each test file.
+The test suite covers workflow restrictions, layer-plan resolution,
+instance-based toolheads, G-code preview behavior, infill-cell detection, pore
+injection, server contracts and slicing integration.
 
-## Key Features
+## Architecture
 
-### 1. Modern, Responsive User Interface
-- **Visual Workspace:** A high-performance UI built with React and Three.js, featuring a flat, professional design aesthetic. It provides a real-time, interactive 3D viewport for inspecting toolpaths and simulating G-code execution.
-- **Advanced G-Code Simulation:** Features a sophisticated visualizer where users can see the exact toolpath of the printer. The simulation includes a translucent toolhead (syringe tip) that is programmatically rotated and centered, accurately tracking the path during playback.
-- **Wireframe & Solid Rendering:** Toggle between solid and wireframe rendering modes for detailed inspection of complex G-code layers and internal infill structures.
+```text
+React + TypeScript + Three.js
+            │
+            ▼
+      Flask API (Python)
+            │
+      ┌─────┴─────────┐
+      ▼               ▼
+ PrusaSlicer     G-code processing
+                      │
+                      ▼
+             Klipper / Moonraker
+```
 
-### 2. Multi-Zone Slicing Engine
-- **PrusaSlicer Integration:** Seamlessly integrates with PrusaSlicer's CLI under the hood to perform robust geometry slicing without needing local desktop software.
-- **Parametric Z-Zones:** Users can define dynamic Z-Zones, allowing per-segment configuration of layer heights, infill patterns, and speeds. This allows printing hybrid structures where properties vary across the height of the construct.
-<img width="1920" height="1040" alt="Screenshot2_F3D" src="https://github.com/user-attachments/assets/a49a2352-f03f-4288-a28a-30b661fea026" />
+Core design notes and audits are available in:
 
-### 3. Advanced Bioprinting Capabilities
-- **Pore Injection Logic:** Allows fine-grained control over the printing process by enabling users to configure per-segment "Pore Injection" logic. When activated on compatible infill patterns (like GRID), the system modifies the G-code to inject specific biological or support materials directly into the pores of the structure.
-- **Hardware Integration:** Connects directly with Klipper/Moonraker APIs, allowing users to send G-code seamlessly to their networked bioprinters.
-<img width="1920" height="1040" alt="Screenshot3_F3D" src="https://github.com/user-attachments/assets/41887407-cff7-4d84-ac77-54d58b06a65b" />
+- [`docs/WORKFLOW_DECISIONS_AND_PORE_INJECTION.md`](docs/WORKFLOW_DECISIONS_AND_PORE_INJECTION.md)
+- [`docs/PORE_INJECTION_IMPLEMENTATION_AUDIT.md`](docs/PORE_INJECTION_IMPLEMENTATION_AUDIT.md)
+- [`docs/INTERFACE_REORGANIZATION_ROADMAP.md`](docs/INTERFACE_REORGANIZATION_ROADMAP.md)
 
-### 4. Protocol Management & Workspace Features
-- **Archived Protocol Gallery:** Save, organize, and reload past printing jobs complete with metadata, custom tags, and detailed project descriptions, ensuring reproducible bioprinting workflows.
-- **Detailed Toolhead Mapping:** Support for interchangeable toolheads, allowing users to easily configure standard filament extruders, syringe injection heads for bioinks and gels, and UV curing tools for accurate simulation and precise volumetric control.
-- **Live Print Monitoring:** Includes a built-in telemetry dashboard to track the progress and status of active print jobs in real-time.
-- **Integrated Network Config:** Manage device connectivity (WiFi) directly from the interface, ideal for standalone or headless deployments (e.g., Raspberry Pi).
-<img width="1920" height="1040" alt="Screenshot4_F3D" src="https://github.com/user-attachments/assets/42083427-19f9-4bbc-b4b5-fe3be837cc7c" />
+## Technology
 
-## Tech Stack
-- **Frontend:** React, TypeScript, Vite, CSS Modules, Three.js (3D rendering).
-- **Backend:** Python, Flask, PrusaSlicer CLI.
+- React 18, TypeScript and Vite
+- Three.js and React Three Fiber
+- Tailwind CSS
+- Python and Flask
+- PrusaSlicer CLI
+- Klipper/Moonraker APIs
+- Vitest and pytest
 
-## Acknowledgements & Origin
+## Origin
 
-While the original vision, conceptualization, and workflow design for F3D Studio were mine, the software's codebase was **100% implemented using AI**. Through extensive AI-driven analysis, architectural refactoring, and continuous iteration, we successfully transformed complex printing workflows into a highly optimized system—achieving robust, professional-grade G-code generation and delivering a production-ready bioprinting suite.
+F3D Studio is an independently conceived research-software project developed
+through an iterative, AI-assisted engineering workflow. Its objective is to make
+complex multimaterial fabrication strategies easier to configure, inspect and
+reproduce while keeping machine constraints explicit.

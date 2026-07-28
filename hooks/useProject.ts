@@ -16,23 +16,13 @@ import { generateUUID, generateBoxSTL, generateCylinderSTL } from '../utils';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
 import { MATERIAL_PRESETS } from '../constants/materials';
 import { NORDSON_TIPS, NozzleTip } from '../constants/nozzleTips';
+import {
+  isFdmToolhead,
+  isSyringeToolhead,
+  normalizeToolheads,
+} from '../utils/toolheads';
 
-const DEFAULT_TOOLHEADS: ToolheadConfig[] = [
-  {
-    id: 'fdm', label: 'FDM Hot-end', klipper_tool: 'T0', installed: false,
-    nozzleDiameter: 0.4, filamentDiameter: 1.75, maxTemperature: 280,
-    defaultTemperature: 210, retractionLength: 1.0, retractionSpeed: 45
-  },
-  {
-    id: 'syringe', label: 'Hydrogel Syringe', klipper_tool: 'T1', installed: false,
-    syringeVolumeMl: 5, nozzleDiameterMm: 0.4, flowRateUlPerMm: 0.8,
-    pressurizationSteps: 10, retractionSteps: 5, actuatorType: 'mechanical'
-  },
-  {
-    id: 'uv', label: 'UV Crosslinker', klipper_tool: 'T2', installed: false,
-    wavelengthNm: 365 as const, maxPowerMw: 100, defaultDose: 50, defaultExposureTime: 5, mode: 'fixed'
-  },
-];
+const DEFAULT_TOOLHEADS: ToolheadConfig[] = [];
 
 const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
   return new Promise((resolve, reject) => {
@@ -80,6 +70,7 @@ export const useProject = () => {
 
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     layerHeight: 200,
+    machineToolheadCount: 3,
     nozzleTemperature: 210,
     bedTemperature: 60,
     infill: 15,
@@ -143,6 +134,14 @@ export const useProject = () => {
   };
 
   const applyMaterialToToolhead = (toolheadId: string, materialId: string) => {
+    if (!materialId) {
+      setSelectedMaterials(prev => {
+        const next = { ...prev };
+        delete next[toolheadId];
+        return next;
+      });
+      return;
+    }
     const material = userMaterials.find(m => m.id === materialId);
     if (!material) return;
 
@@ -152,7 +151,7 @@ export const useProject = () => {
     setToolheads(prev => prev.map(t => {
       if (t.id !== toolheadId) return t;
       
-      if (t.id === 'fdm') {
+      if (isFdmToolhead(t)) {
         // Also update global settings for temperature if FDM material is changed
         setGlobalSettings(prevGS => ({
           ...prevGS,
@@ -167,7 +166,7 @@ export const useProject = () => {
           retractionLength: material.retraction ?? t.retractionLength,
         };
       }
-      if (t.id === 'syringe') {
+      if (isSyringeToolhead(t)) {
         return {
           ...t,
           flowrateMmPerSec: material.flowRate ?? t.flowrateMmPerSec,
@@ -201,13 +200,9 @@ export const useProject = () => {
       // A new model must not silently claim an FDM head that may not exist.
       // The mapping step will require an explicit assignment before slicing.
       toolhead: 'none',
-      fdmSettings: {
-        infillPercent: globalSettings.infill ?? 15,
-        infillPattern: globalSettings.infillPattern ?? 'grid',
-        wallCount: globalSettings.perimeters ?? 2,
-        topSolidLayers: globalSettings.topSolidLayers ?? 3,
-        bottomSolidLayers: globalSettings.bottomSolidLayers ?? 3,
-      },
+      // Process parameters inherit the central Settings profile until the
+      // user creates an explicit per-model override.
+      fdmSettings: {},
     };
 
     setModels(prev => [...prev, newModel]);
@@ -415,11 +410,18 @@ export const useProject = () => {
       if (!metadataFile) throw new Error("Invalid project file");
       const projectData = JSON.parse(await metadataFile.async("string"));
 
-      if (projectData.globalSettings) setGlobalSettings(projectData.globalSettings);
+      if (projectData.globalSettings) {
+        const loadedCount = Math.max(
+          1,
+          Number(projectData.globalSettings.machineToolheadCount)
+            || Math.max(...(projectData.toolheads || []).map((tool: ToolheadConfig) => (tool.slot ?? -1) + 1), 3),
+        );
+        setGlobalSettings({ ...projectData.globalSettings, machineToolheadCount: loadedCount });
+      }
       if (projectData.zZones) setZZones(projectData.zZones);
       if (projectData.selectedMaterials) setSelectedMaterials(projectData.selectedMaterials);
       if (projectData.userMaterials) setUserMaterials(projectData.userMaterials);
-      if (projectData.toolheads) setToolheads(projectData.toolheads);
+      if (projectData.toolheads) setToolheads(normalizeToolheads(projectData.toolheads));
       if (projectData.models) {
         const rehydratedModels = await Promise.all(projectData.models.map(async (m: any) => {
           let fileObj = undefined;
@@ -490,11 +492,15 @@ export const useProject = () => {
   };
 
   const handleLoadProtocol = (protocol: ProjectProtocol) => {
-    setGlobalSettings(protocol.globalSettings);
+    setGlobalSettings({
+      ...protocol.globalSettings,
+      machineToolheadCount: protocol.globalSettings.machineToolheadCount
+        ?? Math.max(...(protocol.toolheads || []).map(tool => (tool.slot ?? -1) + 1), 3),
+    });
     setZZones(protocol.zZones);
     setSelectedMaterials(protocol.selectedMaterials);
     setUserMaterials(protocol.userMaterials);
-    setToolheads(protocol.toolheads || DEFAULT_TOOLHEADS);
+    setToolheads(normalizeToolheads(protocol.toolheads));
     setModels(protocol.models);
     if (protocol.models.length > 0) setSelectedModelId(protocol.models[0].id);
   };

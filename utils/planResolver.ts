@@ -1,4 +1,5 @@
-import { ModelData, LayerAction, ResolvedModelPlan, ResolvedLayerRange, ResolvedLayerSettings, ToolheadId, ZZone } from '../types';
+import { ModelData, LayerAction, ResolvedModelPlan, ResolvedLayerRange, ResolvedLayerSettings, ToolheadConfig, ToolheadId, ZZone } from '../types';
+import { isUvToolhead } from './toolheads';
 
 /**
  * Normalizes and resolves all LayerActions and ZZones for each model into an execution plan.
@@ -8,8 +9,11 @@ export function resolveLayerPlans(
   totalLayers: number,
   zZones: ZZone[] = [],
   layerHeightMm: number = 0.2,
-  firstLayerHeightMm: number = 0.3
+  firstLayerHeightMm: number = 0.3,
+  toolheads: ToolheadConfig[] = [],
+  shellLayers: { top: number; bottom: number } = { top: 3, bottom: 3 },
 ): ResolvedModelPlan[] {
+  const uvHead = toolheads.find(isUvToolhead);
   // Convert ZZones to LayerActions for internal processing
   const allActions: LayerAction[] = zZones.filter(z => z.enabled !== false).map(z => {
     // Helper to map Z height exactly to layer indices
@@ -43,10 +47,21 @@ export function resolveLayerPlans(
     }
 
     if (z.processEvent) {
+      const eventUvHead = toolheads.filter(isUvToolhead).find(tool => (
+        !z.processEvent?.toolheadId || tool.id === z.processEvent.toolheadId
+      )) || uvHead;
       action.uvSettings = {
-        doseTargetMjCm2: z.processEvent.doseTargetMjCm2 || 0,
-        exposureTimeSec: z.processEvent.uvExposureTimeSec || 0,
-        pausePrint: !!z.processEvent.pausePrint
+        toolheadId: eventUvHead?.id,
+        doseTargetMjCm2: z.processEvent.doseTargetMjCm2 ?? (eventUvHead ? eventUvHead.defaultDose : 0),
+        exposureTimeSec: z.processEvent.uvExposureTimeSec ?? (eventUvHead ? eventUvHead.defaultExposureTime : 0),
+        pausePrint: !!z.processEvent.pausePrint,
+        mode: z.processEvent.mode ?? (eventUvHead?.mode === 'scanning' ? 'sweep' : 'stationary'),
+        powerPercentage: z.processEvent.powerPercentage ?? 100,
+        ...(z.processEvent.pattern !== undefined ? { pattern: z.processEvent.pattern } : {}),
+        ...(z.processEvent.scanSpeedMmS !== undefined ? { scanSpeedMmS: z.processEvent.scanSpeedMmS } : {}),
+        ...(z.processEvent.lineSpacingMm !== undefined ? { lineSpacingMm: z.processEvent.lineSpacingMm } : {}),
+        ...(z.processEvent.zOffsetMm !== undefined ? { zOffsetMm: z.processEvent.zOffsetMm } : {}),
+        ...(z.processEvent.trigger !== undefined ? { trigger: z.processEvent.trigger } : {}),
       };
     }
 
@@ -61,15 +76,29 @@ export function resolveLayerPlans(
   });
 
   return models.map(model => {
+    const sourceMapping = model.scaffoldTools;
+    const uniformTool = model.toolhead || 'none';
     // 1. Establish base mapping for this model
-    const baseMapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId> = model.scaffoldTools 
-      ? { ...model.scaffoldTools }
+    const baseMapping: Required<NonNullable<ModelData['scaffoldTools']>> = sourceMapping
+      ? {
+          ...sourceMapping,
+          bottomLayers: sourceMapping.bottomLayers ?? sourceMapping.solidInfill,
+          topLayers: sourceMapping.topLayers ?? sourceMapping.solidInfill,
+        }
       : {
-          perimeter: model.toolhead || 'none',
-          infill: model.toolhead || 'none',
-          solidInfill: model.toolhead || 'none',
-          support: model.toolhead || 'none',
+          perimeter: uniformTool,
+          infill: uniformTool,
+          solidInfill: uniformTool,
+          bottomLayers: uniformTool,
+          topLayers: uniformTool,
+          support: uniformTool,
         };
+    const modelHeightMm = Math.max(0, (model.size?.z ?? 0) * (model.transform.scale.z || 1));
+    const modelLayerCount = modelHeightMm > 0
+      ? Math.min(totalLayers, Math.max(1, 1 + Math.ceil(Math.max(0, modelHeightMm - firstLayerHeightMm) / layerHeightMm)))
+      : totalLayers;
+    const bottomLayerCount = Math.max(0, Math.round(model.fdmSettings?.bottomSolidLayers ?? shellLayers.bottom));
+    const topLayerCount = Math.max(0, Math.round(model.fdmSettings?.topSolidLayers ?? shellLayers.top));
 
     // 2. Resolve every layer independently first (1-indexed to match PrusaSlicer)
     const resolvedLayers: ResolvedLayerSettings[] = [];
@@ -98,6 +127,8 @@ export function resolveLayerPlans(
             settings.mapping.perimeter = tool;
             settings.mapping.infill = tool;
             settings.mapping.solidInfill = tool;
+            settings.mapping.bottomLayers = tool;
+            settings.mapping.topLayers = tool;
             settings.mapping.support = tool;
           } else {
             if (targets.includes('perimeter')) settings.mapping.perimeter = tool;
@@ -137,6 +168,15 @@ export function resolveLayerPlans(
           settings.poreInjection = action.poreInjection;
         }
       });
+
+      // PrusaSlicer exposes one solid_infill_extruder setting. Resolve the
+      // independent bottom/top choices into physical layer ranges before the
+      // plan is compacted and written to the 3MF.
+      if (bottomLayerCount > 0 && L <= bottomLayerCount) {
+        settings.mapping.solidInfill = settings.mapping.bottomLayers;
+      } else if (topLayerCount > 0 && L > modelLayerCount - topLayerCount) {
+        settings.mapping.solidInfill = settings.mapping.topLayers;
+      }
 
       resolvedLayers[L] = settings;
     }

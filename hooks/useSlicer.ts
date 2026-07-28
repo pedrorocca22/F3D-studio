@@ -1,15 +1,17 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ModelData, GlobalSettings, ZZone, ToolheadConfig } from '../types';
+import { ModelData, GlobalSettings, PoreCapacitySummary, ZZone, ToolheadConfig } from '../types';
 import { BACKEND_URL } from '../config';
 import { MULTIWELL_SPECS } from '../constants/wellplate';
 import { resolveLayerPlans } from '../utils/planResolver';
+import { isFdmToolhead } from '../utils/toolheads';
 
 export const useSlicer = (
   models: ModelData[],
   globalSettings: GlobalSettings,
   zZones: ZZone[],
   toolheads: ToolheadConfig[],
-  calculatedTotalLayers: number
+  calculatedTotalLayers: number,
+  selectedMaterials: Record<string, string> = {}
 ) => {
   const [isSlicing, setIsSlicing] = useState(false);
   const [sliceProgress, setSliceProgress] = useState('');
@@ -20,7 +22,16 @@ export const useSlicer = (
     jobId: string;
     layerCount: number;
     nozzleDiameter?: number;
-    detectedPores?: Array<{ x: number; y: number; z: number; modelId: string; layer: number }>;
+    detectedPores?: Array<{
+      x: number; y: number; z: number; modelId: string; layer: number;
+      zStartMm?: number; zEndMm?: number; bottomSolidTopMm?: number;
+      cellWidthMm?: number; cellDepthMm?: number;
+      freeWidthMm?: number; freeDepthMm?: number; layerHeightMm?: number;
+      maxVolumeUl?: number; requestedVolumeUl?: number; occupancyPercent?: number;
+    }>;
+    poreCapacity?: PoreCapacitySummary;
+    bottomSolidTopMm?: number;
+    bottomOverlapLayersSkipped?: number;
     bedCenter?: { x: number; y: number };
   } | null>(null);
 
@@ -29,6 +40,8 @@ export const useSlicer = (
     const relevantData = {
       globalSettings,
       zZones,
+      toolheads,
+      selectedMaterials,
       modelParams: models.map(m => ({
         id: m.id, toolhead: m.toolhead, scaffoldTools: m.scaffoldTools,
         fdmSettings: m.fdmSettings, transform: m.transform,
@@ -36,7 +49,7 @@ export const useSlicer = (
       })),
     };
     return JSON.stringify(relevantData);
-  }, [globalSettings, zZones, models]);
+  }, [globalSettings, zZones, toolheads, selectedMaterials, models]);
 
   const prevSlicingParamsRef = useRef<string | null>(null);
   useEffect(() => {
@@ -62,6 +75,25 @@ export const useSlicer = (
     setSliceProgress('Uploading STL to slicer...');
 
     const formData = new FormData();
+    const fdmToolhead = toolheads.find(isFdmToolhead);
+    const fdmNozzleDiameter = fdmToolhead
+      ? fdmToolhead.nozzleDiameter
+      : (globalSettings.nozzleDiameter ?? 0.4);
+    const fdmTemperature = fdmToolhead
+      ? fdmToolhead.defaultTemperature
+      : (globalSettings.nozzleTemperature ?? 210);
+    const fdmRetractionLength = fdmToolhead
+      ? fdmToolhead.retractionLength
+      : (globalSettings.retractionLength ?? 1);
+    const fdmRetractionSpeed = fdmToolhead
+      ? fdmToolhead.retractionSpeed
+      : (globalSettings.retractionSpeed ?? 45);
+    const fdmRetractionLift = fdmToolhead
+      ? (fdmToolhead.zLiftDistance ?? 0.4)
+      : 0.4;
+    const fdmExtrusionMultiplier = fdmToolhead?.flowratePercent
+      ? fdmToolhead.flowratePercent / 100
+      : (globalSettings.extrusionMultiplier ?? 1);
     const modelsMetadata = models.map(m => ({
       id: m.id,
       name: m.file?.name ?? m.name,
@@ -80,13 +112,14 @@ export const useSlicer = (
     formData.append('layer_height', layerH);
     formData.append('first_layer_height', firstLayerH);
     formData.append('toolheads', JSON.stringify(toolheads));
-    formData.append('nozzle_temp', String(globalSettings.nozzleTemperature ?? 210));
+    formData.append('selected_materials', JSON.stringify(selectedMaterials));
+    formData.append('nozzle_temp', String(fdmTemperature));
     formData.append('bed_temp', String(globalSettings.bedTemperature ?? 60));
     formData.append('infill', String(globalSettings.infill ?? 15));
     formData.append('infill_pattern', globalSettings.infillPattern ?? 'gyroid');
     formData.append('perimeters', String(globalSettings.perimeters ?? 3));
     formData.append('supports', globalSettings.supportsEnabled ? 'true' : 'false');
-    formData.append('nozzle_diameter', String(globalSettings.nozzleDiameter ?? 0.4));
+    formData.append('nozzle_diameter', String(fdmNozzleDiameter));
     formData.append('skirt_count', String(globalSettings.skirtCount ?? 1));
     formData.append('skirt_distance', String(globalSettings.skirtDistance ?? 6));
     formData.append('skirt_height', String(globalSettings.skirtHeight ?? 1));
@@ -99,9 +132,10 @@ export const useSlicer = (
     formData.append('external_perimeter_speed', String(globalSettings.externalPerimeterSpeed ?? 25));
     formData.append('infill_speed', String(globalSettings.infillSpeed ?? 80));
     formData.append('travel_speed', String(globalSettings.travelSpeed ?? 130));
-    formData.append('retraction_length', String(globalSettings.retractionLength ?? 1.0));
-    formData.append('retraction_speed', String(globalSettings.retractionSpeed ?? 45));
-    formData.append('extrusion_multiplier', String(globalSettings.extrusionMultiplier ?? 1.0));
+    formData.append('retraction_length', String(fdmRetractionLength));
+    formData.append('retraction_speed', String(fdmRetractionSpeed));
+    formData.append('retraction_lift', String(fdmRetractionLift));
+    formData.append('extrusion_multiplier', String(fdmExtrusionMultiplier));
     formData.append('cooling', globalSettings.coolingEnabled !== false ? '1' : '0');
     formData.append('fan_always_on', globalSettings.fanAlwaysOn !== false ? '1' : '0');
     formData.append('min_fan_speed', String(globalSettings.coolingEnabled !== false ? (globalSettings.minFanSpeed ?? 100) : 0));
@@ -110,7 +144,18 @@ export const useSlicer = (
     formData.append('z_zones', JSON.stringify(zZones));
     formData.append('print_bed', JSON.stringify(globalSettings.printBed ?? null));
 
-    const resolvedPlans = resolveLayerPlans(models, calculatedTotalLayers, zZones, globalSettings.layerHeight / 1000, (globalSettings.firstLayerHeight || 300) / 1000);
+    const resolvedPlans = resolveLayerPlans(
+      models,
+      calculatedTotalLayers,
+      zZones,
+      globalSettings.layerHeight / 1000,
+      (globalSettings.firstLayerHeight || 300) / 1000,
+      toolheads,
+      {
+        top: globalSettings.topSolidLayers ?? 3,
+        bottom: globalSettings.bottomSolidLayers ?? 3,
+      },
+    );
     formData.append('resolved_layer_plans', JSON.stringify(resolvedPlans));
 
     if (globalSettings.poreInjection?.enabled) {
@@ -157,12 +202,21 @@ export const useSlicer = (
               clearInterval(poll);
               let detectedPores = [];
               let bedCenter = { x: 0, y: 0 };
+              let bottomSolidTopMm: number | undefined;
+              let bottomOverlapLayersSkipped = 0;
+              let poreCapacity: PoreCapacitySummary | undefined;
               const mRes = await fetch(`${BACKEND_URL}/fdm/job/${jobId}/manifest`);
               if (mRes.ok) {
                 const manifest = await mRes.json();
                 console.log("=== DEBUG 1: MANIFEST CRUDO ===", manifest); // Añade esta línea
                 layerCount = manifest.layer_count ?? 0;
                 detectedPores = manifest.pores || manifest.detected_pores || manifest.detectedPores || [];
+                const poreProfiles = manifest.pore_protocol?.profiles || [];
+                poreCapacity = manifest.pore_protocol?.capacity;
+                if (poreProfiles.length > 0) {
+                  bottomSolidTopMm = Math.max(...poreProfiles.map((profile: any) => Number(profile.bottom_solid_top_mm || 0)));
+                  bottomOverlapLayersSkipped = poreProfiles.reduce((sum: number, profile: any) => sum + Number(profile.bottom_overlap_layers_skipped || 0), 0);
+                }
                 // Handle different manifest key formats (including xy_compensation)
                 const bc = manifest.bed_center || manifest.xy_compensation || {};
                 bedCenter = {
@@ -174,8 +228,11 @@ export const useSlicer = (
               setGcodePreviewJob({
                 jobId,
                 layerCount,
-                nozzleDiameter: globalSettings.nozzleDiameter,
+                nozzleDiameter: fdmNozzleDiameter,
                 detectedPores,
+                poreCapacity,
+                bottomSolidTopMm,
+                bottomOverlapLayersSkipped,
                 bedCenter
               });
               resolve();

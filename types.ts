@@ -95,38 +95,19 @@ export interface MotorControlSettings {
   separationDistance: number;
 }
 
-export type PoreInjectionMode = 'layer_by_layer' | 'multilayer';
+export type PoreInjectionMode = 'layer_by_layer';
 
 export interface PoreInjectionConfig {
   enabled: boolean;
-  /** Operational mode: inject after each FDM layer vs. sweep a full Z-volume */
+  /** Supported operational mode: inject immediately after each FDM layer. */
   mode: PoreInjectionMode;
   syringeToolhead: ToolheadId;
-  /** ID of the selected Nordson tip (from constants/nozzleTips.ts) */
-  tipId?: string;
   zStartMm: number;
   zEndMm: number;
-  injectionDepthMm: number;
-  // ── Layer-by-layer params ──
   /** Volume dispensed per pore cell (µL) */
   flowRateUlPerCell: number;
-  travelFeedrateMmMin: number;
-  injectionFeedrateMmMin: number;
-  /** Geometry detector tolerance used when matching square GRID cells. */
-  cellSizeToleranceMm?: number;
-  /** Minimum square-cell size accepted by the pore detector. */
-  minCellSizeMm?: number;
-  // ── Multilayer params ──
-  /** Target injection volume (µL) — capped to maxAvailableVolumeUl */
-  targetVolumeUl?: number;
   /** Calculated max available volume from infill geometry (read-only, UI display) */
   maxAvailableVolumeUl?: number;
-  /** Number of FDM layers accumulated for depth calculation */
-  accumulatedLayerCount?: number;
-  /** Calibrated syringe displacement for the selected bioink/tip pair. */
-  calibrationUlPerMm?: number;
-  calibrationBioinkId?: string;
-  calibrationTipId?: string;
 }
 
 export type PoreProtocolStatus = 'inactive' | 'ready' | 'warning' | 'blocked';
@@ -145,6 +126,7 @@ export interface PoreProtocolPreflight {
   requestedVolumeUl: number;
   marginVolumeUl: number;
   calibrationUlPerMm?: number;
+  bottomSolidTopMm?: number;
   bioinkId?: string;
   bioinkName?: string;
   tipId?: string;
@@ -158,8 +140,24 @@ export interface PoreProtocolPreflight {
   };
 }
 
+export interface PoreCapacitySummary {
+  method: 'detected_grid_cell_per_layer';
+  extrusion_width_mm: number;
+  cell_count: number;
+  uniform_max_per_cell_ul: number;
+  average_max_per_cell_ul: number;
+  largest_max_per_cell_ul: number;
+  total_max_volume_ul: number;
+  requested_total_volume_ul: number;
+  over_capacity_cell_count: number;
+  unique_xy_cell_count?: number;
+  injection_layer_count?: number;
+}
+
 export interface GlobalSettings {
   layerHeight: number;
+  /** Number of physical tool positions available on the machine. */
+  machineToolheadCount?: number;
   adhesion?: AdhesionSettings;
   thermodynamic?: ThermodynamicSettings;
   motor?: MotorControlSettings;
@@ -333,12 +331,21 @@ export interface JobManifest {
 //  BioFFF New Types — FDM Multi-Toolhead Bio-Printer
 // =============================================================================
 
-export type ToolheadId = 'fdm' | 'syringe' | 'uv' | 'none';
+/**
+ * Toolhead IDs identify a physical tool instance, not its process type.
+ * Legacy projects may still use the IDs "fdm", "syringe" and "uv".
+ */
+export type ToolheadId = string;
+export type ToolheadType = 'fdm' | 'syringe' | 'uv';
 
 export interface ScaffoldToolMapping {
   perimeter: ToolheadId;
   infill: ToolheadId;
   solidInfill: ToolheadId;
+  /** Optional in saved projects; inherits solidInfill when absent. */
+  bottomLayers?: ToolheadId;
+  /** Optional in saved projects; inherits solidInfill when absent. */
+  topLayers?: ToolheadId;
   support: ToolheadId;
 }
 
@@ -381,6 +388,8 @@ export type PrintQuality = 'draft' | 'standard' | 'quality' | 'ultra';
 
 export interface BaseToolheadConfig {
   id: ToolheadId;
+  /** Optional only for backwards compatibility with pre-4.0 projects. */
+  type?: ToolheadType;
   label: string;
   klipper_tool: string;
   installed: boolean;
@@ -390,7 +399,7 @@ export interface BaseToolheadConfig {
 }
 
 export interface FDMToolheadConfig extends BaseToolheadConfig {
-  id: 'fdm';
+  type?: 'fdm';
   nozzleDiameter: number;
   filamentDiameter: number;
   maxTemperature: number;
@@ -403,7 +412,7 @@ export interface FDMToolheadConfig extends BaseToolheadConfig {
 }
 
 export interface SyringeToolheadConfig extends BaseToolheadConfig {
-  id: 'syringe';
+  type?: 'syringe';
   syringeVolumeMl: number;
   nozzleDiameterMm: number;
   flowRateUlPerMm: number;
@@ -418,7 +427,7 @@ export interface SyringeToolheadConfig extends BaseToolheadConfig {
 }
 
 export interface UVToolheadConfig extends BaseToolheadConfig {
-  id: 'uv';
+  type?: 'uv';
   wavelengthNm: 365 | 405 | 385;
   maxPowerMw: number;
   defaultDose: number;
@@ -471,6 +480,7 @@ export interface SyringePrintSettings {
 }
 
 export interface UVCrosslinkSettings {
+  toolheadId?: ToolheadId;
   doseTargetMjCm2: number;
   exposureTimeSec: number;
   scanSpeedMmS?: number;
@@ -488,7 +498,7 @@ export interface UVCrosslinkSettings {
 // ---------------------------------------------------------------------------
 
 export interface ResolvedLayerSettings {
-  mapping: Record<'perimeter' | 'infill' | 'solidInfill' | 'support', ToolheadId>;
+  mapping: Required<ScaffoldToolMapping>;
   fdm?: Partial<FDMPrintSettings>;
   syringe?: Partial<SyringePrintSettings>;
   uv?: UVCrosslinkSettings;
@@ -555,6 +565,7 @@ export interface ZZone {
   };
 
   processEvent?: {
+    toolheadId?: ToolheadId;
     uvExposureTimeSec?: number;
     doseTargetMjCm2?: number;
     pausePrint?: boolean;

@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import { AccordionSection } from './AccordionSection';
 import { NumericInput } from './NumericInput';
-import { GlobalSettings, ToolheadConfig, SyringeToolheadConfig } from '../../types';
+import { GlobalSettings, ToolheadConfig, ToolheadType } from '../../types';
 import { HelpTopic } from '../HelpWiki/HelpWiki';
-import { useProjectContext } from '../../contexts/ProjectContext';
-import { TipGallery } from '../TipGallery/TipGallery';
-import type { NozzleTip } from '../../constants/nozzleTips';
+import { InfoTooltip } from '../InfoTooltip';
+import { createToolhead, getToolheadType } from '../../utils/toolheads';
 
 interface Step1EnvironmentProps {
   globalSettings: GlobalSettings;
@@ -23,14 +22,11 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
   onUpdateToolheads,
   onOpenHelp,
 }) => {
-  const { project } = useProjectContext();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     printBed: true,
     heatingBed: false,
     toolheads: false,
   });
-
-  const [toolheadSettingsOpen, setToolheadSettingsOpen] = useState<string | null>(null);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -230,7 +226,13 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
       <AccordionSection title="Heating Bed" isOpen={openSections.heatingBed} onToggle={() => toggleSection('heatingBed')}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">Enable Bed Heating</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
+              Enable Bed Heating
+              <InfoTooltip content={globalSettings.bedHeatingEnabled
+                ? 'The configured bed temperature will be applied during print execution.'
+                : 'No bed-temperature command will be sent while heating is disabled.'}
+              />
+            </span>
             <button
               onClick={() => onUpdateGlobalSettings({
                 ...globalSettings,
@@ -246,22 +248,34 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
             <span className="text-[10px] text-slate-500 font-medium">Temperature (°C):</span>
             <NumericInput className="w-full" value={globalSettings.bedTemperature ?? 60} onChange={v => onUpdateGlobalSettings({ ...globalSettings, bedTemperature: v })} step={0.5} />
           </div>
-
-          <div className="text-[8px] text-slate-400 italic">
-            {globalSettings.bedHeatingEnabled
-              ? "Bed heating will be applied during print execution"
-              : "Bed heating disabled - no temperature command will be sent"}
-          </div>
         </div>
       </AccordionSection>
 
       <AccordionSection title="Toolhead" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')}>
         <div className="space-y-3">
-          <p className="text-[9px] text-slate-400 mb-2">Assign up to 3 tools to available slots</p>
+          <div className="grid grid-cols-[minmax(0,1fr)_112px] items-end gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-slate-500">
+                Machine toolheads
+                <InfoTooltip content="Define the number of physical tool positions first. Every position can independently use FDM, Hydrogel or UV, including repeated tool types." />
+              </div>
+              <p className="mt-1 text-[8px] text-slate-400">One slot becomes one Klipper tool (T0, T1, T2…)</p>
+            </div>
+            <NumericInput
+              className="w-full min-w-0"
+              value={globalSettings.machineToolheadCount ?? 3}
+              min={1}
+              step={1}
+              onChange={value => {
+                const count = Math.max(1, Math.round(value));
+                onUpdateGlobalSettings({ ...globalSettings, machineToolheadCount: count });
+                onUpdateToolheads(toolheads.filter(tool => (tool.slot ?? 0) < count));
+              }}
+            />
+          </div>
 
-          {[0, 1, 2].map(slotIndex => {
+          {Array.from({ length: globalSettings.machineToolheadCount ?? 3 }, (_, slotIndex) => slotIndex).map(slotIndex => {
             const assignedTool = toolheads.find(t => t.slot === slotIndex);
-            const availableTools = toolheads.filter(t => !t.slot || t.slot === slotIndex);
 
             return (
               <div key={slotIndex} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2">
@@ -269,43 +283,24 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                   <span className="text-[9px] font-bold text-slate-500 uppercase flex-shrink-0">Slot {slotIndex + 1}</span>
 
                   <select
-                    value={assignedTool?.id || ''}
+                    value={assignedTool ? getToolheadType(assignedTool) : ''}
                     onChange={e => {
-                      const toolId = e.target.value;
-                      onUpdateToolheads(toolheads.map(t => {
-                        // A slot can contain only one physical head and a head
-                        // can only be active in one slot at a time.
-                        if (t.slot === slotIndex || t.id === toolId) {
-                          return {
-                            ...t,
-                            slot: toolId ? (t.id === toolId ? slotIndex : undefined) : undefined,
-                            installed: toolId ? t.id === toolId : t.id === assignedTool?.id ? false : t.installed,
-                          };
-                        }
-                        return t;
-                      }));
+                      const type = e.target.value as ToolheadType | '';
+                      const remaining = toolheads.filter(tool => tool.slot !== slotIndex);
+                      onUpdateToolheads(type ? [...remaining, createToolhead(type, slotIndex)] : remaining);
                     }}
                     className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-1 text-[9px] font-bold uppercase outline-none focus:ring-1 focus:ring-primary min-w-0"
                   >
                     <option value="">-- Empty --</option>
-                    {toolheads.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.id === 'fdm' ? 'FDM HEAD' : t.id === 'syringe' ? 'HYDROGEL HEAD' : 'UV HEAD'}
-                      </option>
-                    ))}
+                    <option value="fdm">FDM</option>
+                    <option value="syringe">HYDROGEL</option>
+                    <option value="uv">UV</option>
                   </select>
 
                   {assignedTool && (
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
-                        onClick={() => setToolheadSettingsOpen(toolheadSettingsOpen === assignedTool.id ? null : assignedTool.id)}
-                        className={`p-1 rounded transition-colors ${toolheadSettingsOpen === assignedTool.id ? 'bg-primary/10 text-primary' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400'}`}
-                        title="Settings"
-                      >
-                        <Icon name="settings" className="text-[14px]" />
-                      </button>
-                      <button
-                        onClick={() => onUpdateToolheads(toolheads.map(t => t.id === assignedTool.id ? { ...t, slot: undefined, installed: false } : t))}
+                        onClick={() => onUpdateToolheads(toolheads.filter(t => t.id !== assignedTool.id))}
                         className="p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:dark:bg-red-900/30 rounded transition-colors"
                         title="Remove Tool"
                       >
@@ -314,147 +309,6 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
                     </div>
                   )}
                 </div>
-
-                {assignedTool && toolheadSettingsOpen === assignedTool.id && (
-                  <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-1 duration-200 space-y-3">
-                    {/* Material Assignment (Hidden for UV) */}
-                    {assignedTool.id !== 'uv' && (
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                          <Icon name="science" className="text-[11px]" /> Assigned Material
-                        </label>
-                        <select
-                          value={project.selectedMaterials[assignedTool.id] || ''}
-                          onChange={e => project.applyMaterialToToolhead(assignedTool.id, e.target.value)}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 text-[10px] font-bold uppercase transition-all focus:border-emerald-500 outline-none"
-                        >
-                          <option value="">-- Select Material --</option>
-                          {project.userMaterials
-                            .filter(m => {
-                              if (assignedTool.id === 'fdm') return m.category === 'thermoplastic';
-                              if (assignedTool.id === 'syringe') return m.category === 'hydrogel' || m.category === 'bio-ink' || m.category === 'support';
-                              return true;
-                            })
-                            .map(mat => (
-                              <option key={mat.id} value={mat.id}>{mat.name}</option>
-                            ))
-                          }
-                        </select>
-                        <p className="text-[8px] text-slate-400 italic">Parameters will sync with toolhead settings</p>
-                      </div>
-                    )}
-
-                    <div>
-                      {assignedTool.id === 'fdm' && (
-                        <div className="space-y-2">
-                           {/* ... existing FDM settings ... */}
-                           <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Nozzle (mm)</label>
-                              <NumericInput value={assignedTool.nozzleDiameter ?? 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, nozzleDiameter: v } : t))} step={0.05} />
-                            </div>
-                            <div>
-                               <label className="text-[8px] text-slate-400 uppercase block">Temp (°C)</label>
-                               <NumericInput 
-                                 value={assignedTool.defaultTemperature ?? 210} 
-                                 onChange={v => {
-                                   onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, defaultTemperature: v } : t));
-                                   onUpdateGlobalSettings({ ...globalSettings, nozzleTemperature: v });
-                                 }} 
-                                 step={5} 
-                               />
-                             </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Flowrate (%)</label>
-                              <NumericInput value={assignedTool.flowratePercent ?? 100} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, flowratePercent: v } : t))} step={5} />
-                            </div>
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Retract Speed</label>
-                              <NumericInput value={assignedTool.retractionSpeed || 25} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, retractionSpeed: v } : t))} step={5} />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Retract Dist (mm)</label>
-                              <NumericInput value={assignedTool.retractDistance || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, retractDistance: v } : t))} step={0.5} />
-                            </div>
-                            <div>
-                              <label className="text-[8px] text-slate-400 uppercase block">Lift Z (mm)</label>
-                              <NumericInput value={assignedTool.zLiftDistance || 0.4} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'fdm' ? { ...t, zLiftDistance: v } : t))} step={0.1} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {assignedTool.id === 'syringe' && (
-                        <div className="space-y-3">
-                          {/* ── Galería de Puntas ── */}
-                          <TipGallery
-                            selectedTipId={(assignedTool as SyringeToolheadConfig).tipId}
-                            onSelectTip={(tip: NozzleTip) => {
-                              onUpdateToolheads(toolheads.map(t =>
-                                t.id === 'syringe'
-                                  ? { ...t, nozzleDiameterMm: tip.innerDiameterMm, tipId: tip.id }
-                                  : t
-                              ));
-                            }}
-                          />
-
-                          {/* ── Parámetros de extrusión ── */}
-                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2">
-                           <div>
-                             <label className="text-[8px] text-slate-400 uppercase block">Flowrate (mm/s)</label>
-                             <NumericInput value={(assignedTool as SyringeToolheadConfig).flowrateMmPerSec || 2} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, flowrateMmPerSec: v } : t))} step={0.5} />
-                           </div>
-                           <div>
-                             <label className="text-[8px] text-slate-400 uppercase block">Retract (mm)</label>
-                             <NumericInput value={(assignedTool as SyringeToolheadConfig).retractDistance || 1} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, retractDistance: v } : t))} step={0.5} />
-                           </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                           <div>
-                             <label className="text-[8px] text-slate-400 uppercase block">Syringe (mL)</label>
-                             <NumericInput value={(assignedTool as SyringeToolheadConfig).syringeVolumeMl || 5} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'syringe' ? { ...t, syringeVolumeMl: v } : t))} />
-                           </div>
-                          </div>
-                        </div>
-                      )}
-                      {assignedTool.id === 'uv' && (
-                        <div className="space-y-3">
-                           <div className="space-y-1.5">
-                              <label className="text-[8px] text-slate-400 uppercase font-black block">UV Wavelength</label>
-                              <div className="flex gap-1.5">
-                                {[365, 385, 405].map(wl => (
-                                  <button
-                                    key={wl}
-                                    onClick={() => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, wavelengthNm: wl as any } : t))}
-                                    className={`flex-1 py-1 px-1.5 rounded-lg border text-[9px] font-black transition-all ${
-                                      assignedTool.wavelengthNm === wl 
-                                        ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20' 
-                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'
-                                    }`}
-                                  >
-                                    {wl}nm
-                                  </button>
-                                ))}
-                              </div>
-                           </div>
-                           <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[8px] text-slate-400 uppercase font-black block">Max Power (mW)</label>
-                                <NumericInput value={assignedTool.maxPowerMw || 1000} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, maxPowerMw: v } : t))} />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[8px] text-slate-400 uppercase font-black block">Default Dose</label>
-                                <NumericInput value={assignedTool.defaultDose || 50} onChange={v => onUpdateToolheads(toolheads.map(t => t.id === 'uv' ? { ...t, defaultDose: v } : t))} />
-                              </div>
-                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}

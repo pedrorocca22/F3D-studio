@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import { useProjectContext } from '../../contexts/ProjectContext';
 import { useUIContext } from '../../contexts/UIContext';
 import { ProjectProtocol } from '../../types';
+import { isUvToolhead } from '../../utils/toolheads';
 
 export const ProjectGallery: React.FC = () => {
     const { project } = useProjectContext();
@@ -231,7 +232,7 @@ const ProjectCard: React.FC<{
                                             <div className="flex items-center gap-2">
                                                 <div className="bg-purple-600 text-white text-[7px] font-black px-1 rounded flex items-center gap-1">
                                                     <Icon name="bolt" className="text-[8px]" />
-                                                    {(protocol.toolheads || []).find(t => t.id === 'uv')?.wavelengthNm || 365}nm
+                                                    {(protocol.toolheads || []).find(isUvToolhead)?.wavelengthNm || 365}nm
                                                 </div>
                                                 <span className="text-[8px] font-black text-purple-600 uppercase tracking-tighter">UV Power Set</span>
                                             </div>

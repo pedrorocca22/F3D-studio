@@ -5,7 +5,6 @@ import { MULTIWELL_SPECS } from '../../constants/wellplate';
 // Steps imports
 import { Step1Environment } from './Step1Environment';
 import { Step2Models } from './Step2Models';
-import { Step3Mapping } from './Step3Mapping';
 import { Step4Settings } from './Step4Settings';
 import { Step5Advanced } from './Step5Advanced';
 import { Step6Slice } from './Step6Slice';
@@ -23,6 +22,12 @@ export const LayersPanel: React.FC = () => {
   
   const [validationError, setValidationError] = useState<string | null>(null);
   const [dryRunStatus, setDryRunStatus] = useState<'not_run' | 'ready' | 'blocked'>('not_run');
+  const visibleSteps = [1, 2, 4, 5, 6] as const;
+  const activeStepIndex = visibleSteps.indexOf(ui.activeStep as typeof visibleSteps[number]);
+  const previousStep = activeStepIndex > 0 ? visibleSteps[activeStepIndex - 1] : null;
+  const nextStep = activeStepIndex >= 0 && activeStepIndex < visibleSteps.length - 1
+    ? visibleSteps[activeStepIndex + 1]
+    : null;
   const workflowContext: WorkflowValidationContext = {
     globalSettings: project.globalSettings,
     models: project.models,
@@ -43,6 +48,10 @@ export const LayersPanel: React.FC = () => {
   useEffect(() => {
     setDryRunStatus('not_run');
   }, [slicer.gcodePreviewJob?.jobId]);
+
+  useEffect(() => {
+    if (ui.activeStep === 3) ui.setActiveStep(4);
+  }, [ui.activeStep, ui]);
   
   // Clone to wells state
   const [cloneWellDialogFor, setCloneWellDialogFor] = useState<string | null>(null);
@@ -82,13 +91,6 @@ export const LayersPanel: React.FC = () => {
     setSelectedCloneWells(new Set(initialWellId ? [initialWellId] : []));
   };
 
-  const handleApplyToAll = () => {
-    const selectedModel = project.models.find(m => m.id === project.selectedModelId);
-    if (!selectedModel) return;
-    const currentSettings = selectedModel.settings || { exposureTime: 2.5, lightIntensity: 15 };
-    project.handleApplySettingsToAll(currentSettings);
-  };
-
   return (
     <div className="relative flex-shrink-0 flex items-center z-10 h-full">
       {/* Toggle Button - Positioned to the RIGHT of the panel */}
@@ -125,25 +127,20 @@ export const LayersPanel: React.FC = () => {
           />
         )}
 
-        {ui.activeStep === 3 && (
-          <Step3Mapping
-            models={project.models}
-            selectedModelId={project.selectedModelId}
-            onSelectModel={project.setSelectedModelId}
-            toolheads={project.toolheads}
-            onUpdateModel={project.handleUpdateModel}
-            globalSettings={project.globalSettings}
-            totalLayers={project.calculatedTotalLayers}
-            zZones={project.zZones}
-          />
-        )}
-
         {ui.activeStep === 4 && (
           <Step4Settings
             globalSettings={project.globalSettings}
             onUpdateGlobalSettings={project.setGlobalSettings}
             onOpenHelp={ui.setHelpTopic}
-            onApplyToAll={handleApplyToAll}
+            toolheads={project.toolheads}
+            onUpdateToolheads={project.setToolheads}
+            selectedMaterials={project.selectedMaterials}
+            userMaterials={project.userMaterials}
+            onAssignMaterial={project.applyMaterialToToolhead}
+            models={project.models}
+            selectedModelId={project.selectedModelId}
+            onSelectModel={project.setSelectedModelId}
+            onUpdateModel={project.handleUpdateModel}
           />
         )}
 
@@ -184,11 +181,11 @@ export const LayersPanel: React.FC = () => {
       {/* STEPPER WIZARD FOOTER */}
       <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-surface-dark flex items-center justify-between z-10 flex-shrink-0 gap-2">
           <button 
-             disabled={ui.activeStep === 1}
+             disabled={previousStep === null}
              onClick={() => {
                setValidationError(null);
                ui.setWorkflowNotice(null);
-               ui.setActiveStep(ui.activeStep - 1);
+               if (previousStep !== null) ui.setActiveStep(previousStep);
              }}
              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-medium text-[11px] rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1.5"
           >
@@ -197,14 +194,14 @@ export const LayersPanel: React.FC = () => {
 
           {/* Step indicator pills */}
           <div className="flex items-center gap-1">
-            {[1,2,3,4,5,6].map(s => (
+            {visibleSteps.map((s, index) => (
               <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${
-                s === ui.activeStep ? 'w-4 bg-primary' : s < ui.activeStep ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-slate-200 dark:bg-slate-700'
+                s === ui.activeStep ? 'w-4 bg-primary' : index < activeStepIndex ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-slate-200 dark:bg-slate-700'
               }`} />
             ))}
           </div>
 
-          {ui.activeStep < 6 ? (
+          {nextStep !== null ? (
               <button 
                  onClick={() => {
                     const blocker = getStepBlocker(workflowContext, ui.activeStep as 1 | 2 | 3 | 4 | 5 | 6);
@@ -215,7 +212,7 @@ export const LayersPanel: React.FC = () => {
                     }
                     setValidationError(null);
                     ui.setWorkflowNotice(null);
-                    ui.setActiveStep(ui.activeStep === 6 ? 6 : ui.activeStep + 1);
+                    ui.setActiveStep(nextStep);
                  }}
                  className="px-4 py-1.5 bg-primary hover:bg-primary-dark text-white font-medium text-[11px] rounded-md transition-colors flex items-center gap-1.5"
               >

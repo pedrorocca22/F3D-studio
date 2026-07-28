@@ -5,6 +5,7 @@ import {
   ToolheadId,
   ZZone,
 } from '../types';
+import { isFdmToolhead, isSyringeToolhead, isUvToolhead } from './toolheads';
 
 export type WorkflowStep = 1 | 2 | 3 | 4 | 5 | 6;
 export type WorkflowIssueSeverity = 'error' | 'warning';
@@ -54,6 +55,8 @@ const effectiveModelTools = (model: ModelData) => ({
   perimeter: model.scaffoldTools?.perimeter ?? model.toolhead ?? 'none',
   infill: model.scaffoldTools?.infill ?? model.toolhead ?? 'none',
   solidInfill: model.scaffoldTools?.solidInfill ?? model.toolhead ?? 'none',
+  bottomLayers: model.scaffoldTools?.bottomLayers ?? model.scaffoldTools?.solidInfill ?? model.toolhead ?? 'none',
+  topLayers: model.scaffoldTools?.topLayers ?? model.scaffoldTools?.solidInfill ?? model.toolhead ?? 'none',
   support: model.scaffoldTools?.support ?? model.toolhead ?? 'none',
 });
 
@@ -119,17 +122,23 @@ const validateMapping = (
 
   ctx.models.forEach(model => {
     const mapping = effectiveModelTools(model);
-    const activeTools = [mapping.perimeter, mapping.infill, mapping.solidInfill, mapping.support]
+    const activeTools = [mapping.perimeter, mapping.infill, mapping.solidInfill, mapping.bottomLayers, mapping.topLayers, mapping.support]
       .filter(toolId => toolId !== 'none');
     if (activeTools.length === 0) {
       add(
         issues,
         `mapping.model.missing.${model.id}`,
-        3,
+        4,
         `Assign a toolhead to model “${model.name}” before continuing.`,
       );
     }
-    const required = new Set([mapping.perimeter, mapping.infill, mapping.solidInfill]);
+    const required = new Set([
+      mapping.perimeter,
+      mapping.infill,
+      mapping.solidInfill,
+      ...((ctx.globalSettings.bottomSolidLayers ?? 3) > 0 ? [mapping.bottomLayers] : []),
+      ...((ctx.globalSettings.topSolidLayers ?? 3) > 0 ? [mapping.topLayers] : []),
+    ]);
     if (ctx.globalSettings.supportsEnabled) required.add(mapping.support);
 
     required.forEach(toolId => {
@@ -137,7 +146,7 @@ const validateMapping = (
         add(
           issues,
           `mapping.toolhead.${model.id}.${toolId}`,
-          3,
+          4,
           `Model “${model.name}” references ${toolId.toUpperCase()}, but that toolhead is not assigned.`,
         );
       }
@@ -159,7 +168,9 @@ const validateSettings = (
   if ((settings.perimeters ?? 0) < 0) {
     add(issues, 'settings.perimeters', 4, 'Wall count cannot be negative.');
   }
-  if ((settings.nozzleDiameter ?? 0) <= 0) {
+  const fdmHead = ctx.toolheads.find(isFdmToolhead);
+  const nozzleDiameter = fdmHead?.nozzleDiameter ?? settings.nozzleDiameter;
+  if ((nozzleDiameter ?? 0) <= 0) {
     add(issues, 'settings.nozzle', 4, 'Nozzle diameter must be greater than zero.');
   }
 };
@@ -171,19 +182,27 @@ const validateZones = (
   const assigned = assignedToolIds(ctx.toolheads);
   const globalPore = ctx.globalSettings.poreInjection;
   const activePoreZones = ctx.zZones.filter(zone => zone.parameterOverride?.poreInjection?.enabled);
+  const configuredSyringeId = globalPore?.syringeToolhead;
+  const syringeHead = ctx.toolheads.filter(isSyringeToolhead).find(tool => tool.slot !== undefined && (
+    !configuredSyringeId || configuredSyringeId === 'syringe' || tool.id === configuredSyringeId
+  ));
+  const syringeCalibration = syringeHead?.flowRateUlPerMm;
 
   if (globalPore?.enabled) {
-    if (activePoreZones.length > 0) {
-      add(issues, 'pore.scope.conflict', 5, 'Choose either whole-scaffold or zonal Pore Injection, not both.');
-    }
     if (!ctx.models.every(model => getEffectiveInfillPattern(ctx.globalSettings, model) === 'grid')) {
       add(issues, 'pore.pattern.global', 5, 'Whole-scaffold Pore Injection requires the GRID infill pattern for every model.');
     }
-    if (globalPore.syringeToolhead !== 'none' && !assigned.has(globalPore.syringeToolhead)) {
+    if (!syringeHead) {
       add(issues, 'pore.toolhead.global', 5, 'Whole-scaffold Pore Injection requires an assigned syringe toolhead.');
     }
-    if (globalPore.injectionDepthMm <= 0 || globalPore.flowRateUlPerCell <= 0) {
-      add(issues, 'pore.parameters.global', 5, 'Whole-scaffold Pore Injection has invalid flow or depth.');
+    if (String(globalPore.mode) !== 'layer_by_layer') {
+      add(issues, 'pore.mode.global', 5, 'Only layer-by-layer Pore Injection is currently supported.');
+    }
+    if (globalPore.flowRateUlPerCell <= 0) {
+      add(issues, 'pore.parameters.global', 5, 'Whole-scaffold Pore Injection requires a positive volume per pore.');
+    }
+    if (!syringeCalibration || syringeCalibration <= 0) {
+      add(issues, 'pore.calibration.global', 5, 'The assigned syringe head requires a valid dose calibration.');
     }
   }
 
@@ -206,6 +225,21 @@ const validateZones = (
       }
     });
 
+    if (zone.processEvent) {
+      const eventUvHead = ctx.toolheads.filter(isUvToolhead).find(tool => (
+        tool.slot !== undefined
+        && (!zone.processEvent?.toolheadId || tool.id === zone.processEvent.toolheadId)
+      ));
+      if (!eventUvHead) {
+        add(issues, `event.toolhead.${zone.id}`, 5, `UV event in “${zone.label || zone.id}” requires an assigned UV head.`);
+      }
+      const exposure = zone.processEvent.uvExposureTimeSec ?? (eventUvHead?.defaultExposureTime ?? 0);
+      const dose = zone.processEvent.doseTargetMjCm2 ?? (eventUvHead?.defaultDose ?? 0);
+      if (exposure <= 0 || dose <= 0) {
+        add(issues, `event.parameters.${zone.id}`, 5, `UV event in “${zone.label || zone.id}” requires a positive exposure and dose in the central UV profile.`);
+      }
+    }
+
     const pore = zone.parameterOverride?.poreInjection;
     if (!pore?.enabled) return;
 
@@ -217,7 +251,10 @@ const validateZones = (
         `Pore Injection in “${zone.label || zone.id}” requires the GRID infill pattern.`,
       );
     }
-    if (pore.syringeToolhead !== 'none' && !assigned.has(pore.syringeToolhead)) {
+    const zoneSyringe = ctx.toolheads.filter(isSyringeToolhead).find(tool => (
+      tool.id === pore.syringeToolhead && tool.slot !== undefined
+    ));
+    if (!zoneSyringe) {
       add(
         issues,
         `pore.toolhead.${zone.id}`,
@@ -225,8 +262,14 @@ const validateZones = (
         `Pore Injection in “${zone.label || zone.id}” requires an assigned syringe toolhead.`,
       );
     }
-    if (pore.injectionDepthMm <= 0 || pore.flowRateUlPerCell <= 0) {
-      add(issues, `pore.parameters.${zone.id}`, 5, `Pore Injection in “${zone.label || zone.id}” has invalid flow or depth.`);
+    if (String(pore.mode) !== 'layer_by_layer') {
+      add(issues, `pore.mode.${zone.id}`, 5, `Only layer-by-layer Pore Injection is currently supported in “${zone.label || zone.id}”.`);
+    }
+    if (pore.flowRateUlPerCell <= 0) {
+      add(issues, `pore.parameters.${zone.id}`, 5, `Pore Injection in “${zone.label || zone.id}” requires a positive volume per pore.`);
+    }
+    if (!zoneSyringe?.flowRateUlPerMm || zoneSyringe.flowRateUlPerMm <= 0) {
+      add(issues, `pore.calibration.${zone.id}`, 5, 'The assigned syringe head requires a valid dose calibration.');
     }
   });
 };

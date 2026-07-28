@@ -16,7 +16,6 @@ interface SidebarProps {
 const STEPS = [
   { id: 1, label: 'Surface', icon: 'view_quilt' },
   { id: 2, label: 'Models', icon: 'view_in_ar' },
-  { id: 3, label: 'Mapping', icon: 'edit_note' },
   { id: 4, label: 'Settings', icon: 'settings' },
   { id: 5, label: 'Advance', icon: 'tune' },
   { id: 6, label: 'Slice', icon: 'layers' },
@@ -90,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={() => {
                   if (step.id > activeStep) {
+                    const previousVisibleStep = idx > 0 ? STEPS[idx - 1].id : 1;
                     const blocker = getStepBlocker(
                       {
                         globalSettings: project.globalSettings,
@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         zZones: project.zZones,
                         selectedMaterials: project.selectedMaterials,
                       },
-                      Math.max(1, step.id - 1) as 1 | 2 | 3 | 4 | 5 | 6,
+                      previousVisibleStep as 1 | 2 | 3 | 4 | 5 | 6,
                     );
                     if (blocker) {
                       ui.setWorkflowNotice(blocker.message);

@@ -29,8 +29,7 @@ const syringe: ToolheadConfig = {
 
 const pore = {
   enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
-  zStartMm: 0, zEndMm: 5, injectionDepthMm: 0.3, flowRateUlPerCell: 0.5,
-  travelFeedrateMmMin: 6000, injectionFeedrateMmMin: 120, calibrationUlPerMm: 0.8,
+  zStartMm: 0, zEndMm: 5, flowRateUlPerCell: 0.5,
 };
 
 describe('pore protocol preflight', () => {
@@ -41,11 +40,13 @@ describe('pore protocol preflight', () => {
       userMaterials: [{ id: 'gelma', name: 'GelMA', category: 'hydrogel', color: '#f59e0b' }],
     });
 
-    expect(result.status).toBe('ready');
+    expect(result.status).toBe('warning');
     expect(result.scope).toBe('global');
     expect(result.estimatedPoreCount).toBeGreaterThan(0);
     expect(result.availableVolumeUl).toBeGreaterThan(result.requestedVolumeUl);
     expect(result.tipId).toBe('22ga_blue');
+    expect(result.bottomSolidTopMm).toBeCloseTo(0.7);
+    expect(result.issues.some(issue => issue.code === 'pore.bottom_shell.protected')).toBe(true);
   });
 
   it('blocks a protocol without bioink or tip metadata', () => {
@@ -59,4 +60,24 @@ describe('pore protocol preflight', () => {
       'pore.bioink.missing', 'pore.tip.missing',
     ]));
   });
+
+  it('warns but does not block when the requested dose exceeds cell capacity', () => {
+    const result = buildPoreProtocolPreflight({
+      globalSettings: {
+        ...settings,
+        poreInjection: { ...pore, flowRateUlPerCell: 5 },
+      },
+      models: [model], zZones: [],
+      toolheads: [fdm, syringe], selectedMaterials: { syringe: 'gelma' },
+      userMaterials: [{ id: 'gelma', name: 'GelMA', category: 'hydrogel', color: '#f59e0b' }],
+    });
+
+    expect(result.status).toBe('warning');
+    expect(result.checks.volume).toBe('warning');
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'pore.volume.exceeds_capacity',
+      severity: 'warning',
+    }));
+  });
+
 });

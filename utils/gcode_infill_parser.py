@@ -217,3 +217,32 @@ def detect_perfect_squares(segments: list, tolerance_mm: float = 0.1, min_size_m
 
 def compute_centroids(squares: list) -> list:
     return [((x_min + x_max) / 2, (y_min + y_max) / 2) for x_min, y_min, x_max, y_max in squares]
+
+
+def describe_pore_cells(
+    squares: list,
+    extrusion_width_mm: float,
+    layer_height_mm: float,
+) -> list[dict]:
+    """Measure per-layer geometric capacity from detected GRID cells.
+
+    Square bounds represent infill-line center spacing. Subtracting one bead
+    width on each axis estimates the free opening. One mm³ equals one µL.
+    """
+    cells = []
+    bead_width = max(0.0, float(extrusion_width_mm))
+    layer_height = max(0.0, float(layer_height_mm))
+    for x_min, y_min, x_max, y_max in squares:
+        center_width = max(0.0, float(x_max) - float(x_min))
+        center_depth = max(0.0, float(y_max) - float(y_min))
+        free_width = max(0.0, center_width - bead_width)
+        free_depth = max(0.0, center_depth - bead_width)
+        cells.append({
+            "center_width_mm": center_width,
+            "center_depth_mm": center_depth,
+            "free_width_mm": free_width,
+            "free_depth_mm": free_depth,
+            "layer_height_mm": layer_height,
+            "max_volume_ul": free_width * free_depth * layer_height,
+        })
+    return cells

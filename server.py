@@ -24,9 +24,8 @@ from flask_cors import CORS
 from moonraker_client import MoonrakerClient
 from fdm_print_manager import FDMPrintManager, PrintJob, LayerAction, build_default_toolhead_actions
 from datetime import datetime, timezone
-from utils.gcode_infill_parser import parse_infill_lines, detect_perfect_squares, compute_centroids
+from utils.gcode_infill_parser import parse_infill_lines, detect_perfect_squares, compute_centroids, describe_pore_cells
 from utils.gcode_injector import build_pore_injection_gcode, inject_pore_gcode_into_file, ensure_initial_toolhead
-from utils.pore_injection_gcode import build_multilayer_injection_gcode
 
 def _debug_log_to_file(filename, content):
     try:
@@ -97,7 +96,8 @@ def _set_progress(job_id: str, progress: float, message: str, status: str = "run
 
 
 def _normalize_fill_pattern(value):
-    if not value: return "gyroid"
+    if not value:
+        return None
     v = str(value).lower()
     mapping = {
         "rectilinear": "rectilinear",
@@ -120,7 +120,7 @@ def _normalize_fill_pattern(value):
         "supportcubic": "supportcubic",
         "lightning": "lightning"
     }
-    return mapping.get(v, "gyroid")
+    return mapping.get(v)
 
 def _safe_int(v):
     try:
@@ -144,7 +144,14 @@ def _get_ext(tool_id, toolhead_to_extruder):
     return toolhead_to_extruder.get(t_str, 0) + 1
 
 
-def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer_height=0.2, first_layer_height=0.3):
+def _write_multimaterial_3mf(
+    models_data,
+    output_path,
+    layer_actions=None,
+    layer_height=0.2,
+    first_layer_height=0.3,
+    toolheads_config=None,
+):
     """
     Generates a PrusaSlicer-compatible 3MF file with per-volume extruder assignment
     and per-object FDM settings overrides.
@@ -167,6 +174,12 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
         "t4": 4,
         "none": 0
     }
+    # Instance IDs are the canonical mapping keys in 4.0 projects. Resolve
+    # each one from its physical slot while retaining the legacy aliases above.
+    for tool in toolheads_config or []:
+        if not isinstance(tool, dict) or tool.get("slot") is None or not tool.get("id"):
+            continue
+        toolhead_to_extruder[str(tool["id"]).lower()] = int(tool["slot"])
 
     vertices = []
     vertex_map = {}
@@ -308,8 +321,12 @@ def _write_multimaterial_3mf(models_data, output_path, layer_actions=None, layer
                             if vi_clean:
                                 ranges_xml_lines.append(f'      <option opt_key="fill_density">{vi_clean}%</option>')
 
+                        # A layer range must inherit the global pattern unless it
+                        # contains an explicit per-model or per-zone override.
+                        # Normalizing a missing value used to create a hidden
+                        # Gyroid override for every resolved range.
                         pat = _normalize_fill_pattern(fdm_s.get("infillPattern"))
-                        if pat:
+                        if pat is not None:
                             ranges_xml_lines.append(f'      <option opt_key="fill_pattern">{pat}</option>')
 
                         wc = _safe_str(fdm_s.get("wallCount"))
@@ -570,13 +587,13 @@ def _apply_gcode_xy_offset(gcode_path: Path, dx: float, dy: float):
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
-def _generate_uv_sweep_gcode(min_x, max_x, min_y, max_y, speed_mms, power_percent, line_spacing, z_offset):
+def _generate_uv_sweep_gcode(min_x, max_x, min_y, max_y, speed_mms, power_percent, line_spacing, z_offset, tool_name="T2"):
     """
     Genera el G-code para un barrido UV en zigzag sobre un área delimitada.
     """
     gcode = []
     gcode.append("; --- INICIO BARRIDO UV ZIGZAG ---")
-    gcode.append("T2 ; Cambiar a cabezal UV")
+    gcode.append(f"{tool_name} ; Cambiar a cabezal UV")
     
     # 1. Levantar el cabezal para evitar colisiones con biotinta fresca (Z-Hop relativo)
     gcode.append("G91 ; Coordenadas relativas")
@@ -655,6 +672,7 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
                     power_percent = float(uv.get("powerPercentage", 100.0))
                     line_spacing = float(uv.get("lineSpacingMm", 1.0))
                     z_offset = float(uv.get("zOffsetMm", 2.0))
+                    uv_tool_name = _toolhead_gcode_name(toolheads_config or [], uv.get("toolheadId"), "T2")
                     
                     # Obtener los límites geométricos
                     model_id = str(r.get("modelId", "global"))
@@ -667,7 +685,8 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
                             min_x=bbox["min_x"], max_x=bbox["max_x"], 
                             min_y=bbox["min_y"], max_y=bbox["max_y"], 
                             speed_mms=speed_mms, power_percent=power_percent, 
-                            line_spacing=line_spacing, z_offset=z_offset
+                            line_spacing=line_spacing, z_offset=z_offset,
+                            tool_name=uv_tool_name,
                         )
                         gcode_cmds.extend(sweep_gcode)
                     else:
@@ -675,7 +694,7 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
                         dur = uv.get("exposureTimeSec", 5)
                         gcode_cmds.append(f"; --- EVENTO UV EN CAPA {lyr_from} ---")
                         if uv.get("pausePrint", True): gcode_cmds.append("M0 ; Pausa para exposicion UV")
-                        gcode_cmds.append("T2 ; Cambiar a cabezal UV")
+                        gcode_cmds.append(f"{uv_tool_name} ; Cambiar a cabezal UV")
                         gcode_cmds.append(f"G4 P{int(dur * 1000)} ; Exposicion de {dur}s")
                 
                 pre = settings.get("preMacro") or r.get("preMacro")
@@ -725,7 +744,39 @@ def _sanitize_gcode_with_schedule(gcode_path: Path, layer_actions: list, toolhea
     gcode_path.write_text("".join(output), encoding="utf-8")
 
 
-def _primary_structural_tool(models_meta: list, layer_plans: list) -> str | None:
+def _toolhead_type(tool: dict) -> str | None:
+    """Return the process type for new instance-based and legacy toolheads."""
+    explicit = str((tool or {}).get("type") or "").lower()
+    if explicit in {"fdm", "syringe", "uv"}:
+        return explicit
+    legacy_id = str((tool or {}).get("id") or "").lower()
+    if legacy_id in {"fdm", "syringe", "uv"}:
+        return legacy_id
+    if "syringeVolumeMl" in (tool or {}):
+        return "syringe"
+    if "wavelengthNm" in (tool or {}):
+        return "uv"
+    return "fdm" if tool else None
+
+
+def _toolhead_gcode_name(toolheads_config: list, tool_id: str, fallback: str | None = None) -> str | None:
+    """Resolve an instance ID to its physical Klipper T-number."""
+    value = str(tool_id or "")
+    if value.upper().startswith("T") and value[1:].isdigit():
+        return value.upper()
+    for tool in toolheads_config or []:
+        if isinstance(tool, dict) and str(tool.get("id")) == value and tool.get("slot") is not None:
+            return f"T{int(tool['slot'])}"
+    legacy = {"fdm": "T0", "syringe": "T1", "uv": "T2"}
+    return legacy.get(value.lower(), fallback)
+
+
+def _toolhead_ini_index(toolheads_config: list, tool_id: str, fallback: int = 1) -> str:
+    resolved = _toolhead_gcode_name(toolheads_config, tool_id)
+    return str(int(resolved[1:]) + 1) if resolved and resolved[1:].isdigit() else str(fallback)
+
+
+def _primary_structural_tool(models_meta: list, layer_plans: list, toolheads_config: list = None) -> str | None:
     """Return a deterministic startup tool when the scaffold map is uniform."""
     candidates = []
     feature_keys = ("perimeter", "infill", "solidInfill", "support")
@@ -752,7 +803,80 @@ def _primary_structural_tool(models_meta: list, layer_plans: list) -> str | None
     unique = set(candidates)
     if len(unique) != 1:
         return None
-    return {"fdm": "T0", "syringe": "T1", "uv": "T2"}.get(next(iter(unique)))
+    return _toolhead_gcode_name(toolheads_config or [], next(iter(unique)))
+
+
+def _syringe_tool_config(toolheads_config: list, tool_id: str = "syringe") -> dict | None:
+    """Return the assigned syringe head that owns motion and dose settings."""
+    for tool in toolheads_config or []:
+        if (
+            isinstance(tool, dict)
+            and tool.get("id") == tool_id
+            and _toolhead_type(tool) == "syringe"
+            and tool.get("slot") is not None
+        ):
+            return tool
+    return None
+
+
+def _pore_calibration_ul_per_mm(toolheads_config: list, tool_id: str = "syringe") -> float | None:
+    """Read the positive dose calibration from the assigned syringe head."""
+    syringe = _syringe_tool_config(toolheads_config, tool_id)
+    try:
+        value = float((syringe or {}).get("flowRateUlPerMm"))
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) and value > 0 else None
+
+
+def _bottom_solid_top_z(form_params: dict, models_meta: list, layer_plans: list) -> float:
+    """Estimate the highest Z occupied by bottom solid layers.
+
+    Injection starts at the current layer surface and travels downward. This
+    conservative envelope prevents a pore deposit from entering the bottom
+    shell when per-model or scheduled overrides request more solid layers.
+    """
+    try:
+        layer_height = float(form_params.get("layer_height", 0.2))
+    except (TypeError, ValueError):
+        layer_height = 0.2
+    try:
+        first_layer_height = float(form_params.get("first_layer_height", 0.3))
+    except (TypeError, ValueError):
+        first_layer_height = 0.3
+    bottom_layers = 3
+    try:
+        bottom_layers = max(0, int(float(form_params.get("bottom_shell", 3))))
+    except (TypeError, ValueError):
+        pass
+
+    for meta in models_meta or []:
+        try:
+            bottom_layers = max(bottom_layers, int(float((meta.get("fdm_settings") or {}).get("bottomSolidLayers", 0))))
+        except (AttributeError, TypeError, ValueError):
+            pass
+    for plan in layer_plans or []:
+        for range_item in plan.get("ranges", []):
+            try:
+                bottom_layers = max(bottom_layers, int(float(((range_item.get("settings") or {}).get("fdm") or {}).get("bottomSolidLayers", 0))))
+            except (AttributeError, TypeError, ValueError):
+                pass
+
+    if bottom_layers <= 0:
+        return 0.0
+    return first_layer_height + max(0, bottom_layers - 1) * layer_height
+
+
+def _zone_covers_pore_site(zone: dict, z: float, model_id: str) -> bool:
+    """Return whether an enabled Z-zone owns this model position at this height."""
+    if not isinstance(zone, dict) or zone.get("enabled", True) is False:
+        return False
+    try:
+        in_height = float(zone.get("zStartMm", 0.0)) <= z <= float(zone.get("zEndMm", 0.0))
+    except (TypeError, ValueError):
+        return False
+    scope = zone.get("modelScope", "all")
+    return in_height and (scope == "all" or str(scope) == str(model_id))
 
 
 # WiFi AP Configuration Routes
@@ -882,18 +1006,57 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
         noz_d = str(form_params.get("nozzle_diameter", "0.4"))
         ret_l = str(form_params.get("retract_length", "1.0"))
         ret_s = str(form_params.get("retract_speed", "45"))
+        ret_z = str(form_params.get("retract_lift", "0.4"))
         ext_m = str(form_params.get("extrusion_multiplier", "1.0"))
+        explicit_slots = [
+            int(tool.get("slot", -1))
+            for tool in toolheads_config
+            if isinstance(tool, dict) and tool.get("slot") is not None
+        ]
+        # Direct/internal callers from pre-4.0 projects may omit slots entirely.
+        # Preserve the historical FDM/T0, syringe/T1, UV/T2 layout only for that
+        # legacy shape; normal UI requests always carry explicit physical slots.
+        legacy_slot_by_id = {"fdm": 0, "syringe": 1, "uv": 2}
+        legacy_tools = {
+            legacy_slot_by_id[str(tool.get("id")).lower()]: tool
+            for tool in toolheads_config
+            if isinstance(tool, dict)
+            and tool.get("slot") is None
+            and str(tool.get("id")).lower() in legacy_slot_by_id
+        }
+        extruder_count = (
+            max(explicit_slots) + 1
+            if explicit_slots
+            else (3 if legacy_tools else 1)
+        )
+        tool_by_slot = {
+            int(tool["slot"]): tool
+            for tool in toolheads_config
+            if isinstance(tool, dict) and tool.get("slot") is not None
+        }
+        if not explicit_slots:
+            tool_by_slot.update(legacy_tools)
+
+        def _slot_values(default, getter):
+            return ",".join(str(getter(tool_by_slot.get(slot, {}), default)) for slot in range(extruder_count))
 
         overrides_dict = {
-            "extruders_count": "3",
+            "extruders_count": str(extruder_count),
             "layer_height": str(layer_height),
             "fill_density": f"{infill}%",
-            "temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
-            "first_layer_temperature": f"{nozzle_temp},{nozzle_temp},{nozzle_temp}",
+            "temperature": _slot_values(nozzle_temp, lambda tool, default: tool.get("defaultTemperature", default)),
+            "first_layer_temperature": _slot_values(nozzle_temp, lambda tool, default: tool.get("defaultTemperature", default)),
             "bed_temperature": str(bed_temp),
             "fill_pattern": str(infill_pattern),
             "perimeters": str(perimeters),
-            "nozzle_diameter": f"{noz_d},{noz_d},{noz_d}",
+            "nozzle_diameter": _slot_values(
+                noz_d,
+                lambda tool, default: tool.get("nozzleDiameter", tool.get("nozzleDiameterMm", default)),
+            ),
+            "filament_diameter": _slot_values(
+                "1.75",
+                lambda tool, default: tool.get("filamentDiameter", default),
+            ),
             "first_layer_height": str(form_params.get("first_layer_height", "0.3")),
             "support_material": "1" if supports else "0",
             "skirts": str(form_params.get("skirt_count", "1")),
@@ -908,10 +1071,11 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "external_perimeter_speed": str(form_params.get("external_perimeter_speed", "25")),
             "infill_speed": str(form_params.get("infill_speed", "80")),
             "travel_speed": str(form_params.get("travel_speed", "130")),
-            "retract_length": f"{ret_l},{ret_l},{ret_l}",
-            "retract_speed": f"{ret_s},{ret_s},{ret_s}",
-            "extrusion_multiplier": f"{ext_m},{ext_m},{ext_m}",
-            "extruder_offset": "0x0,0x0,0x0",
+            "retract_length": _slot_values(ret_l, lambda tool, default: tool.get("retractionLength", tool.get("retractDistance", default))),
+            "retract_speed": _slot_values(ret_s, lambda tool, default: tool.get("retractionSpeed", default)),
+            "retract_lift": _slot_values(ret_z, lambda tool, default: tool.get("zLiftDistance", default)),
+            "extrusion_multiplier": _slot_values(ext_m, lambda tool, default: float(tool.get("flowratePercent", float(default) * 100)) / 100),
+            "extruder_offset": ",".join("0x0" for _ in range(extruder_count)),
             "cooling": str(form_params.get("cooling", "1")),
             
             "fan_always_on": str(form_params.get("fan_always_on", "1")),
@@ -975,15 +1139,7 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             # IMPORTANT: For .ini (config.ini) keys like perimeter_extruder, 
             # PrusaSlicer expects 1-based indexing (1, 2, 3, 4, 5).
             def _get_ini_ext(t_id):
-                if not t_id: return "1"
-                t_str = str(t_id).lower()
-                if t_str.startswith('t') and t_str[1:].isdigit():
-                    return str(int(t_str[1:]) + 1)
-                if t_str.isdigit():
-                    return str(int(t_str) + 1)
-                # Map names to 1-based: fdm=1, syringe=2, uv=3
-                mapping = {"fdm": 1, "syringe": 2, "uv": 3}
-                return str(mapping.get(t_str, 1))
+                return _toolhead_ini_index(toolheads_config, t_id)
 
             overrides_dict["perimeter_extruder"] = _get_ini_ext(scaffold_tools.get("perimeter"))
             overrides_dict["infill_extruder"] = _get_ini_ext(scaffold_tools.get("infill"))
@@ -1147,7 +1303,14 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 if not layer_plans:
                     layer_plans = layer_actions_raw
 
-                _write_multimaterial_3mf(consolidated_data, consolidated_path, layer_plans, lh, flh)
+                _write_multimaterial_3mf(
+                    consolidated_data,
+                    consolidated_path,
+                    layer_plans,
+                    lh,
+                    flh,
+                    toolheads_config,
+                )
                 cmd.append(str(consolidated_path))
             else:
                 for stl_path in stl_paths:
@@ -1199,11 +1362,13 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             _set_progress(job_id, 0.95, "Applying layer schedule overrides...")
             _sanitize_gcode_with_schedule(gcode_out, sanitizer_actions, toolheads_config, model_bboxes)
 
+        bottom_solid_top_z = _bottom_solid_top_z(form_params, models_meta, layer_plans)
+
         # Prusa profiles may start with their default extruder (commonly T1)
         # even when the resolved scaffold mapping is uniformly FDM. Normalize
         # that startup selection before pore blocks are appended; injection
         # blocks still switch to the syringe and restore the active tool.
-        startup_tool = _primary_structural_tool(models_meta, layer_plans)
+        startup_tool = _primary_structural_tool(models_meta, layer_plans, toolheads_config)
         if startup_tool:
             ensure_initial_toolhead(gcode_out, startup_tool)
 
@@ -1217,14 +1382,11 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 global_pore = json.loads(global_pore_raw)
             except (TypeError, ValueError, json.JSONDecodeError):
                 global_pore = None
-        has_zonal_pore = any(
-            isinstance(zone, dict)
-            and ((zone.get("parameterOverride") or {}).get("poreInjection") or {}).get("enabled")
-            for zone in z_zones
-        )
+        configured_zones = list(z_zones)
         # The direct UI mode is represented as a synthetic all-height zone so it
         # uses exactly the same detector and G-code path as zonal injection.
-        if isinstance(global_pore, dict) and global_pore.get("enabled") and not has_zonal_pore:
+        # Real Z-zones mask this base protocol and may enable their own protocol.
+        if isinstance(global_pore, dict) and global_pore.get("enabled"):
             z_zones = [
                 *z_zones,
                 {
@@ -1236,6 +1398,8 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 },
             ]
         detected_pores_for_metadata = []
+        pore_protocol_metadata = []
+        pore_capacity_records = []
         
         if z_zones and not preview_only:
             print(f"[PORE DEBUG] Processing {len(z_zones)} zones for injection...")
@@ -1244,16 +1408,19 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 # 1. Parse infill ONCE
                 lh_mm = float(layer_height)
                 infill_data = parse_infill_lines(gcode_out, lh_mm)
+                layer_thickness_by_index = {}
+                previous_z = 0.0
+                for parsed_layer_idx, parsed_layer in sorted(infill_data.items()):
+                    layer_z = float(parsed_layer.get("z", 0.0))
+                    measured_height = layer_z - previous_z
+                    layer_thickness_by_index[parsed_layer_idx] = measured_height if measured_height > 1e-6 else lh_mm
+                    previous_z = max(previous_z, layer_z)
                 
                 all_layer_injections = {}
                 
                 # Helper to map toolhead IDs to G-code tool numbers
                 def get_tool_name(t_id):
-                    if not t_id: return "T1"
-                    s = str(t_id).lower()
-                    if s.startswith("t"): return s.upper()
-                    mapping = {"fdm": "T0", "syringe": "T1", "uv": "T2"}
-                    return mapping.get(s, "T1")
+                    return _toolhead_gcode_name(toolheads_config, t_id, "T1")
 
                 for zone in z_zones:
                     # Check if this zone has pore injection enabled
@@ -1266,16 +1433,41 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                         continue
                     
                     is_global_zone = zone.get("id") == "__global_pore__"
-                    z_start = 0.0 if is_global_zone else float(zone.get("zStartMm", 0.0))
+                    configured_z_start = float(pore_config.get("zStartMm", 0.0))
+                    zone_z_start = float(zone.get("zStartMm", 0.0))
+                    z_start = configured_z_start if is_global_zone else max(zone_z_start, configured_z_start)
                     z_end = float(zone.get("zEndMm", 10.0))
                     if is_global_zone:
                         z_end = max((float(data.get("z", 0.0)) for data in infill_data.values()), default=10.0)
                     print(f"[PORE] Scanning zone '{zone.get('label')}' ({z_start}-{z_end} mm)")
                     
                     mode = pore_config.get("mode", "layer_by_layer")
-                    tol = float(pore_config.get("cellSizeToleranceMm", 0.1))
-                    min_cell = float(pore_config.get("minCellSizeMm", 0.5))
-                    syringe_tool = get_tool_name(pore_config.get("syringeToolhead", "syringe"))
+                    if mode != "layer_by_layer":
+                        print(f"[PORE] Skipping unsupported mode '{mode}'. Only layer-by-layer is enabled.")
+                        continue
+                    # Detector thresholds are implementation details, not
+                    # protocol controls. Keep them deterministic.
+                    tol = 0.1
+                    min_cell = 0.5
+                    syringe_tool_id = pore_config.get("syringeToolhead", "syringe")
+                    syringe_tool = get_tool_name(syringe_tool_id)
+                    syringe_config = _syringe_tool_config(toolheads_config, syringe_tool_id)
+                    calibration_ul_per_mm = _pore_calibration_ul_per_mm(toolheads_config, syringe_tool_id)
+                    if calibration_ul_per_mm is None:
+                        raise ValueError(
+                            f"Pore Injection zone '{zone.get('label') or zone.get('id')}' has no calibrated syringe head."
+                        )
+                    inject_feedrate = float((syringe_config or {}).get("flowrateMmPerSec", 2.0)) * 60.0
+                    travel_feedrate = float(form_params.get("travel_speed", 130.0)) * 60.0
+                    pore_protocol_metadata.append({
+                        "scope": "global" if is_global_zone else "zonal",
+                        "zone_id": zone.get("id"),
+                        "syringe_toolhead": syringe_tool,
+                        "calibration_ul_per_mm": calibration_ul_per_mm,
+                        "calibration_tip_id": (syringe_config or {}).get("tipId"),
+                        "bottom_solid_top_mm": bottom_solid_top_z,
+                        "bottom_overlap_layers_skipped": 0,
+                    })
 
                     if mode == "layer_by_layer":
                         # 2. Process layer by layer as usual
@@ -1283,21 +1475,55 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                             z = data["z"]
                             if not (z_start <= z <= z_end):
                                 continue
+
+                            # Surface deposition begins only after the bottom
+                            # solid envelope has ended.
+                            if z < bottom_solid_top_z - 1e-6:
+                                pore_protocol_metadata[-1]["bottom_overlap_layers_skipped"] += 1
+                                continue
                             
                             squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
                             if not squares:
                                 continue
-                                
+
                             centroids = compute_centroids(squares)
+                            cell_geometries = describe_pore_cells(
+                                squares,
+                                extrusion_width_mm=float(noz_d),
+                                layer_height_mm=layer_thickness_by_index.get(layer_idx, lh_mm),
+                            )
                             if centroids:
+                                scoped_centroids = []
+                                for centroid, cell_geometry in zip(centroids, cell_geometries):
+                                    model_id = "global"
+                                    for model_data in consolidated_data:
+                                        if (
+                                            model_data["bedMinX"] - 0.1 <= centroid[0] <= model_data["bedMaxX"] + 0.1
+                                            and model_data["bedMinY"] - 0.1 <= centroid[1] <= model_data["bedMaxY"] + 0.1
+                                        ):
+                                            model_id = model_data["model_id"]
+                                            break
+
+                                    if is_global_zone:
+                                        if any(_zone_covers_pore_site(item, z, model_id) for item in configured_zones):
+                                            continue
+                                    else:
+                                        scope = zone.get("modelScope", "all")
+                                        if scope != "all" and str(scope) != str(model_id):
+                                            continue
+                                    scoped_centroids.append((centroid, model_id, cell_geometry))
+
+                                if not scoped_centroids:
+                                    continue
+
                                 gcode_block = build_pore_injection_gcode(
-                                    centroids=centroids,
+                                    centroids=[item[0] for item in scoped_centroids],
                                     current_z=z,
-                                    injection_depth_mm=float(pore_config.get("injectionDepthMm", 0.3)),
                                     flow_ul_per_cell=float(pore_config.get("flowRateUlPerCell", 0.5)),
-                                    ul_per_mm=165.0, # Approximate for 10ml syringe
-                                    travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
-                                    inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
+                                    ul_per_mm=calibration_ul_per_mm,
+                                    travel_feedrate=travel_feedrate,
+                                    inject_feedrate=inject_feedrate,
+                                    retract_mm=float((syringe_config or {}).get("retractDistance", 0.5)),
                                     syringe_tool=syringe_tool
                                 )
                                 
@@ -1306,61 +1532,34 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                                 else:
                                     all_layer_injections[layer_idx] = gcode_block
                                 
-                                for c in centroids:
-                                    mid = "global"
-                                    for d in consolidated_data:
-                                        if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
-                                           (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
-                                            mid = d["model_id"]
-                                            break
+                                requested_per_cell_ul = float(pore_config.get("flowRateUlPerCell", 0.5))
+                                for c, mid, cell_geometry in scoped_centroids:
+                                    max_volume_ul = float(cell_geometry["max_volume_ul"])
+                                    pore_capacity_records.append({
+                                        "max_volume_ul": max_volume_ul,
+                                        "requested_volume_ul": requested_per_cell_ul,
+                                        "x": float(c[0]),
+                                        "y": float(c[1]),
+                                        "model_id": mid,
+                                        "layer": int(layer_idx),
+                                    })
                                     detected_pores_for_metadata.append({
                                         "x": float(c[0]), "y": float(c[1]), "z": float(z),
-                                        "modelId": mid, "layer": int(layer_idx)
-                                    })
-                    else:
-                        # MULTILAYER MODE: Find the highest layer in the zone, get its centroids, and inject once.
-                        highest_layer_idx = None
-                        highest_z = -1
-                        for layer_idx, data in infill_data.items():
-                            z = data["z"]
-                            if z_start <= z <= z_end and z > highest_z:
-                                highest_z = z
-                                highest_layer_idx = layer_idx
-                                
-                        if highest_layer_idx is not None:
-                            data = infill_data[highest_layer_idx]
-                            squares = detect_perfect_squares(data["infill_segments"], tolerance_mm=tol, min_size_mm=min_cell)
-                            centroids = compute_centroids(squares)
-                            if centroids:
-                                target_volume = float(pore_config.get("targetVolumeUl", 0.0))
-                                flow_ul_per_cell = target_volume / len(centroids) if len(centroids) > 0 else 0
-                                
-                                gcode_block = build_multilayer_injection_gcode(
-                                    centroids=centroids,
-                                    z_start_mm=z_start,
-                                    z_end_mm=highest_z,
-                                    flow_ul_per_cell=flow_ul_per_cell,
-                                    ul_per_mm=165.0,
-                                    travel_feedrate=float(pore_config.get("travelFeedrateMmMin", 6000)),
-                                    inject_feedrate=float(pore_config.get("injectionFeedrateMmMin", 120)),
-                                    syringe_tool=syringe_tool
-                                )
-                                
-                                if highest_layer_idx in all_layer_injections:
-                                    all_layer_injections[highest_layer_idx].extend(gcode_block)
-                                else:
-                                    all_layer_injections[highest_layer_idx] = gcode_block
-                                
-                                for c in centroids:
-                                    mid = "global"
-                                    for d in consolidated_data:
-                                        if (d["bedMinX"] - 0.1 <= c[0] <= d["bedMaxX"] + 0.1) and \
-                                           (d["bedMinY"] - 0.1 <= c[1] <= d["bedMaxY"] + 0.1):
-                                            mid = d["model_id"]
-                                            break
-                                    detected_pores_for_metadata.append({
-                                        "x": float(c[0]), "y": float(c[1]), "z": float(highest_z),
-                                        "modelId": mid, "layer": int(highest_layer_idx)
+                                        "modelId": mid, "layer": int(layer_idx),
+                                        "zStartMm": float(z),
+                                        "zEndMm": float(z),
+                                        "bottomSolidTopMm": bottom_solid_top_z,
+                                        "cellWidthMm": float(cell_geometry["center_width_mm"]),
+                                        "cellDepthMm": float(cell_geometry["center_depth_mm"]),
+                                        "freeWidthMm": float(cell_geometry["free_width_mm"]),
+                                        "freeDepthMm": float(cell_geometry["free_depth_mm"]),
+                                        "layerHeightMm": float(cell_geometry["layer_height_mm"]),
+                                        "maxVolumeUl": max_volume_ul,
+                                        "requestedVolumeUl": requested_per_cell_ul,
+                                        "occupancyPercent": (
+                                            requested_per_cell_ul / max_volume_ul * 100.0
+                                            if max_volume_ul > 0 else None
+                                        ),
                                     })
 
                 if all_layer_injections:
@@ -1392,6 +1591,37 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             pass
 
         # Write job manifest
+        measured_capacities = [record["max_volume_ul"] for record in pore_capacity_records]
+        requested_pore_volume_ul = sum(record["requested_volume_ul"] for record in pore_capacity_records)
+        pore_capacity_summary = {
+            "method": "detected_grid_cell_per_layer",
+            "extrusion_width_mm": float(noz_d),
+            "cell_count": len(pore_capacity_records),
+            "uniform_max_per_cell_ul": min(measured_capacities) if measured_capacities else 0.0,
+            "average_max_per_cell_ul": (
+                sum(measured_capacities) / len(measured_capacities)
+                if measured_capacities else 0.0
+            ),
+            "largest_max_per_cell_ul": max(measured_capacities) if measured_capacities else 0.0,
+            "total_max_volume_ul": sum(measured_capacities),
+            "requested_total_volume_ul": requested_pore_volume_ul,
+            "over_capacity_cell_count": sum(
+                1 for record in pore_capacity_records
+                if record["requested_volume_ul"] > record["max_volume_ul"]
+            ),
+            "unique_xy_cell_count": len({
+                (
+                    record["model_id"],
+                    round(record["x"], 4),
+                    round(record["y"], 4),
+                )
+                for record in pore_capacity_records
+            }),
+            "injection_layer_count": len({
+                record["layer"] for record in pore_capacity_records
+            }),
+        }
+
         job_info = {
             "job_id": job_id,
             "type": "fdm",
@@ -1409,7 +1639,13 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
                 "bed_center_x": bed_center_x,
                 "bed_center_y": bed_center_y,
             },
-            "pores": detected_pores_for_metadata
+            "pores": detected_pores_for_metadata,
+            "pore_protocol": {
+                "enabled": bool(pore_protocol_metadata),
+                "profiles": pore_protocol_metadata,
+                "selected_materials": json.loads(form_params.get("selected_materials", "{}")),
+                "capacity": pore_capacity_summary,
+            }
         }
         (job_dir / "job_fdm.json").write_text(json.dumps(job_info, indent=2), encoding="utf-8")
 
@@ -1440,6 +1676,7 @@ def _build_fdm_form_params(form) -> dict:
         "perimeters": form.get("perimeters", "3"),
         "supports": form.get("supports", "false") == "true",
         "toolheads": form.get("toolheads", "[]"),
+        "selected_materials": form.get("selected_materials", "{}"),
         "layer_actions": form.get("layer_actions", "[]"),
         "resolved_layer_plans": form.get("resolved_layer_plans", "[]"),
         "models_metadata": form.get("models_metadata", "[]"),
@@ -1459,6 +1696,7 @@ def _build_fdm_form_params(form) -> dict:
         "travel_speed": form.get("travel_speed", "130"),
         "retract_length": form.get("retraction_length", "1.0"),
         "retract_speed": form.get("retraction_speed", "45"),
+        "retract_lift": form.get("retraction_lift", "0.4"),
         "extrusion_multiplier": form.get("extrusion_multiplier", "1.0"),
         "fan_always_on": form.get("fan_always_on", "1"),
         "min_fan_speed": form.get("min_fan_speed", "100"),
@@ -1526,13 +1764,7 @@ def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
 
     global_pore = parse_json("pore_injection", None)
     z_zones_for_validation = parse_json("z_zones", [])
-    active_zone_pores = [
-        zone for zone in (z_zones_for_validation if isinstance(z_zones_for_validation, list) else [])
-        if isinstance(zone, dict) and ((zone.get("parameterOverride") or {}).get("poreInjection") or {}).get("enabled")
-    ]
     if isinstance(global_pore, dict) and global_pore.get("enabled"):
-        if active_zone_pores:
-            issue("pore.scope.conflict", 5, "Choose either whole-scaffold or zonal Pore Injection, not both.")
         global_patterns = [
             (model.get("fdm_settings") or {}).get("infillPattern") or form_params.get("infill_pattern", "grid")
             for model in models_metadata if isinstance(model, dict)
@@ -1542,11 +1774,16 @@ def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
         syringe_id = global_pore.get("syringeToolhead", "syringe")
         if syringe_id not in assigned_tools:
             issue("pore.toolhead.global", 5, "Whole-scaffold Pore Injection requires an assigned syringe toolhead.")
+        pore_mode = global_pore.get("mode", "layer_by_layer")
+        if pore_mode != "layer_by_layer":
+            issue("pore.mode.global", 5, "Only layer-by-layer Pore Injection is currently supported.")
         try:
-            if float(global_pore.get("injectionDepthMm", 0)) <= 0 or float(global_pore.get("flowRateUlPerCell", 0)) <= 0:
-                issue("pore.parameters.global", 5, "Whole-scaffold Pore Injection flow and depth must be greater than zero.")
+            if float(global_pore.get("flowRateUlPerCell", 0)) <= 0:
+                issue("pore.parameters.global", 5, "Whole-scaffold Pore Injection requires a positive volume per pore.")
         except (TypeError, ValueError):
             issue("pore.parameters.global", 5, "Whole-scaffold Pore Injection numeric parameters are invalid.")
+        if _pore_calibration_ul_per_mm(toolheads, syringe_id) is None:
+            issue("pore.calibration.global", 5, "The assigned syringe head requires a valid dose calibration.")
 
     supports_enabled = bool(form_params.get("supports"))
     for model in models_metadata if isinstance(models_metadata, list) else []:
@@ -1558,6 +1795,10 @@ def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
             mapping.get("infill") or model.get("toolhead") or "none",
             mapping.get("solidInfill") or model.get("toolhead") or "none",
         }
+        if (_safe_int(form_params.get("bottom_shell", 3)) or 0) > 0:
+            required.add(mapping.get("bottomLayers") or mapping.get("solidInfill") or model.get("toolhead") or "none")
+        if (_safe_int(form_params.get("top_shell", 3)) or 0) > 0:
+            required.add(mapping.get("topLayers") or mapping.get("solidInfill") or model.get("toolhead") or "none")
         if supports_enabled:
             required.add(mapping.get("support") or model.get("toolhead") or "none")
         if not (required - {"none", "None", None}):
@@ -1601,6 +1842,41 @@ def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
         if z_start < 0 or z_end <= z_start:
             issue(f"zones.range.{zone.get('id', 'unknown')}", 5, "Every Z-zone must have zStart < zEnd.")
 
+        process_event = zone.get("processEvent")
+        if isinstance(process_event, dict):
+            requested_uv_id = process_event.get("toolheadId")
+            uv_config = next(
+                (
+                    tool for tool in toolheads
+                    if isinstance(tool, dict)
+                    and _toolhead_type(tool) == "uv"
+                    and tool.get("slot") is not None
+                    and (not requested_uv_id or tool.get("id") == requested_uv_id)
+                ),
+                None,
+            )
+            if uv_config is None:
+                issue(
+                    f"event.toolhead.{zone.get('id', 'unknown')}",
+                    5,
+                    "UV events require an assigned UV head.",
+                )
+            try:
+                exposure = float(process_event.get("uvExposureTimeSec", (uv_config or {}).get("defaultExposureTime", 0)))
+                dose = float(process_event.get("doseTargetMjCm2", (uv_config or {}).get("defaultDose", 0)))
+                if exposure <= 0 or dose <= 0:
+                    issue(
+                        f"event.parameters.{zone.get('id', 'unknown')}",
+                        5,
+                        "UV events require positive exposure and dose values in the central UV profile.",
+                    )
+            except (TypeError, ValueError):
+                issue(
+                    f"event.parameters.{zone.get('id', 'unknown')}",
+                    5,
+                    "UV event parameters are invalid.",
+                )
+
         pore = (zone.get("parameterOverride") or {}).get("poreInjection")
         if not isinstance(pore, dict) or not pore.get("enabled"):
             continue
@@ -1633,18 +1909,31 @@ def _validate_fdm_slice_request(files, form_params: dict) -> list[dict]:
                 5,
                 "Pore Injection requires an assigned syringe toolhead.",
             )
+        pore_mode = pore.get("mode", "layer_by_layer")
+        if pore_mode != "layer_by_layer":
+            issue(
+                f"pore.mode.{zone.get('id', 'unknown')}",
+                5,
+                "Only layer-by-layer Pore Injection is currently supported.",
+            )
         try:
-            if float(pore.get("injectionDepthMm", 0)) <= 0 or float(pore.get("flowRateUlPerCell", 0)) <= 0:
+            if float(pore.get("flowRateUlPerCell", 0)) <= 0:
                 issue(
                     f"pore.parameters.{zone.get('id', 'unknown')}",
                     5,
-                    "Pore Injection flow and depth must be greater than zero.",
+                    "Pore Injection requires a positive volume per pore.",
                 )
         except (TypeError, ValueError):
             issue(
                 f"pore.parameters.{zone.get('id', 'unknown')}",
                 5,
                 "Pore Injection numeric parameters are invalid.",
+            )
+        if _pore_calibration_ul_per_mm(toolheads, syringe_id) is None:
+            issue(
+                f"pore.calibration.{zone.get('id', 'unknown')}",
+                5,
+                "The assigned syringe head requires a valid dose calibration.",
             )
 
     return issues

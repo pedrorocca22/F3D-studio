@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveLayerPlans } from '../utils/planResolver';
-import type { ModelData, ZZone } from '../types';
+import type { ModelData, ToolheadConfig, ZZone } from '../types';
 
 /**
  * Unit tests for the Z-Zone resolver (the most valuable piece of frontend logic).
@@ -195,6 +195,8 @@ describe('resolveLayerPlans — priority and override application', () => {
       perimeter: 'fdm',
       infill: 'syringe', // only this one changed
       solidInfill: 'fdm',
+      bottomLayers: 'fdm',
+      topLayers: 'fdm',
       support: 'fdm',
     });
   });
@@ -212,6 +214,8 @@ describe('resolveLayerPlans — priority and override application', () => {
       perimeter: 'uv',
       infill: 'uv',
       solidInfill: 'uv',
+      bottomLayers: 'uv',
+      topLayers: 'uv',
       support: 'uv',
     });
   });
@@ -275,6 +279,31 @@ describe('resolveLayerPlans — priority and override application', () => {
       doseTargetMjCm2: 5000,
       exposureTimeSec: 10,
       pausePrint: true,
+      mode: 'stationary',
+      powerPercentage: 100,
+    });
+  });
+
+  it('inherits UV dose, exposure and mode from the central head profile', () => {
+    const zone = makeZone({
+      id: 'z1',
+      zStartMm: 0,
+      zEndMm: 0.3,
+      processEvent: { pausePrint: false },
+    });
+    const uvHead = {
+      id: 'uv', label: 'UV', klipper_tool: 'T2', installed: true, slot: 2,
+      wavelengthNm: 405, maxPowerMw: 250, defaultDose: 72,
+      defaultExposureTime: 8, mode: 'scanning',
+    } as ToolheadConfig;
+    const plan = resolveLayerPlans([makeModel({ id: 'm1' })], 5, [zone], 0.2, 0.3, [uvHead]);
+    const layer1 = plan[0].ranges.find(range => range.layerFrom === 1);
+
+    expect(layer1?.settings.uv).toMatchObject({
+      doseTargetMjCm2: 72,
+      exposureTimeSec: 8,
+      mode: 'sweep',
+      powerPercentage: 100,
     });
   });
 });
@@ -284,6 +313,40 @@ describe('resolveLayerPlans — priority and override application', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveLayerPlans — range compaction & stable equality (FIX #12)', () => {
+  it('resolves bottom, internal solid and top tools into separate layer ranges', () => {
+    const model = makeModel({
+      id: 'm1',
+      scaffoldTools: {
+        perimeter: 'fdm',
+        infill: 'fdm',
+        solidInfill: 'solid-tool',
+        bottomLayers: 'bottom-tool',
+        topLayers: 'top-tool',
+        support: 'none',
+      },
+    });
+
+    const plan = resolveLayerPlans(
+      [model],
+      10,
+      [],
+      0.2,
+      0.3,
+      [],
+      { bottom: 2, top: 3 },
+    );
+
+    expect(plan[0].ranges.map(range => ({
+      from: range.layerFrom,
+      to: range.layerTo,
+      solidTool: range.settings.mapping.solidInfill,
+    }))).toEqual([
+      { from: 1, to: 2, solidTool: 'bottom-tool' },
+      { from: 3, to: 7, solidTool: 'solid-tool' },
+      { from: 8, to: 10, solidTool: 'top-tool' },
+    ]);
+  });
+
   it('compacts identical layers into a single range [1..N]', () => {
     const plan = resolveLayerPlans([makeModel({ id: 'm1', toolhead: 'fdm' })], 10, []);
     expect(plan[0].ranges).toHaveLength(1);

@@ -47,11 +47,11 @@ def ensure_initial_toolhead(gcode_path: Path, expected_tool: str) -> bool:
 def build_pore_injection_gcode(
     centroids: list,
     current_z: float,
-    injection_depth_mm: float,
     flow_ul_per_cell: float,
     ul_per_mm: float,
     travel_feedrate: float,
     inject_feedrate: float,
+    retract_mm: float = 0.5,
     syringe_tool: str = "T1",
     return_tool: str = RETURN_TOOL_PLACEHOLDER
 ) -> list[str]:
@@ -66,22 +66,17 @@ def build_pore_injection_gcode(
     gcode.append(f"{syringe_tool} ; Switch to syringe")
     
     e_steps = flow_ul_per_cell / ul_per_mm if ul_per_mm > 0 else 0
-    retract_mm = 0.5
-    
     # M83 asegura el modo relativo (corregido)
     gcode.append("M83 ; Relative extrusion for syringe")
     
     for cx, cy in centroids:
         gcode.append(f"G0 X{cx:.3f} Y{cy:.3f} F{travel_feedrate} ; Move to pore centroid")
-        z_target = current_z - injection_depth_mm
-        gcode.append(f"G1 Z{z_target:.3f} F600 ; Lower syringe into pore")
         
         if e_steps > 0:
-            gcode.append(f"G1 E{e_steps:.4f} F{inject_feedrate} ; Inject material")
+            gcode.append(f"G1 E{e_steps:.4f} F{inject_feedrate} ; Deposit into open pore from layer surface")
             gcode.append("G4 P200 ; Dwell to ensure flow")
-            gcode.append(f"G1 E-{retract_mm:.4f} F1200 ; Retract to prevent stringing")
-            
-        gcode.append(f"G1 Z{current_z:.3f} F600 ; Raise syringe back to layer height")
+            if retract_mm > 0:
+                gcode.append(f"G1 E-{retract_mm:.4f} F1200 ; Retract to prevent stringing")
 
     # Devolvemos la herramienta y aseguramos que el FDM también use M83
     gcode.append(f"{return_tool} ; Restore previously active tool")

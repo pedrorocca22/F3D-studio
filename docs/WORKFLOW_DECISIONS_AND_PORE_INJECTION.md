@@ -32,6 +32,10 @@ discoverability and scientific traceability rather than lack of ambition.
 5. **The backend is the final authority.** Client validation improves UX, but
    the server must reject an unsafe or incomplete slice request even when the
    request does not come from the React UI.
+6. **One configuration owner.** `Machine Setup` assigns physical heads to
+   slots. `Settings` owns every base FDM, Syringe and UV profile. Model and
+   Z-zone values are stored only as explicit overrides and inherit the central
+   profile otherwise.
 
 ## Blocker matrix
 
@@ -48,14 +52,30 @@ The current implementation now has a shared TypeScript validator and uses it
 for the sidebar, `Next`, and the final slice action. Flask also validates the
 same critical invariants before a background job is created.
 
+## Configuration ownership
+
+| Surface | Responsibility |
+| --- | --- |
+| Machine Setup | Print surface, heated bed and physical slot assignment |
+| Mapping | Assign an already configured head to each scaffold feature |
+| Settings | Central FDM, Syringe and UV profiles; global scaffold profile; per-model overrides |
+| Advanced | Explicit Z-zone overrides and process events |
+| Pore Injection | Scope and volume per pore only; syringe motion and conversion are inherited |
+
+The slicer now takes nozzle size, temperature, extrusion multiplier, retraction
+and Z-lift from the central FDM head. Pore Injection takes actuator speed,
+retraction and dose conversion from the central Syringe head. UV events inherit
+dose, exposure and operating mode from the central UV head unless the event
+contains an explicit override.
+
 ## Pore Injection assessment
 
 ### What is strong today
 
 - Detection is based on the actual sliced infill rather than only on the CAD
   bounding box.
-- The two operating modes are meaningful: layer-by-layer dosing and a single
-  multilayer fill.
+- Layer-by-layer dosing is tied directly to the sliced infill of the current
+  layer, keeping each injection site accessible.
 - The job manifest records detected sites, allowing a 3D overlay and later
   protocol review.
 - The feature is scoped to Z-zones, which is the right abstraction for
@@ -67,29 +87,28 @@ same critical invariants before a background job is created.
   primary biocompatibility workflow.
 - GRID is required, but the UI historically allowed the feature to be enabled
   with another pattern and only showed a note.
-- `cellSizeToleranceMm` and `minCellSizeMm` are now exposed in the zone editor;
-  they still need a richer preview/report to make their effect obvious.
-- `globalSettings.poreInjection` is sent by the frontend, but the worker only
-  processes zone-level pore configurations. The global path is therefore not a
-  complete execution path.
-- Syringe conversion uses a hard-coded `165 µL/mm`; it does not yet derive
-  volume from the selected syringe, tip, calibration or pressure/flow profile.
+- Cell matching tolerance and minimum detector size are internal implementation
+  constants. They are intentionally absent from the protocol UI.
+- Whole-scaffold and zonal configurations share the same backend execution path.
+- Syringe conversion, actuator speed and XY travel now derive from the assigned
+  head and global motion settings instead of being duplicated in Pore Injection.
 - Tool switching, safe-Z movement, reservoir limits, collision checks and
   injection failure reporting need explicit validation before live printing.
 
 ### Recommended product shape
 
+> Estado actual: Pore Injection deposita desde la superficie de la capa recién
+> impresa, sin penetración Z. El volumen por poro es el único ajuste de
+> deposición local; la conversión mecánica proviene del syringe head asignado.
+
 Treat Pore Injection as a five-part protocol:
 
-1. **Geometry:** GRID pattern, line spacing, estimated cell size, accepted
-   detector tolerance and minimum cell size.
-2. **Region:** model scope, Z start/end and whether the zone is layer-wise or
-   multilayer.
+1. **Geometry:** GRID pattern, line spacing and estimated cell size.
+2. **Region:** model scope and Z start/end for layer-by-layer injection.
 3. **Material:** syringe, tip, bioink profile and calibrated µL/mm conversion.
-4. **Dose:** µL per pore or total target volume, maximum available volume and
-   reservoir consumption.
-5. **Safety review:** assigned tool, safe Z, depth below the current layer,
-   return-to-FDM behavior, collision clearance and a preview of every site.
+4. **Dose:** µL per pore, maximum available volume and reservoir consumption.
+5. **Safety review:** assigned tool, surface clearance, return-to-FDM behavior,
+   collision clearance and a preview of every site.
 
 The most valuable near-term UI addition is a pre-slice pore report showing
 estimated pore count, pore size, theoretical capacity, requested volume,

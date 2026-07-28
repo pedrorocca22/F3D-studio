@@ -15,15 +15,6 @@ interface HeaderProps {
   setCurrentView: (view: 'editor' | 'gallery') => void;
 }
 
-const STEPS = [
-  { id: 1, label: 'Environment' },
-  { id: 2, label: 'Models' },
-  { id: 3, label: 'Mapping' },
-  { id: 4, label: 'Settings' },
-  { id: 5, label: 'Advance' },
-  { id: 6, label: 'Slice' },
-];
-
 export const Header: React.FC<HeaderProps> = ({
   darkMode, toggleDarkMode, onSaveProject, onLoadProject,
   onOpenWifi, onOpenPrinterStatus,

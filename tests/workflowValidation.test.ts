@@ -99,14 +99,13 @@ describe('workflow validation', () => {
       zZones: [],
     });
 
-    expect(issues.filter(issue => issue.step === 3)).toHaveLength(0);
+    expect(issues.filter(issue => issue.step === 4)).toHaveLength(0);
   });
 
   it('blocks pore injection without GRID and a syringe', () => {
     const pore = {
       enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
-      zStartMm: 0, zEndMm: 5, injectionDepthMm: 0.3, flowRateUlPerCell: 0.5,
-      travelFeedrateMmMin: 6000, injectionFeedrateMmMin: 120,
+      zStartMm: 0, zEndMm: 5, flowRateUlPerCell: 0.5,
     };
     const issues = getWorkflowIssues({
       globalSettings: { ...baseSettings, infillPattern: 'gyroid' },
@@ -123,8 +122,7 @@ describe('workflow validation', () => {
   it('accepts a valid FDM + syringe pore workflow', () => {
     const pore = {
       enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
-      zStartMm: 0, zEndMm: 5, injectionDepthMm: 0.3, flowRateUlPerCell: 0.5,
-      travelFeedrateMmMin: 6000, injectionFeedrateMmMin: 120,
+      zStartMm: 0, zEndMm: 5, flowRateUlPerCell: 0.5,
     };
     const issues = getWorkflowIssues({
       globalSettings: baseSettings, models: [model], toolheads: [fdm, syringe], zZones: [zone(pore)],
@@ -135,8 +133,7 @@ describe('workflow validation', () => {
   it('accepts whole-scaffold pore injection without requiring a Z-zone', () => {
     const pore = {
       enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
-      zStartMm: 0, zEndMm: 5, injectionDepthMm: 0.3, flowRateUlPerCell: 0.5,
-      travelFeedrateMmMin: 6000, injectionFeedrateMmMin: 120,
+      zStartMm: 0, zEndMm: 5, flowRateUlPerCell: 0.5,
     };
     const issues = getWorkflowIssues({
       globalSettings: { ...baseSettings, poreInjection: pore },
@@ -145,11 +142,45 @@ describe('workflow validation', () => {
     expect(issues.filter(issue => issue.severity === 'error')).toHaveLength(0);
   });
 
+  it('allows a zonal pore protocol to override an active global protocol', () => {
+    const pore = {
+      enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
+      zStartMm: 0.7, zEndMm: 5, flowRateUlPerCell: 0.5,
+    };
+    const issues = getWorkflowIssues({
+      globalSettings: { ...baseSettings, poreInjection: pore },
+      models: [model], toolheads: [fdm, syringe], zZones: [zone(pore)],
+    });
+    expect(issues.some(issue => issue.code === 'pore.scope.conflict')).toBe(false);
+    expect(issues.filter(issue => issue.severity === 'error')).toHaveLength(0);
+  });
+
+  it('blocks legacy multilayer pore injection until it is converted', () => {
+    const pore = {
+      enabled: true, mode: 'multilayer' as any, syringeToolhead: 'syringe' as const,
+      zStartMm: 0.7, zEndMm: 5, flowRateUlPerCell: 0.5,
+    };
+    const issues = getWorkflowIssues({
+      globalSettings: { ...baseSettings, poreInjection: pore }, models: [model], toolheads: [fdm, syringe], zZones: [],
+    });
+    expect(issues.some(issue => issue.code === 'pore.mode.global')).toBe(true);
+  });
+
+  it('accepts surface deposition without a penetration parameter', () => {
+    const pore = {
+      enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
+      zStartMm: 0.7, zEndMm: 5, flowRateUlPerCell: 0.5,
+    };
+    const issues = getWorkflowIssues({
+      globalSettings: { ...baseSettings, poreInjection: pore }, models: [model], toolheads: [fdm, syringe], zZones: [],
+    });
+    expect(issues.some(issue => issue.code.startsWith('pore.depth.'))).toBe(false);
+  });
+
   it('uses the model pattern when a model overrides the global GRID default', () => {
     const pore = {
       enabled: true, mode: 'layer_by_layer' as const, syringeToolhead: 'syringe' as const,
-      zStartMm: 0, zEndMm: 5, injectionDepthMm: 0.3, flowRateUlPerCell: 0.5,
-      travelFeedrateMmMin: 6000, injectionFeedrateMmMin: 120,
+      zStartMm: 0, zEndMm: 5, flowRateUlPerCell: 0.5,
     };
     const modelWithGyroid = { ...model, fdmSettings: { infillPattern: 'gyroid' as const } };
     const modelZone = { ...zone(), parameterOverride: { poreInjection: pore } };

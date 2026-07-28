@@ -26,6 +26,7 @@ from utils.gcode_infill_parser import (  # noqa: E402  (import after sys.path tw
     parse_infill_lines,
     detect_perfect_squares,
     compute_centroids,
+    describe_pore_cells,
 )
 
 
@@ -274,6 +275,33 @@ class TestComputeCentroids:
 # ===========================================================================
 # D. Integration — the real contract used by server.py
 # ===========================================================================
+
+class TestDescribePoreCells:
+    def test_calculates_free_cell_volume_for_one_layer(self):
+        cells = describe_pore_cells(
+            [(0.0, 0.0, 1.0, 1.0)],
+            extrusion_width_mm=0.4,
+            layer_height_mm=0.2,
+        )
+
+        assert cells[0]["center_width_mm"] == pytest.approx(1.0)
+        assert cells[0]["center_depth_mm"] == pytest.approx(1.0)
+        assert cells[0]["free_width_mm"] == pytest.approx(0.6)
+        assert cells[0]["free_depth_mm"] == pytest.approx(0.6)
+        assert cells[0]["layer_height_mm"] == pytest.approx(0.2)
+        assert cells[0]["max_volume_ul"] == pytest.approx(0.072)
+
+    def test_never_reports_negative_capacity(self):
+        cells = describe_pore_cells(
+            [(0.0, 0.0, 0.3, 0.3)],
+            extrusion_width_mm=0.4,
+            layer_height_mm=0.2,
+        )
+
+        assert cells[0]["free_width_mm"] == 0.0
+        assert cells[0]["free_depth_mm"] == 0.0
+        assert cells[0]["max_volume_ul"] == 0.0
+
 
 class TestPipelineIntegration:
     def test_parse_detect_centroids_chains_correctly(self, tmp_path):

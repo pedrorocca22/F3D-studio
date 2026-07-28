@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData, ScaffoldToolMapping, InfillPattern } from '../../types';
 import { INFILL_PATTERN_LABELS } from '../../types';
+import { getToolheadType, isFdmToolhead, toolheadDisplayName } from '../../utils/toolheads';
 
 interface ToolheadPanelProps {
     models: ModelData[];
@@ -14,19 +15,19 @@ interface ToolheadPanelProps {
 }
 
 // ---------- Toolhead color mapping ----------
-const TOOLHEAD_COLORS: Record<ToolheadId, string> = {
+const TOOLHEAD_COLORS: Record<string, string> = {
     fdm: '#2f6098',
     syringe: '#586064',
     uv: '#b71c1c',
     none: '#abb3b7',
 };
-const TOOLHEAD_ICONS: Record<ToolheadId, string> = {
+const TOOLHEAD_ICONS: Record<string, string> = {
     fdm: 'precision_manufacturing',
     syringe: 'science',
     uv: 'wb_iridescent',
     none: 'block',
 };
-const TOOLHEAD_LABELS: Record<ToolheadId, string> = {
+const TOOLHEAD_LABELS: Record<string, string> = {
     fdm: 'FDM HEAD',
     syringe: 'HYDROGEL HEAD',
     uv: 'UV HEAD',
@@ -37,6 +38,8 @@ export const SCAFFOLD_FEATURE_META: { key: keyof ScaffoldToolMapping; label: str
     { key: 'perimeter', label: 'Perimeters' },
     { key: 'infill', label: 'Infill' },
     { key: 'solidInfill', label: 'Solid Fill' },
+    { key: 'bottomLayers', label: 'Bottom Layers' },
+    { key: 'topLayers', label: 'Top Layers' },
     { key: 'support', label: 'Supports' },
 ];
 
@@ -44,6 +47,8 @@ export const DEFAULT_SCAFFOLD_TOOLS: ScaffoldToolMapping = {
     perimeter: 'fdm',
     infill: 'fdm',
     solidInfill: 'fdm',
+    bottomLayers: 'fdm',
+    topLayers: 'fdm',
     support: 'fdm',
 };
 
@@ -55,7 +60,7 @@ function generateUUID(): string {
 
 export const ToolheadBadge: React.FC<{ toolhead: ToolheadId }> = ({ toolhead }) => (
     <span className="inline-flex items-center px-2 py-0.5 border border-slate-300 dark:border-slate-600 text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-        {TOOLHEAD_LABELS[toolhead]}
+        {TOOLHEAD_LABELS[toolhead] || toolhead.toUpperCase()}
     </span>
 );
 
@@ -67,9 +72,9 @@ export const ToolheadSelect: React.FC<{ value: ToolheadId; onChange: (v: Toolhea
             className={`bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-[9px] font-bold uppercase px-1.5 py-1 rounded outline-none focus:ring-1 focus:ring-primary cursor-pointer ${className || 'w-20'}`}
         >
             <option value="none">-- NONE / UNASSIGNED --</option>
-            {toolheads.map(th => (
-                <option key={th.id} value={th.id} className={th.slot !== undefined ? '' : 'text-slate-400 italic'}>
-                   {th.id.toUpperCase()}{th.slot === undefined ? ' (OFFLINE)' : ''}
+            {toolheads.filter(th => th.slot !== undefined).map(th => (
+                <option key={th.id} value={th.id}>
+                   {toolheadDisplayName(th)}
                 </option>
             ))}
         </select>
@@ -868,7 +873,7 @@ export const ToolheadPanel: React.FC<ToolheadPanelProps> = ({
                                     }
                                 </div>
 
-                                {th.id === 'fdm' && (
+                                {isFdmToolhead(th) && (
                                     <div className="grid grid-cols-2 gap-px bg-outline-variant/10">
                                         <div className="bg-slate-50 p-2">
                                             <span className="label-clinical opacity-50 block">Nozzle</span>

@@ -1,7 +1,7 @@
 /**
  * GCodePreview.tsx
  * Renders a 3D G-code toolpath visualisation inside a Three.js Canvas.
- * Supports FDM (T0), Syringe (T1), UV (T2) toolhead color-coding
+ * Supports any number of physical T-slots with deterministic color-coding
  * AND per-line-type coloring (External perimeter, Infill, Support, etc.)
  */
 
@@ -13,9 +13,14 @@ import { STLLoader } from 'three-stdlib';
 import { Icon } from '../Icon';
 import { getTipById, DEFAULT_TIP_ID } from '../../constants/nozzleTips';
 
+export const isFdmPreviewTool = (toolType?: string): boolean =>
+    toolType === 'fdm' || toolType === 'T0';
+
 // ── Nozzle Component ─────────────────────────────────────────────────────────
-function Nozzle({ position, tipColor, tipType = 'conical', toolType = 'T0' }: { position: [number, number, number], tipColor: string, tipType?: 'conical' | 'straight', toolType?: string }) {
-    const isFdm = toolType === 'T0';
+function Nozzle({ position, tipColor, tipType = 'conical', toolType = 'fdm' }: { position: [number, number, number], tipColor: string, tipType?: 'conical' | 'straight', toolType?: string }) {
+    // Instance-based projects pass the process type; standalone/legacy preview
+    // callers may still pass the physical T-number.
+    const isFdm = isFdmPreviewTool(toolType);
     const stlUrl = isFdm ? '/nozzle.stl' : (tipType === 'straight' ? '/punta-recta.stl' : '/punta.stl');
     const originalGeometry = useLoader(STLLoader, stlUrl);
     
@@ -85,11 +90,20 @@ declare global {
 export type ColorMode = 'toolhead' | 'linetype';
 
 // ── Color by toolhead ─────────────────────────────────────────────────────────
-export const TOOLHEAD_COLOR: Record<string, string> = {
-    T0: '#14b8a6',   // teal   – FDM
-    T1: '#f59e0b',   // amber  – syringe
-    T2: '#8b5cf6',   // violet – UV
+export const TOOLHEAD_PALETTE = [
+    '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444',
+    '#3b82f6', '#84cc16', '#ec4899', '#06b6d4',
+] as const;
+
+export const getGCodeToolColor = (tool: string): string => {
+    const match = String(tool).toUpperCase().match(/^T(\d+)$/);
+    if (!match) return DEFAULT_COLOR;
+    return TOOLHEAD_PALETTE[Number(match[1]) % TOOLHEAD_PALETTE.length];
 };
+
+export const TOOLHEAD_COLOR: Record<string, string> = Object.fromEntries(
+    Array.from({ length: 32 }, (_, slot) => [`T${slot}`, getGCodeToolColor(`T${slot}`)]),
+);
 
 // ── Color by PrusaSlicer line type ────────────────────────────────────────────
 export const LINE_TYPE_COLOR: Record<string, string> = {
@@ -303,7 +317,7 @@ export function parseGCode(raw: string): ParsedGCode {
 function buildGeometries(parsed: ParsedGCode, nozzleDiameter = 0.4, colorMode: ColorMode = 'toolhead'): GeometryData {
     const getColor = (m: Move): string => {
         if (colorMode === 'linetype') return LINE_TYPE_COLOR[m.lineType] ?? DEFAULT_COLOR;
-        return TOOLHEAD_COLOR[m.toolhead] ?? DEFAULT_COLOR;
+        return getGCodeToolColor(m.toolhead);
     };
 
     const allColors = colorMode === 'linetype'
@@ -502,7 +516,7 @@ function WireSegments({ extrusion, count }: { extrusion: ExtrusionData; count: n
 
 // ── GCodeScene (embedded in Viewport's Canvas) ────────────────────────────────
 export function GCodeScene({
-    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead', renderMode = 'solid', activeTipId, showTip = true
+    parsed, upToLayer, upToMoveIndex, nozzleDiameter = 0.4, showTravel = false, colorMode = 'toolhead', renderMode = 'solid', activeTipId, showTip = true, toolheadTypes = {}
 }: {
     parsed: ParsedGCode; upToLayer: number; upToMoveIndex?: number;
     nozzleDiameter?: number; showTravel?: boolean; colorMode?: ColorMode;
@@ -510,6 +524,7 @@ export function GCodeScene({
     /** ID of the active Nordson tip — drives the Nozzle mesh color */
     activeTipId?: string;
     showTip?: boolean;
+    toolheadTypes?: Record<string, 'fdm' | 'syringe' | 'uv'>;
 }) {
     const geoData = useMemo(() => buildGeometries(parsed, nozzleDiameter, colorMode), [parsed, nozzleDiameter, colorMode]);
 
@@ -579,9 +594,9 @@ export function GCodeScene({
             {showTip && currentMove && (
                 <Nozzle 
                     position={[currentMove.x, currentMove.z, currentMove.y]} 
-                    tipColor={currentMove.toolhead === 'T0' ? '#E5B75A' : tipColor}
+                    tipColor={(toolheadTypes[currentMove.toolhead] ?? (currentMove.toolhead === 'T0' ? 'fdm' : 'syringe')) === 'fdm' ? '#E5B75A' : tipColor}
                     tipType={tipType}
-                    toolType={currentMove.toolhead}
+                    toolType={toolheadTypes[currentMove.toolhead] ?? (currentMove.toolhead === 'T0' ? 'fdm' : 'syringe')}
                 />
             )}
         </group>

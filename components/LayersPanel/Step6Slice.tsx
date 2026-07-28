@@ -1,7 +1,9 @@
 import React from 'react';
 import { Icon } from '../Icon';
-import { ModelData, GlobalSettings, MaterialProfile, ToolheadConfig, ZZone } from '../../types';
+import { ModelData, GlobalSettings, MaterialProfile, PoreCapacitySummary, ToolheadConfig, ZZone } from '../../types';
 import { buildPoreProtocolPreflight } from '../../utils/poreProtocol';
+import { InfoTooltip } from '../InfoTooltip';
+import { isFdmToolhead } from '../../utils/toolheads';
 
 interface Step6SliceProps {
   models: ModelData[];
@@ -11,7 +13,13 @@ interface Step6SliceProps {
   selectedMaterials: Record<string, string>;
   userMaterials: MaterialProfile[];
   dryRunStatus?: 'not_run' | 'ready' | 'blocked';
-  jobInfo?: { jobId: string; estimatedTimeSec?: number; filamentUsedMm?: number; layerCount: number; };
+  jobInfo?: {
+    jobId: string;
+    estimatedTimeSec?: number;
+    filamentUsedMm?: number;
+    layerCount: number;
+    poreCapacity?: PoreCapacitySummary;
+  };
   onSaveToGallery: (name: string, author: string, jobInfo: any, notes?: string, description?: string, tags?: string[]) => void;
 }
 
@@ -26,6 +34,8 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
   jobInfo,
   onSaveToGallery
 }) => {
+  const fdmToolhead = toolheads.find(isFdmToolhead);
+  const effectiveNozzleDiameter = fdmToolhead?.nozzleDiameter ?? (globalSettings.nozzleDiameter || 0.4);
   const [author, setAuthor] = React.useState('');
   const [protocolName, setProtocolName] = React.useState(`PRT-${new Date().toISOString().replace(/T/, '-').replace(/:/g, '').slice(0, 16)}`);
   const [description, setDescription] = React.useState('');
@@ -50,27 +60,59 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
     selectedMaterials,
     userMaterials,
   });
+  const measuredCapacity = jobInfo?.poreCapacity?.cell_count ? jobInfo.poreCapacity : undefined;
+  const measuredOverCapacity = (measuredCapacity?.over_capacity_cell_count ?? 0) > 0;
+  const displayedStatus = measuredOverCapacity && porePreflight.status === 'ready'
+    ? 'warning'
+    : porePreflight.status;
+  const displayedCellCount = measuredCapacity?.cell_count ?? porePreflight.estimatedPoreCount;
+  const displayedAvailableVolume = measuredCapacity?.total_max_volume_ul ?? porePreflight.availableVolumeUl;
+  const displayedRequestedVolume = measuredCapacity?.requested_total_volume_ul ?? porePreflight.requestedVolumeUl;
 
   return (
     <div className="space-y-4 px-1 animate-in fade-in slide-in-from-left-1">
         {porePreflight.status !== 'inactive' && (
-          <div className={`rounded-xl border p-3 space-y-2 ${porePreflight.status === 'blocked' ? 'border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/20' : porePreflight.status === 'warning' ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
+          <div className={`rounded-xl border p-3 space-y-2 ${displayedStatus === 'blocked' ? 'border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/20' : displayedStatus === 'warning' ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="flex items-center gap-1.5">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Pore Protocol Preflight</h3>
-                <p className="text-[8px] text-slate-500 dark:text-slate-400 mt-0.5">Preview before generating executable G-code</p>
+                <InfoTooltip content="Review geometry, available volume, requested dose, calibration and collision checks before generating executable G-code." />
               </div>
-              <span className="text-[8px] font-black uppercase tracking-widest">{porePreflight.status}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest">{displayedStatus}</span>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Pore cells</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.estimatedPoreCount}</span></div>
-              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Available</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.availableVolumeUl.toFixed(1)} µL</span></div>
-              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Requested</span><span className="text-[13px] font-mono font-black text-primary">{porePreflight.requestedVolumeUl.toFixed(1)} µL</span></div>
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2">
+                <span className="flex items-center gap-1 text-[7px] text-slate-400 uppercase font-black">
+                  {measuredCapacity ? 'Layer deposits' : 'Estimated deposits'}
+                  <InfoTooltip content="One deposit event is one detected XY pore cell on one injectable layer. Before slicing this count is estimated; after slicing it is measured from the generated G-code." />
+                </span>
+                <span className="text-[13px] font-mono font-black text-primary">{displayedCellCount}</span>
+                {measuredCapacity?.unique_xy_cell_count && measuredCapacity?.injection_layer_count && (
+                  <span className="block text-[7px] font-bold text-slate-400">
+                    {measuredCapacity.unique_xy_cell_count} XY cells · {measuredCapacity.injection_layer_count} layers
+                  </span>
+                )}
+              </div>
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Geometric max</span><span className="text-[13px] font-mono font-black text-primary">{displayedAvailableVolume.toFixed(2)} µL</span></div>
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/40 p-2"><span className="block text-[7px] text-slate-400 uppercase font-black">Requested</span><span className="text-[13px] font-mono font-black text-primary">{displayedRequestedVolume.toFixed(2)} µL</span></div>
             </div>
+            {measuredCapacity && (
+              <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-cyan-200/70 bg-cyan-50/60 p-2 text-center dark:border-cyan-800/50 dark:bg-cyan-950/20">
+                <div><span className="block text-[7px] font-black uppercase text-slate-400">Uniform max/cell</span><span className="font-mono text-[10px] font-black text-cyan-700 dark:text-cyan-300">{measuredCapacity.uniform_max_per_cell_ul.toFixed(3)} µL</span></div>
+                <div><span className="block text-[7px] font-black uppercase text-slate-400">Average/cell</span><span className="font-mono text-[10px] font-black text-cyan-700 dark:text-cyan-300">{measuredCapacity.average_max_per_cell_ul.toFixed(3)} µL</span></div>
+                <div><span className="block text-[7px] font-black uppercase text-slate-400">Largest cell</span><span className="font-mono text-[10px] font-black text-cyan-700 dark:text-cyan-300">{measuredCapacity.largest_max_per_cell_ul.toFixed(3)} µL</span></div>
+              </div>
+            )}
+            {measuredOverCapacity && (
+              <p className="rounded-md bg-amber-100/70 px-2 py-1.5 text-[8px] font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                Requested dose exceeds the measured geometric capacity in {measuredCapacity!.over_capacity_cell_count} sites. The value remains allowed.
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5 text-[8px] font-bold uppercase">
               <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Bioink: {porePreflight.bioinkName || 'NOT SET'}</span>
               <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Tip: {porePreflight.tipId || 'NOT SET'}</span>
-              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Calibration: {porePreflight.calibrationUlPerMm ? `${porePreflight.calibrationUlPerMm} µL/mm` : 'NOT SET'}</span>
+              <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Syringe head: {porePreflight.checks.calibration === 'ready' ? 'READY' : 'SETUP REQUIRED'}</span>
+              <span className="px-2 py-1 rounded-full bg-amber-100/70 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">Bottom protected: {(porePreflight.bottomSolidTopMm ?? 0).toFixed(2)} mm</span>
             </div>
             <div className="flex flex-wrap gap-1.5 text-[7px] font-black uppercase tracking-wider">
               <span className="px-2 py-1 rounded-full bg-white/70 dark:bg-slate-900/40">Geometry: {porePreflight.checks.geometry}</span>
@@ -90,7 +132,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
                 <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Hardware Setup</h3>
                 <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between"><span className="text-slate-500">Nozzle:</span><span className="font-mono font-bold text-primary">{globalSettings.nozzleDiameter || 0.4}mm</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Nozzle:</span><span className="font-mono font-bold text-primary">{effectiveNozzleDiameter}mm</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Layer:</span><span className="font-mono font-bold text-primary">{globalSettings.layerHeight}µm</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Bed:</span><span className="font-mono font-bold">{globalSettings.bedHeatingEnabled ? `${globalSettings.bedTemperature}°C` : 'OFF'}</span></div>
                 </div>

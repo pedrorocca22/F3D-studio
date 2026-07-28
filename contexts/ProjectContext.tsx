@@ -19,7 +19,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     project.globalSettings,
     project.zZones,
     project.toolheads,
-    project.calculatedTotalLayers
+    project.calculatedTotalLayers,
+    project.selectedMaterials
   );
 
   const value = {

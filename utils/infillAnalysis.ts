@@ -10,12 +10,23 @@ export interface InfillAnalysisResult {
   lineSpacingMm: number;
   /** Tamaño interior del poro cuadrado (mm) */
   poreSizeMm: number;
-  /** Número estimado total de celdas (poros) en el área dada */
+  /** Número estimado de eventos de inyección a través de todas las capas */
   estimatedCellCount: number;
-  /** Volumen de una única celda a lo largo de toda la altura Z (µL) */
+  /** Capacidad geométrica de una celda en una capa (µL) */
   singleCellVolumeUl: number;
-  /** Volumen máximo total disponible en todos los poros (µL) */
+  /** Capacidad geométrica total de todos los eventos de inyección (µL) */
   totalMaxVolumeUl: number;
+}
+
+export function estimateGridCellCapacityUl(
+  infillPercent: number,
+  extrusionWidthMm: number,
+  layerHeightMm: number,
+): number {
+  if (infillPercent <= 0 || infillPercent >= 100 || extrusionWidthMm <= 0 || layerHeightMm <= 0) return 0;
+  const lineSpacingMm = (2 * extrusionWidthMm) / (infillPercent / 100);
+  const poreSizeMm = Math.max(0, lineSpacingMm - extrusionWidthMm);
+  return poreSizeMm * poreSizeMm * layerHeightMm;
 }
 
 /**
@@ -36,7 +47,8 @@ export function analyzeGridInfill(
   areaDepthMm: number,
   zHeightMm: number,
   infillPercent: number,
-  extrusionWidthMm: number = 0.4
+  extrusionWidthMm: number = 0.4,
+  layerHeightMm: number = 0.2,
 ): InfillAnalysisResult {
   if (infillPercent <= 0 || infillPercent >= 100 || zHeightMm <= 0 || areaWidthMm <= 0 || areaDepthMm <= 0) {
     return {
@@ -61,10 +73,12 @@ export function analyzeGridInfill(
   // Número de celdas a lo largo de X e Y
   const cellsX = Math.floor(areaWidthMm / lineSpacingMm);
   const cellsY = Math.floor(areaDepthMm / lineSpacingMm);
-  const estimatedCellCount = cellsX * cellsY;
+  const cellsPerLayer = cellsX * cellsY;
+  const estimatedLayerCount = Math.max(1, Math.ceil(zHeightMm / layerHeightMm));
+  const estimatedCellCount = cellsPerLayer * estimatedLayerCount;
 
-  // Volumen de una celda (prisma rectangular) en mm³ (1 mm³ = 1 µL)
-  const singleCellVolumeUl = (poreSizeMm * poreSizeMm) * zHeightMm;
+  // Capacidad por celda y por capa (1 mm³ = 1 µL).
+  const singleCellVolumeUl = poreSizeMm * poreSizeMm * layerHeightMm;
 
   // Capacidad máxima sumando todos los poros
   const totalMaxVolumeUl = estimatedCellCount * singleCellVolumeUl;
