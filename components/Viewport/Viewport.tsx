@@ -39,8 +39,8 @@ export const Viewport: React.FC = () => {
   const { project, slicer } = useProjectContext();
 
   // ── GCode State ──────────────────────────────────────────
-  const gcodeUrl = slicer.gcodePreviewJob ? `${BACKEND_URL}/fdm/job/${slicer.gcodePreviewJob.jobId}/gcode` : null; 
-  
+  const gcodeUrl = slicer.gcodePreviewJob ? `${BACKEND_URL}/fdm/job/${slicer.gcodePreviewJob.jobId}/gcode` : null;
+
   const [gcodeLayer, setGcodeLayer] = useState<number>(0);
   const [gcodeMoveIndex, setGcodeMoveIndex] = useState<number>(0);
   const [isGCodePlaying, setIsGCodePlaying] = useState<boolean>(false);
@@ -48,7 +48,7 @@ export const Viewport: React.FC = () => {
   const [gcodeTimelineMode, setGcodeTimelineMode] = useState<'layers' | 'segments'>('layers');
 
   const { parsed: gcodeParsed, layerLines, allLines, layerMap, gcodeRaw, loading: gcodeLoading, error: gcodeError } = useGCodeLoader(
-    gcodeUrl, 
+    gcodeUrl,
     gcodeLayer
   );
 
@@ -61,7 +61,7 @@ export const Viewport: React.FC = () => {
           const layerStart = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
           const layerEnd = gcodeParsed.layerMoveIndices[gcodeLayer + 1] || gcodeParsed.moves.length;
           const layerMoveCount = Math.max(1, layerEnd - layerStart);
-          
+
           if (prev >= layerMoveCount) {
              // AUTO-ADVANCE LAYER
              if (gcodeLayer < gcodeParsed.layerCount) {
@@ -82,8 +82,8 @@ export const Viewport: React.FC = () => {
     return () => clearInterval(interval);
   }, [isGCodePlaying, gcodeLayer, gcodeParsed, playbackSpeed]);
 
-  // Handle manual layer changes - stop playback if playing? 
-  // Actually Prusa just keeps playing on the new layer if you slide it. 
+  // Handle manual layer changes - stop playback if playing?
+  // Actually Prusa just keeps playing on the new layer if you slide it.
   // But we need to reset move index IF not playing or if jumping layers.
   // The previous effect already handles resetting move index to END when layer changes.
   // I should modify it to only reset to END if NOT playing.
@@ -96,6 +96,7 @@ export const Viewport: React.FC = () => {
   }, [gcodeLayer, gcodeParsed]); // Removed isGCodePlaying from deps to avoid jumpy starts
 
   const [inspectorTab, setInspectorTab] = useState<'inspector' | 'gcode' | 'materials'>('inspector');
+  const [labwareSubTab, setLabwareSubTab] = useState<'materials' | 'tips'>('materials');
   const gcodeScrollRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
   const [gcodeShowTravel, setGcodeShowTravel] = useState(false);
@@ -149,6 +150,10 @@ export const Viewport: React.FC = () => {
     clippingPlane.constant = clippingHeight;
   }, [clippingHeight]);
 
+  useEffect(() => {
+    clippingPlane.constant = clippingHeight;
+  }, [clippingHeight]);
+
   // ── Handlers ─────────────────────────────────────────────
   const setView = (mode: string) => setViewTrigger(prev => ({ mode, t: prev.t + 1 }));
   const cycleViewMode = () => setViewMode(prev => prev === 'solid' ? 'transparent' : 'solid');
@@ -156,7 +161,7 @@ export const Viewport: React.FC = () => {
 
   const sliderMaxHeight = useMemo(() => {
     if (project.models.length === 0) return BUILD_VOLUME.height;
-    const maxZ = Math.max(...project.models.map(m => (m.size?.z || 0) * (m.transform?.scale?.z || 1)), 0);
+    const maxZ = Math.max(...project.models.map(m => m.size?.z || 0), 0);
     return Math.min(Math.max(maxZ * 1.05, 1), BUILD_VOLUME.height);
   }, [project.models]);
 
@@ -194,8 +199,8 @@ export const Viewport: React.FC = () => {
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
             />
 
-            <UVProcessPlanes 
-              zZones={project.zZones} 
+            <UVProcessPlanes
+              zZones={project.zZones}
               models={project.models}
               isVisible={isGCodeMode}
               currentHeight={gcodeParsed && gcodeParsed.layerHeights ? gcodeParsed.layerHeights[gcodeLayer] : null}
@@ -268,7 +273,7 @@ export const Viewport: React.FC = () => {
                                 <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-1">G-Code Load Failed</p>
                                 <p className="text-[10px] text-red-500 font-mono">{gcodeError}</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => slicer.setGcodePreviewJob(null)}
                                 className="mt-2 px-4 py-1.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded-lg hover:bg-slate-200"
                             >
@@ -471,7 +476,7 @@ export const Viewport: React.FC = () => {
       </div>
 
       {/* Right Sidebar - Inspector */}
-        <div className="f3d-inspector-shell relative flex-shrink-0 flex items-center h-full">
+      <div className="f3d-inspector-shell relative flex-shrink-0 flex items-center h-full">
         <button
           onClick={() => ui.setIsInspectorCollapsed(!ui.isInspectorCollapsed)}
           className={`absolute -left-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-l-lg shadow-sm z-40 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isInspectorCollapsed ? 'rotate-180' : ''}`}
@@ -483,134 +488,161 @@ export const Viewport: React.FC = () => {
         <div className={`h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col transition-all duration-500 ease-in-out overflow-hidden ${ui.isInspectorCollapsed ? 'w-0 opacity-0' : 'w-72 opacity-100'}`}>
           <div className="p-3 border-b border-slate-100 dark:border-slate-800/60">
             <div className="flex p-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/50 dark:border-slate-700/30">
-            <button 
-              onClick={() => setInspectorTab('inspector')}
-              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
-                inspectorTab === 'inspector' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
-            >
-              Inspector
-            </button>
-            <button 
-              onClick={() => setInspectorTab('materials')}
-              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
-                inspectorTab === 'materials' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
-            >
-              LABWARE
-            </button>
-            <button 
-              onClick={() => setInspectorTab('gcode')}
-              className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
-                inspectorTab === 'gcode' 
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400' 
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
-            >
-              G-Code
-            </button>
+              <button
+                onClick={() => setInspectorTab('inspector')}
+                className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                  inspectorTab === 'inspector'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                Inspector
+              </button>
+              <button
+                onClick={() => setInspectorTab('materials')}
+                className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                  inspectorTab === 'materials'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                LABWARE
+              </button>
+              <button
+                onClick={() => setInspectorTab('gcode')}
+                className={`flex-1 py-1.5 rounded-md text-[8.5px] font-black uppercase tracking-[0.15em] transition-all duration-200 ${
+                  inspectorTab === 'gcode'
+                    ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                G-Code
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
+            {inspectorTab === 'materials' ? (
+              <div className="space-y-4">
+                <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                  <button
+                    onClick={() => setLabwareSubTab('materials')}
+                    className={`flex-1 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all ${
+                      labwareSubTab === 'materials'
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Materials
+                  </button>
+                  <button
+                    onClick={() => setLabwareSubTab('tips')}
+                    className={`flex-1 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all ${
+                      labwareSubTab === 'tips'
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Tips (Nozzles)
+                  </button>
+                </div>
+
+                {labwareSubTab === 'materials' ? <MaterialPresetPanel /> : <TipsLibraryPanel />}
+              </div>
+            ) : inspectorTab === 'inspector' ? (
+              selectedModel ? (
+                <>
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <Icon name="info" className="text-[10px]" /> Model Properties
+                      </div>
+                      <button onClick={cycleViewMode} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                         <span className="text-[9px] font-bold text-slate-400 uppercase">{viewMode}</span>
+                      </button>
+                    </div>
+                    <ModelInfoPanel
+                      model={selectedModel}
+                      adhesionOffset={(project.globalSettings.adhesion?.enabled) ? (project.globalSettings.adhesion.layers * project.globalSettings.adhesion.layerHeight) / 1000 : 0}
+                    />
+                  </section>
+
+                  <TransformSettings
+                    selectedModel={selectedModel}
+                    objectTool={objectTool}
+                    setObjectTool={setObjectTool}
+                    arraySpacing={arraySpacing}
+                    setArraySpacing={setArraySpacing}
+                    onArrayModels={project.handleArrayModels}
+                    onCloneModel={project.handleCloneModel}
+                    onTransformChange={project.handleTransformChange}
+                    onDeleteModel={project.handleDeleteModel}
+                    uniformScale={uniformScale}
+                    setUniformScale={setUniformScale}
+                  />
+
+                  <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <Icon name="content_cut" className="text-[10px]" /> Cross-Section
+                      </div>
+                      <button
+                        onClick={() => setIsClipping(!isClipping)}
+                        className={`w-8 h-4 rounded-full relative transition-all ${isClipping ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800'}`}
+                        title={isClipping ? "Disable Cross-Section plane" : "Enable Cross-Section plane"}
+                      >
+                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-xs ${isClipping ? 'right-0.5' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+
+                    {isClipping && (
+                      <div className="bg-slate-100/70 dark:bg-slate-800/60 rounded-xl p-2.5 border border-slate-200/90 dark:border-slate-700/80 animate-in fade-in slide-in-from-top-2 space-y-2">
+                        <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-500">
+                          <span className="uppercase">Cut Plane Height (Z)</span>
+                          <span className="font-mono text-[10px] font-black text-primary">{clippingHeight.toFixed(2)} mm</span>
+                        </div>
+                        <input
+                          type="range" min="0" max={sliderMaxHeight} step="0.1" value={clippingHeight}
+                          onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-primary"
+                        />
+                      </div>
+                    )}
+                  </section>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl opacity-50">
+                  <Icon name="ads_click" className="text-4xl mb-3" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Select Model</span>
+                </div>
+              )
+            ) : (
+              <GCodeTextViewer
+                gcodeRaw={gcodeRaw}
+                gcodeParsed={gcodeParsed}
+                allLines={allLines}
+                layerMap={layerMap}
+                gcodeLayer={gcodeLayer}
+                gcodeUrl={gcodeUrl}
+                gcodeScrollRef={gcodeScrollRef}
+                activeLineRef={activeLineRef}
+                config={{
+                  globalSettings: project.globalSettings,
+                  models: project.models.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    transform: m.transform,
+                    toolhead: m.toolhead,
+                    settings: m.settings,
+                    advancedSettings: m.advancedSettings
+                  })),
+                  zZones: project.zZones
+                }}
+              />
+            )}
           </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
-          {inspectorTab === 'materials' ? (
-            <div className="space-y-6">
-              <MaterialPresetPanel />
-              <TipsLibraryPanel />
-            </div>
-          ) : inspectorTab === 'inspector' ? (
-            selectedModel ? (
-              <>
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                      <Icon name="info" className="text-[10px]" /> Model Properties
-                    </div>
-                    <button onClick={cycleViewMode} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-                       <span className="text-[9px] font-bold text-slate-400 uppercase">{viewMode}</span>
-                    </button>
-                  </div>
-                  <ModelInfoPanel
-                    model={selectedModel}
-                    adhesionOffset={(project.globalSettings.adhesion?.enabled) ? (project.globalSettings.adhesion.layers * project.globalSettings.adhesion.layerHeight) / 1000 : 0}
-                  />
-                </section>
-
-                <TransformSettings 
-                  selectedModel={selectedModel}
-                  objectTool={objectTool}
-                  setObjectTool={setObjectTool}
-                  arraySpacing={arraySpacing}
-                  setArraySpacing={setArraySpacing}
-                  onArrayModels={project.handleArrayModels}
-                  onCloneModel={project.handleCloneModel}
-                  onTransformChange={project.handleTransformChange}
-                  onDeleteModel={project.handleDeleteModel}
-                  uniformScale={uniformScale}
-                  setUniformScale={setUniformScale}
-                />
-
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                      <Icon name="content_cut" className="text-[10px]" /> Cross-Section
-                    </div>
-                    <button
-                      onClick={() => setIsClipping(!isClipping)}
-                      className={`w-9 h-5 rounded-full relative transition-all ${isClipping ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-800'}`}
-                    >
-                      <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${isClipping ? 'right-1' : 'left-1'}`} />
-                    </button>
-                  </div>
-
-                  {isClipping && (
-                    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2">
-                      <input
-                        type="range" min="0" max={sliderMaxHeight} step="0.1" value={clippingHeight}
-                        onChange={(e) => setClippingHeight(parseFloat(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-primary"
-                      />
-                    </div>
-                  )}
-                </section>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl opacity-50">
-                <Icon name="ads_click" className="text-4xl mb-3" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Select Model</span>
-              </div>
-            )
-          ) : (
-            <GCodeTextViewer 
-              gcodeRaw={gcodeRaw}
-              gcodeParsed={gcodeParsed}
-              allLines={allLines}
-              layerMap={layerMap}
-              gcodeLayer={gcodeLayer}
-              gcodeUrl={gcodeUrl}
-              gcodeScrollRef={gcodeScrollRef}
-              activeLineRef={activeLineRef}
-              config={{
-                globalSettings: project.globalSettings,
-                models: project.models.map(m => ({
-                  id: m.id,
-                  name: m.name,
-                  transform: m.transform,
-                  toolhead: m.toolhead,
-                  settings: m.settings,
-                  advancedSettings: m.advancedSettings
-                })),
-                zZones: project.zZones
-              }}
-            />
-          )}
-        </div>
       </div>
-    </div>
     </div>
   );
 };

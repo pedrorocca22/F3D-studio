@@ -276,10 +276,25 @@ export const LayersPanel: React.FC = () => {
             </div>
             
             <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
-              <p className="text-[11px] text-slate-500 mb-4 font-medium leading-relaxed">
+              <p className="text-[11px] text-slate-500 mb-3 font-medium leading-relaxed">
                 Select the target wells to distribute clones of the selected model. Each clone will automatically inherit all transformation, setting patterns, and feature overrides.
               </p>
               
+              {(() => {
+                const format = project.globalSettings.printBed?.multiwellFormat ?? 24;
+                const spec = MULTIWELL_SPECS[format.toString() as keyof typeof MULTIWELL_SPECS];
+                const targetModel = cloneWellDialogFor ? project.models.find(m => m.id === cloneWellDialogFor) : undefined;
+                const maxFootprintMm = targetModel?.size ? Math.hypot(targetModel.size.x, targetModel.size.y) : 0;
+                const isOverflow = targetModel?.size && spec && (maxFootprintMm > spec.dia);
+                if (!isOverflow) return null;
+                return (
+                  <div className="mb-3 p-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 text-[10px] font-medium flex items-center gap-2">
+                    <Icon name="warning" className="text-amber-500 text-sm shrink-0" />
+                    <span>Model diagonal ({maxFootprintMm.toFixed(1)} mm for {targetModel.size!.x.toFixed(1)} x {targetModel.size!.y.toFixed(1)} mm) exceeds well inner diameter ({spec.dia} mm).</span>
+                  </div>
+                );
+              })()}
+
               <div className="flex flex-col gap-2 relative bg-surface-container dark:bg-slate-800/50 p-4 border border-border-light dark:border-slate-700 rounded-xl shadow-inner">
                 {(() => {
                   const format = project.globalSettings.printBed?.multiwellFormat ?? 24;

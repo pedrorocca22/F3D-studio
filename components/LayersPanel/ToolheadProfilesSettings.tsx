@@ -140,7 +140,7 @@ export const ToolheadProfilesSettings: React.FC<ToolheadProfilesSettingsProps> =
       )}
 
       {fdm?.slot !== undefined && (
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+        <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900/50">
           <ProfileHeader title="FDM head" slot={fdm.slot} />
           {materialSelect(fdm)}
           <div className="grid grid-cols-2 gap-2">
@@ -157,10 +157,10 @@ export const ToolheadProfilesSettings: React.FC<ToolheadProfilesSettingsProps> =
       )}
 
       {syringe?.slot !== undefined && (
-        <section className="space-y-3 rounded-xl border border-cyan-200 bg-white p-3 shadow-sm dark:border-cyan-900/70 dark:bg-slate-900/50">
+        <section className="space-y-2 rounded-lg border border-cyan-200 bg-white p-2.5 shadow-xs dark:border-cyan-900/70 dark:bg-slate-900/50">
           <ProfileHeader title="Syringe head" slot={syringe.slot} />
           {materialSelect(syringe)}
-          <label className="block space-y-1">
+          <label className="block space-y-0.5">
             <span className={FIELD_LABEL}>Injection tip</span>
             <select
               value={syringe.tipId || ''}
@@ -168,7 +168,7 @@ export const ToolheadProfilesSettings: React.FC<ToolheadProfilesSettingsProps> =
                 const tip = project.tipsLibrary.find(item => item.id === event.target.value) || getTipById(event.target.value);
                 if (tip) updateSyringe({ tipId: tip.id, nozzleDiameterMm: tip.innerDiameterMm });
               }}
-              className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[9px] font-bold text-slate-700 outline-none transition-colors focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[8.5px] font-bold text-slate-700 outline-none transition-colors focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             >
               <option value="">Select tip</option>
               <optgroup label="Conical">
@@ -189,23 +189,40 @@ export const ToolheadProfilesSettings: React.FC<ToolheadProfilesSettingsProps> =
                 </optgroup>
               )}
             </select>
-            {activeTip && (
-              <span className="block text-[8px] font-medium text-slate-400">
-                {activeTip.type === 'conical' ? 'Conical' : 'Straight'} · {activeTip.brand} {activeTip.series} · Ref. {activeTip.standardRef || 'Custom'}
-              </span>
-            )}
           </label>
-          <div className="grid grid-cols-2 gap-2 border-t border-cyan-100 pt-3 dark:border-cyan-900/50">
-            <Field label="Syringe capacity (mL)" value={syringe.syringeVolumeMl} onChange={value => updateSyringe({ syringeVolumeMl: value })} step={1} min={0.1} />
-            <Field label="Actuator speed (mm/s)" value={syringe.flowrateMmPerSec ?? 2} onChange={value => updateSyringe({ flowrateMmPerSec: value })} step={0.1} min={0.01} />
-            <Field label="Retraction distance (mm)" value={syringe.retractDistance ?? 1} onChange={value => updateSyringe({ retractDistance: value })} step={0.1} min={0} />
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Nozzle diameter (mm)" value={syringe.nozzleDiameterMm ?? 0.4} onChange={value => updateSyringe({ nozzleDiameterMm: value })} step={0.01} min={0.05} />
+            <Field label="Syringe inner dia (mm)" value={syringe.barrelDiameterMm ?? 12} onChange={value => updateSyringe({ barrelDiameterMm: value })} step={0.1} min={1} />
+            <Field
+              label="Maximum volume (µL)"
+              value={syringe.maxVolumeUl ?? syringe.syringeVolumeMl * 1000}
+              onChange={value => updateSyringe({ maxVolumeUl: value, syringeVolumeMl: value / 1000 })}
+              step={500}
+              min={100}
+            />
+            <Field
+              label="Print speed (mm/s)"
+              value={syringe.defaultSpeedMmS ?? syringe.flowrateMmPerSec ?? 2}
+              onChange={value => updateSyringe({ defaultSpeedMmS: value, flowrateMmPerSec: value })}
+              step={1}
+              min={0.1}
+            />
+            <Field label="Flow multiplier (%)" value={syringe.flowratePercent ?? 100} onChange={value => updateSyringe({ flowratePercent: value })} step={5} min={10} max={300} />
+            <Field
+              label="Suckback distance (mm)"
+              value={syringe.retractionDistanceMm ?? syringe.retractDistance ?? 1}
+              onChange={value => updateSyringe({ retractionDistanceMm: value, retractDistance: value })}
+              step={0.1}
+              min={0}
+            />
+            <Field label="Suckback speed (mm/s)" value={syringe.retractionSpeedMmS ?? 2} onChange={value => updateSyringe({ retractionSpeedMmS: value })} step={1} min={0} />
           </div>
-          <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[8px] font-bold ${
-            syringe.flowRateUlPerMm > 0
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
-              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300'
+          <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[8px] font-bold ${
+            activeTip ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300'
           }`}>
-            {syringe.flowRateUlPerMm > 0 ? 'Internal dose conversion is available' : 'Dose conversion requires machine calibration'}
+            <span className="min-w-0 flex-1 truncate">
+              {activeTip ? `Selected tip: ${activeTip.gauge} GA (${activeTip.colorName}) · Ø ${activeTip.innerDiameterMm} mm` : 'No tip selected for syringe'}
+            </span>
           </div>
         </section>
       )}

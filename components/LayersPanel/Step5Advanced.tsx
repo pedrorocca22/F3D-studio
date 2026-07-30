@@ -97,7 +97,7 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
       : poreZones.every(zone => isGridInfillForPoreZone(workflowContext, zone));
   const estimatedScaffoldHeightMm = Math.max(
     10,
-    ...models.map(model => (model.size?.z || 0) * (model.transform.scale.z || 1)),
+    ...models.map(model => model.size?.z || 0),
   );
   const layerHeightMm = Number(globalSettings.layerHeight || 200) / 1000;
   const firstLayerHeightMm = Number(globalSettings.firstLayerHeight || 300) / 1000;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon';
 import type { ToolheadConfig, ToolheadId, LayerAction, FDMToolheadConfig, SyringeToolheadConfig, UVToolheadConfig, ModelData, ScaffoldToolMapping, InfillPattern } from '../../types';
 import { INFILL_PATTERN_LABELS } from '../../types';
-import { getToolheadType, isFdmToolhead, toolheadDisplayName } from '../../utils/toolheads';
+import { getToolheadType, isFdmToolhead, toolheadDisplayName, TOOLHEAD_COLORS } from '../../utils/toolheads';
 
 interface ToolheadPanelProps {
     models: ModelData[];
@@ -15,17 +15,7 @@ interface ToolheadPanelProps {
 }
 
 // ---------- Toolhead color mapping ----------
-const TOOLHEAD_COLORS: Record<string, string> = {
-    fdm: '#2f6098',
-    syringe: '#586064',
-    uv: '#b71c1c',
-    none: '#abb3b7',
-};
 const TOOLHEAD_ICONS: Record<string, string> = {
-    fdm: 'precision_manufacturing',
-    syringe: 'science',
-    uv: 'wb_iridescent',
-    none: 'block',
 };
 const TOOLHEAD_LABELS: Record<string, string> = {
     fdm: 'FDM HEAD',

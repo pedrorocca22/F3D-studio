@@ -12,6 +12,13 @@ export const TOOLHEAD_TYPE_LABELS: Record<ToolheadType, string> = {
   uv: 'UV',
 };
 
+export const TOOLHEAD_COLORS: Record<string, string> = {
+  fdm: '#2563eb',
+  syringe: '#059669',
+  uv: '#7c3aed',
+  none: '#94a3b8',
+};
+
 export const getToolheadType = (tool: ToolheadConfig): ToolheadType => {
   if (tool.type) return tool.type;
   if (tool.id === 'fdm' || tool.id === 'syringe' || tool.id === 'uv') return tool.id;
@@ -71,12 +78,18 @@ export const createToolhead = (
       label: 'Hydrogel syringe',
       syringeVolumeMl: 5,
       nozzleDiameterMm: 0.4,
+      barrelDiameterMm: 12,
+      maxVolumeUl: 5000,
       flowRateUlPerMm: 0.8,
+      defaultSpeedMmS: 2,
+      flowratePercent: 100,
       pressurizationSteps: 10,
       retractionSteps: 5,
       actuatorType: 'mechanical',
       flowrateMmPerSec: 2,
       retractDistance: 1,
+      retractionDistanceMm: 1,
+      retractionSpeedMmS: 2,
     };
   }
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createToolhead, getToolheadType, normalizeToolheads } from '../utils/toolheads';
+import { createToolhead, getToolheadType, isSyringeToolhead, normalizeToolheads } from '../utils/toolheads';
 
 describe('instance-based toolheads', () => {
   it('allows repeated process types in independent physical slots', () => {
@@ -21,5 +21,21 @@ describe('instance-based toolheads', () => {
     expect(normalized).toHaveLength(2);
     expect(normalized.map(tool => tool.id)).toEqual(['syringe-a', 'syringe-b']);
     expect(normalized.map(getToolheadType)).toEqual(['syringe', 'syringe']);
+  });
+
+  it('creates a syringe with every numeric profile field renderable', () => {
+    const syringe = createToolhead('syringe', 1);
+    expect(isSyringeToolhead(syringe)).toBe(true);
+    if (!isSyringeToolhead(syringe)) return;
+
+    expect([
+      syringe.nozzleDiameterMm,
+      syringe.barrelDiameterMm,
+      syringe.maxVolumeUl,
+      syringe.defaultSpeedMmS,
+      syringe.flowratePercent,
+      syringe.retractionDistanceMm,
+      syringe.retractionSpeedMmS,
+    ].every(value => typeof value === 'number' && Number.isFinite(value))).toBe(true);
   });
 });

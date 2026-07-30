@@ -17,11 +17,7 @@ export const SEGMENT_COLORS = [
   '#06b6d4', // Cyan
 ];
 
-export const TOOLHEAD_COLORS: Record<string, string> = {
-  fdm:     '#2563eb', // blue-600
-  syringe: '#059669', // emerald-600
-  uv:      '#7c3aed', // violet-600
-  none:    '#94a3b8', // slate-400
-};
+import { TOOLHEAD_COLORS } from '../../utils/toolheads';
+export { TOOLHEAD_COLORS };
 
 export const clippingPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);

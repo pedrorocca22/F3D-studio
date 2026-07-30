@@ -66,12 +66,12 @@ const Panel: React.FC<{
   badge?: string;
   children: React.ReactNode;
 }> = ({ title, badge, children }) => (
-  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900/55">
-    <header className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 dark:border-slate-800">
-      <h3 className="min-w-0 flex-1 text-[9px] font-black uppercase tracking-[0.14em] text-slate-700 dark:text-slate-200">{title}</h3>
-      {badge && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-800">{badge}</span>}
+  <section className="overflow-hidden rounded-lg border border-slate-200/90 bg-slate-100/70 shadow-xs dark:border-slate-700/80 dark:bg-slate-800/60">
+    <header className="flex items-center gap-2 border-b border-slate-200/80 bg-slate-200/60 px-2.5 py-1.5 dark:border-slate-700/80 dark:bg-slate-700/60">
+      <h3 className="min-w-0 flex-1 text-[8.5px] font-black uppercase tracking-[0.14em] text-slate-800 dark:text-slate-100">{title}</h3>
+      {badge && <span className="rounded-full bg-slate-200 px-1.5 py-0.2 text-[6.5px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-300">{badge}</span>}
     </header>
-    <div className="p-3">{children}</div>
+    <div className="p-2.5 bg-slate-50/90 dark:bg-slate-900/50 space-y-2">{children}</div>
   </section>
 );
 

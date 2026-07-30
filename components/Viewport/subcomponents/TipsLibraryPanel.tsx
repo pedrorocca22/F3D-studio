@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Icon } from '../../Icon';
 import { useProjectContext } from '../../../contexts/ProjectContext';
 import { NozzleTip } from '../../../constants/nozzleTips';
 import { NumericInput } from '../../LayersPanel/NumericInput';
@@ -33,49 +32,49 @@ export const TipsLibraryPanel: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 pb-10">
+    <div className="space-y-3 animate-in fade-in duration-200 pb-10">
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
-        <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
-          <Icon name="hardware" className="text-[10px]" /> Tips Library
+        <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">
+          Tips Library
         </h3>
         <button 
           onClick={handleAddNew}
-          className="px-1.5 py-0.5 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-emerald-600 transition-all text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5"
+          className="px-1.5 py-0.5 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-emerald-600 transition-all text-[7.5px] font-black uppercase tracking-tighter"
         >
-          <Icon name="add" className="text-[9px]" /> New Tip
+          + New Tip
         </button>
       </div>
 
       <div className="space-y-1">
         {project.tipsLibrary.map(tip => (
           <div key={tip.id} className="group transition-all">
-            <div className={`rounded-lg border transition-all ${
+            <div className={`rounded-md border transition-all ${
               editingId === tip.id 
                 ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-900/10' 
                 : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-slate-200 dark:hover:border-slate-700'
             }`}>
-              <div className="flex items-center gap-2 p-1.5">
-                <div className="w-2.5 h-2.5 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: tip.colorHex }} />
-                <div className="flex-1 min-w-0 flex flex-col">
-                  <span className={`text-[9px] font-bold uppercase truncate ${
+              <div className="flex items-center gap-1.5 px-2 py-1 h-7">
+                <div className="w-2 h-2 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: tip.colorHex }} />
+                <div className="flex-1 min-w-0 flex items-center justify-between gap-1">
+                  <span className={`text-[8.5px] font-bold uppercase truncate ${
                     editingId === tip.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'
                   }`}>
-                    {tip.gauge} GA {tip.colorName}
+                    {tip.gauge}GA {tip.colorName}
                   </span>
-                  <span className="text-[7px] font-medium text-slate-400 uppercase truncate">
-                    Ref. {tip.standardRef} — {tip.type}
+                  <span className="text-[7.5px] font-mono text-slate-400 shrink-0">
+                    Ø{tip.innerDiameterMm}mm
                   </span>
                 </div>
                 {tip.isCustom && (
-                  <span className="text-[6px] px-1 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-black uppercase">
+                  <span className="text-[6px] px-1 py-0.2 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-black uppercase">
                     Custom
                   </span>
                 )}
                 <button 
                   onClick={() => setEditingId(editingId === tip.id ? null : tip.id)}
-                  className={`p-1 rounded opacity-40 group-hover:opacity-100 transition-all ${editingId === tip.id ? 'text-emerald-600 opacity-100 rotate-180' : 'text-slate-400'}`}
+                  className={`text-[8px] font-black uppercase px-1 rounded transition-all ${editingId === tip.id ? 'text-emerald-600' : 'text-slate-400 opacity-60 group-hover:opacity-100'}`}
                 >
-                  <Icon name="expand_more" className="text-[12px]" />
+                  {editingId === tip.id ? 'Hide' : 'Edit'}
                 </button>
               </div>
 
@@ -145,13 +144,13 @@ export const TipsLibraryPanel: React.FC = () => {
                   <div className="flex justify-between items-center pt-1 mt-1 border-t border-emerald-500/10">
                      <button 
                       onClick={() => handleDelete(tip.id, `${tip.gauge} GA ${tip.colorName}`)}
-                      className="text-[7px] font-black text-red-400/60 hover:text-red-500 uppercase flex items-center gap-0.5 transition-colors"
+                      className="text-[7px] font-black text-red-400/60 hover:text-red-500 uppercase transition-colors"
                      >
-                       <Icon name="delete" className="text-[10px]" /> Delete
+                       Delete
                      </button>
                      <button 
-                       onClick={() => setEditingId(null)}
-                       className="text-[7px] font-black text-emerald-600 uppercase"
+                      onClick={() => setEditingId(null)}
+                      className="text-[7px] font-black text-emerald-600 uppercase"
                      >
                        Close
                      </button>

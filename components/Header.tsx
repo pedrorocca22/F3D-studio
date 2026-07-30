@@ -57,39 +57,48 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <>
-      <header className="h-14 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-5 z-20 relative">
+    <header className="h-14 flex-shrink-0 bg-white dark:bg-surface-dark border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-5 z-20 relative">
 
-        {/* Wordmark */}
-        <div className="flex items-center gap-2 select-none min-w-[150px]">
-          <span className="font-outfit text-base text-slate-950 dark:text-slate-100 tracking-tight">
-            <span className="font-bold">F3D</span> <span className="font-normal opacity-90">studio</span>
+      {/* Wordmark */}
+      <div className="flex items-center gap-2 select-none min-w-[150px]">
+        <span className="font-outfit text-base text-slate-950 dark:text-slate-100 tracking-tight">
+          <span className="font-bold">F3D</span> <span className="font-normal opacity-90">studio</span>
+        </span>
+      </div>
+
+      {/* Right actions */}
+      <div className="flex items-center gap-3 min-w-[110px] justify-end">
+
+        {/* Printer Status Badge */}
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium cursor-help"
+          title={printerState === 'error' ? `Backend/Printer offline (${BACKEND_URL}). Ensure server.py is running.` : `Printer status: ${stateLabel[printerState]}`}
+        >
+          <span className={`w-2 h-2 rounded-full ${stateColor[printerState]}`} />
+          <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+            {stateLabel[printerState]}
           </span>
         </div>
 
-        {/* Right actions */}
-        <div className="flex items-center gap-4 min-w-[110px] justify-end">
+        {/* Network */}
+        <button
+          onClick={onOpenWifi}
+          className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm shadow-primary/20"
+        >
+          <Icon name="wifi" className="text-[13px]" />
+          <span className="hidden sm:inline">Network</span>
+        </button>
 
-          {/* Network */}
-          <button
-            onClick={onOpenWifi}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm shadow-primary/20"
-          >
-            <Icon name="wifi" className="text-[13px]" />
-            <span className="hidden sm:inline">Network</span>
-          </button>
+        {/* Dark mode toggle */}
+        <button
+          className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          onClick={toggleDarkMode}
+          title={darkMode ? 'Light Mode' : 'Dark Mode'}
+        >
+          <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[14px]" />
+        </button>
 
-          {/* Dark mode toggle */}
-          <button
-            className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-            onClick={toggleDarkMode}
-            title={darkMode ? 'Light Mode' : 'Dark Mode'}
-          >
-            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} className="text-[14px]" />
-          </button>
-
-        </div>
-      </header>
-    </>
+      </div>
+    </header>
   );
 };

@@ -8,11 +8,11 @@ export const MaterialPresetPanel: React.FC = () => {
   const { project } = useProjectContext();
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const categories: { id: MaterialCategory; label: string; icon: string }[] = [
-    { id: 'thermoplastic', label: 'Thermo', icon: 'thermostat' },
-    { id: 'hydrogel', label: 'Hydrogel', icon: 'water_drop' },
-    { id: 'bio-ink', label: 'Bio-Ink', icon: 'biotech' },
-    { id: 'support', label: 'Support', icon: 'layers' }
+  const categories: { id: MaterialCategory; label: string }[] = [
+    { id: 'thermoplastic', label: 'Thermo' },
+    { id: 'hydrogel', label: 'Hydrogel' },
+    { id: 'bio-ink', label: 'Bio-Ink' },
+    { id: 'support', label: 'Support' }
   ];
 
   const handleAddNew = (cat: MaterialCategory) => {
@@ -21,50 +21,47 @@ export const MaterialPresetPanel: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 pb-10">
-      <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 py-1 border-b border-slate-100 dark:border-slate-800">
-        <Icon name="library_books" className="text-[10px]" /> Material Library
+    <div className="space-y-3 animate-in fade-in duration-200 pb-10">
+      <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 py-1 border-b border-slate-100 dark:border-slate-800">
+        Material Library
       </h3>
 
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         {categories.map(cat => (
-          <div key={cat.id} className="space-y-1.5">
+          <div key={cat.id} className="space-y-1">
             <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-1.5 opacity-60">
-                <Icon name={cat.icon} className="text-[10px]" />
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">{cat.label}</span>
-              </div>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">{cat.label}</span>
               <button 
                 onClick={() => handleAddNew(cat.id)}
-                className="px-1.5 py-0.5 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-emerald-600 transition-all text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5"
+                className="px-1.5 py-0.5 rounded hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-emerald-600 transition-all text-[7.5px] font-black uppercase tracking-tighter"
               >
-                <Icon name="add" className="text-[9px]" /> New
+                + New
               </button>
             </div>
             
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {project.userMaterials.filter(m => m.category === cat.id).map(mat => (
                 <div key={mat.id} className="group transition-all">
-                  <div className={`rounded-lg border transition-all ${
+                  <div className={`rounded-md border transition-all ${
                     editingId === mat.id 
                       ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-900/10' 
                       : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-slate-200 dark:hover:border-slate-700'
                   }`}>
-                    <div className="flex items-center gap-2 p-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: mat.color }} />
+                    <div className="flex items-center gap-1.5 px-2 py-1 h-7">
+                      <div className="w-2 h-2 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: mat.color }} />
                       <input 
                         type="text"
                         value={mat.name}
                         onChange={e => project.handleUpdateMaterial(mat.id, { name: e.target.value })}
-                        className={`bg-transparent border-none outline-none text-[9px] font-bold uppercase truncate flex-1 min-w-0 ${
+                        className={`bg-transparent border-none outline-none text-[8.5px] font-bold uppercase truncate flex-1 min-w-0 ${
                           editingId === mat.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'
                         }`}
                       />
                       <button 
                         onClick={() => setEditingId(editingId === mat.id ? null : mat.id)}
-                        className={`p-1 rounded opacity-40 group-hover:opacity-100 transition-all ${editingId === mat.id ? 'text-emerald-600 opacity-100 rotate-180' : 'text-slate-400'}`}
+                        className={`text-[8px] font-black uppercase px-1 rounded transition-all ${editingId === mat.id ? 'text-emerald-600' : 'text-slate-400 opacity-60 group-hover:opacity-100'}`}
                       >
-                        <Icon name="expand_more" className="text-[12px]" />
+                        {editingId === mat.id ? 'Hide' : 'Edit'}
                       </button>
                     </div>
 

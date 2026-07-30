@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import JSZip from 'jszip';
 import { 
   ModelData, 
@@ -33,9 +33,23 @@ const fileToArrayBuffer = (file: File): Promise<ArrayBuffer> => {
   });
 };
 
+const LEGACY_SESSION_STORAGE_KEYS = [
+  'biofff_session_models',
+  'biofff_session_selectedModelId',
+  'biofff_session_globalSettings',
+  'biofff_session_zZones',
+] as const;
+
 export const useProject = () => {
   const [models, setModels] = useState<ModelData[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+
+  // Projects now start clean. Remove data left by the former implicit
+  // session-recovery feature without touching explicitly saved libraries.
+  useEffect(() => {
+    LEGACY_SESSION_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+  }, []);
+
   const [zZones, setZZones] = useState<ZZone[]>([]);
   const [toolheads, setToolheads] = useState<ToolheadConfig[]>(DEFAULT_TOOLHEADS);
   
@@ -98,8 +112,6 @@ export const useProject = () => {
     topSolidLayers: 3,
     bottomSolidLayers: 3,
     fillAngle: 0,
-    // The print surface is intentionally unset until the user chooses one in
-    // Machine Setup. The viewport still renders a neutral fallback bed.
     printBed: undefined
   });
 
@@ -123,7 +135,6 @@ export const useProject = () => {
 
   const handleDeleteMaterial = (id: string) => {
     setUserMaterials(prev => prev.filter(m => m.id !== id));
-    // Also clear from selected materials if used
     setSelectedMaterials(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(key => {
@@ -170,6 +181,7 @@ export const useProject = () => {
         return {
           ...t,
           flowrateMmPerSec: material.flowRate ?? t.flowrateMmPerSec,
+          defaultSpeedMmS: material.flowRate ?? t.defaultSpeedMmS,
           pressureKPa: material.pressure ?? t.pressureKPa,
         };
       }
@@ -177,7 +189,7 @@ export const useProject = () => {
     }));
   };
 
-  const handleFileUpload = (file: File, shapeType?: 'box' | 'cylinder') => {
+  const handleFileUpload = (file: File, shapeType?: 'box' | 'cylinder', shapeParams?: { w?: number, d?: number, h: number, dia?: number }) => {
     const url = URL.createObjectURL(file);
     const isCube = shapeType === 'box';
     const newModel: ModelData = {
@@ -187,6 +199,7 @@ export const useProject = () => {
       file,
       isCube,
       shapeType,
+      shapeParams,
       transform: {
         rotation: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -218,7 +231,7 @@ export const useProject = () => {
     const filename = type === 'box' ? `Prism_${Date.now()}.stl` : `Cylinder_${Date.now()}.stl`;
     const file = new File([blob], filename, { type: 'text/plain' });
     
-    handleFileUpload(file, type);
+    handleFileUpload(file, type, params);
   };
 
   const handleDeleteModel = (id: string) => {

@@ -1,57 +1,24 @@
-// ---------------------------------------------------------------------------
-//  LEGACY — DLP3 Inheritance (Marked for future deprecation)
-// ---------------------------------------------------------------------------
+import type {
+  AdhesionSettings,
+  LayerSection,
+  LegacyDLPSettings,
+  MotorControlSettings,
+  SliceSegment,
+  ThermodynamicSettings,
+} from './types.legacy';
 
-/** @deprecated Use BioFFF toolhead settings instead. Kept for project compatibility. */
-export interface LegacyDLPSettings {
-  exposureTime: number;
-  lightIntensity: number;
-  exposureMode?: 'time' | 'dose';
-  targetDose?: number;
-  peelSpeed?: number;
-  retractSpeed?: number;
-  separationDistance?: number;
-}
-
-export interface LayerSection {
-  id: string;
-  name: string;
-  layerHeight: string;
-  topLimit: string;
-  bottomLimit: string;
-  exposureTime: string;
-  layersCount?: number;
-}
-
-export interface SliceSegment {
-  id: string;
-  topLimit: number;
-  bottomLimit?: number;
-  lightIntensity: number;
-  exposureTime: number;
-  endLightIntensity?: number;
-  endExposureTime?: number;
-  exposureMode?: 'time' | 'dose';
-  targetDose?: number;
-  endTargetDose?: number;
-  gradientMode?: 'flat' | 'gradient';
-  modifiers?: Modifier[];
-}
+export type {
+  AdhesionSettings,
+  LayerSection,
+  LegacyDLPSettings,
+  MotorControlSettings,
+  SliceSegment,
+  ThermodynamicSettings,
+} from './types.legacy';
 
 export interface AdvancedSliceSettings {
   enabled: boolean;
   segments: SliceSegment[];
-}
-
-export interface AdhesionSettings {
-  enabled: boolean;
-  layers: number;
-  layerHeight: number; // microns
-  exposureTime: number;
-  lightIntensity: number;
-  transitionLayers: number;
-  exposureMode?: 'time' | 'dose';
-  targetDose?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,19 +47,6 @@ export interface MaterialProfile {
 
 export interface SliceSettings extends Partial<LegacyDLPSettings> {
   modifiers?: Modifier[];
-}
-
-export interface ThermodynamicSettings {
-  enabled: boolean;
-  maxFlashTime: number;
-  coolingPause: number;
-}
-
-export interface MotorControlSettings {
-  enabled: boolean;
-  peelSpeed: number;
-  retractSpeed: number;
-  separationDistance: number;
 }
 
 export type PoreInjectionMode = 'layer_by_layer';
@@ -245,10 +199,9 @@ export interface TransformData {
   rotation: { x: number; y: number; z: number };
   scale: { x: number; y: number; z: number };
   position: { x: number; y: number; z: number };
-  /** Optional assignment to a specific well in a multiwell plate. */
   wellAssignment?: {
     format: 6 | 12 | 24 | 48;
-    wellId: string; // e.g., "A1", "B3", "H6"
+    wellId: string;
   };
 }
 
@@ -264,15 +217,13 @@ export interface ModelData {
   file?: File;
   isCube?: boolean;
   shapeType?: 'box' | 'cylinder';
+  shapeParams?: { w?: number; d?: number; h: number; dia?: number };
   toolhead?: ToolheadId;
-  /** Per-feature toolhead mapping for scaffold mode (optional). */
   scaffoldTools?: ScaffoldToolMapping;
-  /** Optional assignment to a specific well in a multiwell plate. */
   wellAssignment?: {
     format: 6 | 12 | 24 | 48;
-    wellId: string; // e.g., "A1", "B3", "H6"
+    wellId: string;
   };
-  /** Per-model FDM profile overrides. */
   fdmSettings?: Partial<FDMPrintSettings>;
 }
 
@@ -297,7 +248,7 @@ export interface SceneObject {
   scale_z?: number;
   irradiance_mW_cm2: number;
   dose_mJ_cm2: number;
-  rotation: { x: number, y: number, z: number };
+  rotation: { x: number; y: number; z: number };
   override_ranges: BackendRangeOverride[];
   modifiers?: Modifier[];
 }
@@ -415,13 +366,19 @@ export interface SyringeToolheadConfig extends BaseToolheadConfig {
   type?: 'syringe';
   syringeVolumeMl: number;
   nozzleDiameterMm: number;
+  barrelDiameterMm?: number;
+  maxVolumeUl?: number;
   flowRateUlPerMm: number;
+  defaultSpeedMmS?: number;
+  flowratePercent?: number;
   pressurizationSteps: number;
   retractionSteps: number;
   actuatorType: 'mechanical' | 'pneumatic';
   pressureKPa?: number;
   flowrateMmPerSec?: number;
   retractDistance?: number;
+  retractionDistanceMm?: number;
+  retractionSpeedMmS?: number;
   /** Selected Nordson tip ID — drives nozzleDiameterMm and 3D color */
   tipId?: string;
 }
