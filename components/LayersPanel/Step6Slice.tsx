@@ -4,6 +4,7 @@ import { ModelData, GlobalSettings, MaterialProfile, PoreCapacitySummary, Toolhe
 import { buildPoreProtocolPreflight } from '../../utils/poreProtocol';
 import { InfoTooltip } from '../InfoTooltip';
 import { isFdmToolhead } from '../../utils/toolheads';
+import { ContextHelpButton } from '../ContextHelpButton';
 
 interface Step6SliceProps {
   models: ModelData[];
@@ -76,6 +77,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Pore Protocol Preflight</h3>
+                <ContextHelpButton topic="pore_capacity" label="Help: pore capacity and preflight" />
                 <InfoTooltip content="Review geometry, available volume, requested dose, calibration and collision checks before generating executable G-code." />
               </div>
               <span className="text-[8px] font-black uppercase tracking-widest">{displayedStatus}</span>
@@ -130,7 +132,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
         {/* Resumen de Parámetros Críticos */}
         <div className="grid grid-cols-2 gap-2">
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
-                <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Hardware Setup</h3>
+                <div className="mb-2 flex items-center justify-between"><h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Hardware Setup</h3><ContextHelpButton topic="hardware_setup_slice" label="Help: hardware setup" /></div>
                 <div className="space-y-1 text-[10px]">
                     <div className="flex justify-between"><span className="text-slate-500">Nozzle:</span><span className="font-mono font-bold text-primary">{effectiveNozzleDiameter}mm</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Layer:</span><span className="font-mono font-bold text-primary">{globalSettings.layerHeight}µm</span></div>
@@ -138,7 +140,7 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
                 </div>
             </div>
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
-                <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Print Area</h3>
+                <div className="mb-2 flex items-center justify-between"><h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Print Area</h3><ContextHelpButton topic="print_area_slice" label="Help: print area" /></div>
                 <div className="space-y-1 text-[10px]">
                     <div className="flex justify-between"><span className="text-slate-500">Surface:</span><span className="font-mono font-bold capitalize">{(globalSettings.printBed?.type || 'glass').replace('_', ' ')}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Height:</span><span className="font-mono font-bold text-primary">{modelMaxZ.toFixed(2)}mm</span></div>
@@ -150,7 +152,8 @@ export const Step6Slice: React.FC<Step6SliceProps> = ({
         {/* Visualizador de Estratigrafía de Impresión */}
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Icon name="layers" className="text-xs" /> Build Schedule Summary
+                <Icon name="layers" className="text-xs" /> <span className="flex-1">Build Schedule Summary</span>
+                <ContextHelpButton topic="build_schedule" label="Help: build schedule and final checks" />
             </h3>
             
             <div className="relative h-[320px] flex items-stretch gap-4 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">

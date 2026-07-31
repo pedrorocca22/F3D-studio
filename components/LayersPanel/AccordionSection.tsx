@@ -1,5 +1,7 @@
 import React from 'react';
 import { Icon } from '../Icon';
+import { ContextHelpButton } from '../ContextHelpButton';
+import { HelpTopic } from '../HelpWiki/HelpWiki';
 
 interface AccordionSectionProps {
   title: string | React.ReactNode;
@@ -12,6 +14,8 @@ interface AccordionSectionProps {
   children?: React.ReactNode;
   headerActions?: React.ReactNode;
   disableToggle?: boolean;
+  helpTopic?: HelpTopic;
+  helpLabel?: string;
 }
 
 export const AccordionSection: React.FC<AccordionSectionProps> = ({
@@ -24,7 +28,9 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
   onSwitchChange,
   children,
   headerActions,
-  disableToggle
+  disableToggle,
+  helpTopic,
+  helpLabel,
 }) => {
   const handleSwitchClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -63,6 +69,13 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
         </div>
 
         <div className="flex items-center shrink-0">
+          {helpTopic && (
+            <ContextHelpButton
+              topic={helpTopic}
+              label={helpLabel || `Help: ${typeof title === 'string' ? title : 'this panel'}`}
+              className="mr-1"
+            />
+          )}
           {headerActions && (
             <div className="mr-1.5" onClick={handleActionsClick}>
               {headerActions}
@@ -92,4 +105,4 @@ export const AccordionSection: React.FC<AccordionSectionProps> = ({
       </div>
     </div>
   );
-};
+};

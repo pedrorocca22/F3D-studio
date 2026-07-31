@@ -9,6 +9,7 @@ import { getEffectiveInfillPattern, isGridInfillForPoreZone, WorkflowValidationC
 import { InfoTooltip } from '../InfoTooltip';
 import { estimateGridCellCapacityUl } from '../../utils/infillAnalysis';
 import { isFdmToolhead, isSyringeToolhead, isUvToolhead, toolheadDisplayName } from '../../utils/toolheads';
+import { ContextHelpButton } from '../ContextHelpButton';
 
 interface Step5AdvancedProps {
   zZones: ZZone[];
@@ -156,13 +157,16 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
             <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Height-based variations</p>
           </div>
         </div>
-        <button 
-          onClick={() => handleAddZZone()}
-          className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white rounded-md shadow-sm hover:bg-primary-dark transition-all text-[9px] font-black uppercase tracking-widest"
-        >
-          <Icon name="add" className="text-[10px]" />
-          New Zone
-        </button>
+        <div className="flex items-center gap-2">
+          <ContextHelpButton topic="zones" label="Help: advanced overrides and Z zones" />
+          <button
+            onClick={() => handleAddZZone()}
+            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white rounded-md shadow-sm hover:bg-primary-dark transition-all text-[9px] font-black uppercase tracking-widest"
+          >
+            <Icon name="add" className="text-[10px]" />
+            New Zone
+          </button>
+        </div>
       </div>
 
       {/* The main toggle applies to the whole scaffold. Zonal activation lives inside each zone. */}
@@ -175,6 +179,7 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-cyan-800 dark:text-cyan-300">Pore Injection</h3>
+                <ContextHelpButton topic="pore_injection" label="Help: pore injection protocol" className="border-cyan-300 text-cyan-700 dark:border-cyan-700 dark:text-cyan-300" />
                 <InfoTooltip
                   label="About Pore Injection"
                   content="Applies pore injection to the complete scaffold. For localized injection, create a New Zone and enable Pore Injection inside its Params section."
@@ -323,6 +328,7 @@ export const Step5Advanced: React.FC<Step5AdvancedProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-2">
+                   <ContextHelpButton topic="zones" label={`Help: ${zone.label || 'Z zone'}`} />
                    <button 
                      onClick={() => handleDeleteZZone(zone.id)}
                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-300 hover:text-red-500 transition-all"

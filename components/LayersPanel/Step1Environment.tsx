@@ -37,7 +37,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
       <div className="flex items-center justify-between px-1">
         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Machine Setup</span>
         <button
-          onClick={() => onOpenHelp('hardware_mapping')}
+          onClick={() => onOpenHelp('surface_configuration')}
           className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors text-slate-400 hover:text-primary"
           title="Hardware Wiki"
         >
@@ -45,7 +45,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
         </button>
       </div>
 
-      <AccordionSection title="Surface Configuration" isOpen={openSections.printBed} onToggle={() => toggleSection('printBed')}>
+      <AccordionSection title="Surface Configuration" helpTopic="surface_configuration" isOpen={openSections.printBed} onToggle={() => toggleSection('printBed')}>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[9px] text-slate-400 uppercase font-bold">Bed Type</label>
@@ -223,7 +223,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
         </div>
       </AccordionSection>
 
-      <AccordionSection title="Heating Bed" isOpen={openSections.heatingBed} onToggle={() => toggleSection('heatingBed')}>
+      <AccordionSection title="Heating Bed" helpTopic="heating_bed" helpLabel="Help: heating bed" isOpen={openSections.heatingBed} onToggle={() => toggleSection('heatingBed')}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">
@@ -251,7 +251,7 @@ export const Step1Environment: React.FC<Step1EnvironmentProps> = ({
         </div>
       </AccordionSection>
 
-      <AccordionSection title="Toolhead" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')}>
+      <AccordionSection title="Toolhead" helpTopic="toolhead_setup" isOpen={openSections.toolheads} onToggle={() => toggleSection('toolheads')}>
         <div className="space-y-3">
           <div className="grid grid-cols-[minmax(0,1fr)_112px] items-end gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
             <div className="min-w-0">

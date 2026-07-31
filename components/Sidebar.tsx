@@ -3,6 +3,7 @@ import { Icon } from './Icon';
 import { useUIContext } from '../contexts/UIContext';
 import { useProjectContext } from '../contexts/ProjectContext';
 import { getStepBlocker } from '../utils/workflowValidation';
+import { AppSettingsDialog } from './AppSettingsDialog';
 
 interface SidebarProps {
   activeStep: number;
@@ -32,9 +33,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { ui } = useUIContext();
   const { project } = useProjectContext();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   return (
-    <aside className="w-[68px] flex-shrink-0 bg-white dark:bg-surface-dark border-r border-slate-100 dark:border-slate-800 flex flex-col items-center py-6 z-30 relative transition-all duration-300">
+    <aside className="w-[68px] flex-shrink-0 bg-white dark:bg-surface-dark border-r border-slate-100 dark:border-slate-800 flex flex-col items-center py-6 z-50 relative transition-all duration-300">
         {/* Toggle Button - Internal for when expanded? No, let's put it outside */}
       
       {/* Branding - Dropdown Menu Button */}
@@ -73,6 +75,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Icon name="home" className="text-base" />
               <span>Gallery</span>
+            </button>
+            <button
+              onClick={() => { setIsSettingsOpen(true); setIsMenuOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Icon name="settings" className="text-base" />
+              <span>Settings</span>
+            </button>
+            <button
+              onClick={() => { ui.setHelpTopic('getting_started'); setIsMenuOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Icon name="menu_book" className="text-base" />
+              <span>User guide</span>
             </button>
           </div>
         )}
@@ -155,6 +171,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Icon name="archive" className="text-xl" />
         </button>
       </div>
+
+      {isSettingsOpen && (
+        <AppSettingsDialog
+          globalSettings={project.globalSettings}
+          onUpdateGlobalSettings={project.setGlobalSettings}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
     </aside>
   );
 };

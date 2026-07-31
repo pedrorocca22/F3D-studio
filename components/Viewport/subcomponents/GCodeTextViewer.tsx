@@ -61,7 +61,7 @@ export const GCodeTextViewer: React.FC<GCodeTextViewerProps> = ({
                     let lineColor = 'text-slate-500 dark:text-slate-400';
                     if (line.includes(';')) {
                       lineColor = 'text-slate-400 dark:text-slate-500 opacity-60';
-                    } else if (line.startsWith('G0') || line.startsWith('G1')) {
+                    } else if (/^G0?[0123](?:\s|$)/.test(line)) {
                       if (line.includes('E') && !line.includes('E0')) {
                         if (line.includes('T0')) lineColor = 'text-blue-600 dark:text-blue-400';
                         else if (line.includes('T1')) lineColor = 'text-green-600 dark:text-green-400';

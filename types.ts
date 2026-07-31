@@ -112,6 +112,12 @@ export interface GlobalSettings {
   layerHeight: number;
   /** Number of physical tool positions available on the machine. */
   machineToolheadCount?: number;
+  /** G-code dialect emitted by PrusaSlicer for the target controller. */
+  firmwareType?: 'reprapfirmware' | 'marlin2' | 'klipper';
+  /** Explicit machine capability; Marlin and Klipper require optional arc support. */
+  firmwareSupportsArcs?: boolean;
+  /** Keep linear moves as the safe default or compact fitted curves into G2/G3. */
+  gcodeCurveMode?: 'linear' | 'arcs';
   adhesion?: AdhesionSettings;
   thermodynamic?: ThermodynamicSettings;
   motor?: MotorControlSettings;

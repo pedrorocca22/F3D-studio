@@ -3,12 +3,13 @@ import { Icon } from '../../Icon';
 
 interface CameraControlsProps {
   isGCodeMode: boolean;
+  isLeftPanelCollapsed: boolean;
   setView: (mode: string) => void;
 }
 
-export const CameraControls: React.FC<CameraControlsProps> = ({ isGCodeMode, setView }) => {
+export const CameraControls: React.FC<CameraControlsProps> = ({ isLeftPanelCollapsed, setView }) => {
   return (
-    <div className={`absolute top-6 left-6 flex items-center gap-0.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 z-20 transition-all duration-300`}>
+    <div className={`absolute top-6 flex items-center gap-0.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-1 rounded-lg border border-slate-200/60 dark:border-slate-700/60 z-20 transition-[left] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${isLeftPanelCollapsed ? 'left-6' : 'left-[472px]'}`}>
       <button 
         onClick={() => setView('iso')} 
         className="w-8 h-8 rounded-md hover:bg-primary hover:text-white transition-all text-slate-500 dark:text-slate-400 flex items-center justify-center group" 

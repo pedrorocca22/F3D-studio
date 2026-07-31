@@ -74,22 +74,22 @@ export default function App() {
           setCurrentView={ui.setCurrentView}
         />
 
-        <div className="flex flex-1 h-full overflow-hidden relative">
+        <div className="flex flex-1 h-full overflow-hidden relative bg-slate-50 dark:bg-slate-950">
           {ui.currentView === 'gallery' ? (
             <ProjectGallery />
           ) : (
-            <>
-              <LayersPanel />
-              <main className="min-w-0 flex-1 relative overflow-hidden bg-slate-100 dark:bg-slate-950">
-                <Viewport />
-                {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
-                {ui.isDragging && (
-                  <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
-                    <span className="text-sm font-medium">Drop STL file here</span>
-                  </div>
-                )}
-              </main>
-            </>
+            <main className="min-w-0 flex-1 relative overflow-hidden bg-slate-50 dark:bg-slate-950">
+              <Viewport />
+              <div className="absolute inset-y-0 left-0 z-30">
+                <LayersPanel />
+              </div>
+              {ui.isWifiOpen && <WifiConfig onClose={() => ui.setIsWifiOpen(false)} />}
+              {ui.isDragging && (
+                <div className="absolute inset-4 z-50 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 backdrop-blur-sm flex flex-col items-center justify-center text-primary pointer-events-none">
+                  <span className="text-sm font-medium">Drop STL file here</span>
+                </div>
+              )}
+            </main>
           )}
         </div>
       </div>

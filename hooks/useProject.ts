@@ -85,6 +85,9 @@ export const useProject = () => {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     layerHeight: 200,
     machineToolheadCount: 3,
+    firmwareType: 'reprapfirmware',
+    firmwareSupportsArcs: true,
+    gcodeCurveMode: 'linear',
     nozzleTemperature: 210,
     bedTemperature: 60,
     infill: 15,

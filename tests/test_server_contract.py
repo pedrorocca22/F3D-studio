@@ -96,6 +96,9 @@ def test_fdm_form_contract_preserves_slicer_fields():
             ("skirt_height", "2"),
             ("retraction_length", "1.25"),
             ("supports", "true"),
+            ("firmware_type", "marlin2"),
+            ("firmware_supports_arcs", "true"),
+            ("gcode_curve_mode", "arcs"),
         ]
     )
 
@@ -105,6 +108,9 @@ def test_fdm_form_contract_preserves_slicer_fields():
     assert params["skirt_height"] == "2"
     assert params["retract_length"] == "1.25"
     assert params["supports"] is True
+    assert params["firmware_type"] == "marlin2"
+    assert params["firmware_supports_arcs"] is True
+    assert params["gcode_curve_mode"] == "arcs"
 
 
 def test_fdm_form_contract_has_safe_defaults():
@@ -115,6 +121,9 @@ def test_fdm_form_contract_has_safe_defaults():
     assert params["resolved_layer_plans"] == "[]"
     assert params["supports"] is False
     assert params["infill_pattern"] == "grid"
+    assert params["firmware_type"] == "reprapfirmware"
+    assert params["firmware_supports_arcs"] is False
+    assert params["gcode_curve_mode"] == "linear"
 
 
 def test_fdm_slice_validation_rejects_unconfigured_environment():

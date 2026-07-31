@@ -15,6 +15,7 @@ import { useProjectContext } from '../../contexts/ProjectContext';
 import { BACKEND_URL } from '../../config';
 import { getStepBlocker, WorkflowValidationContext } from '../../utils/workflowValidation';
 import { buildPoreProtocolPreflight } from '../../utils/poreProtocol';
+import { PanelEdgeToggle } from '../PanelEdgeToggle';
 
 export const LayersPanel: React.FC = () => {
   const { ui } = useUIContext();
@@ -92,17 +93,16 @@ export const LayersPanel: React.FC = () => {
   };
 
   return (
-    <div className="relative flex-shrink-0 flex items-center z-10 h-full">
-      {/* Toggle Button - Positioned to the RIGHT of the panel */}
-      <button
-        onClick={() => ui.setIsPanelCollapsed(!ui.isPanelCollapsed)}
-        className={`absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-surface-dark border border-slate-100 dark:border-slate-800 rounded-r-lg shadow-sm z-20 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isPanelCollapsed ? 'rotate-180' : ''}`}
-        title={ui.isPanelCollapsed ? "Expand Panel" : "Collapse Panel"}
-      >
-        <Icon name="chevron_left" className="text-base" />
-      </button>
+    <div className="relative flex-shrink-0 flex items-center z-10 h-full bg-transparent">
+      <PanelEdgeToggle
+        edge="right"
+        collapsed={ui.isPanelCollapsed}
+        onToggle={() => ui.setIsPanelCollapsed(!ui.isPanelCollapsed)}
+        panelName="workflow panel"
+      />
 
-      <aside className={`h-full bg-surface-light border-r border-border-light flex flex-col transition-all duration-500 ease-in-out overflow-hidden ${ui.isPanelCollapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-[420px] opacity-100'}`}>
+      <div className={`h-full overflow-hidden bg-transparent transition-[width] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${ui.isPanelCollapsed ? 'w-0' : 'w-[428px]'}`}>
+      <aside className={`mx-1 my-2 h-[calc(100%-1rem)] w-[420px] overflow-hidden rounded-xl border border-slate-200/90 bg-surface-light flex flex-col transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none dark:border-slate-700/80 dark:bg-surface-dark ${ui.isPanelCollapsed ? 'pointer-events-none -translate-x-4 opacity-0' : 'translate-x-0 opacity-100'}`}>
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 py-2 space-y-2 pb-64">
         {ui.activeStep === 1 && (
           <Step1Environment
@@ -414,6 +414,7 @@ export const LayersPanel: React.FC = () => {
         </div>
       )}
       </aside>
+      </div>
     </div>
   );
 };

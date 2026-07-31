@@ -143,6 +143,11 @@ export const useSlicer = (
     formData.append('disable_fan_first_layers', String(globalSettings.disableFanFirstLayers ?? 1));
     formData.append('z_zones', JSON.stringify(zZones));
     formData.append('print_bed', JSON.stringify(globalSettings.printBed ?? null));
+    const firmwareType = globalSettings.firmwareType ?? 'reprapfirmware';
+    const firmwareSupportsArcs = globalSettings.firmwareSupportsArcs ?? firmwareType === 'reprapfirmware';
+    formData.append('firmware_type', firmwareType);
+    formData.append('firmware_supports_arcs', firmwareSupportsArcs ? 'true' : 'false');
+    formData.append('gcode_curve_mode', globalSettings.gcodeCurveMode ?? 'linear');
 
     const resolvedPlans = resolveLayerPlans(
       models,

@@ -1042,6 +1042,17 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
 
         overrides_dict = {
             "extruders_count": str(extruder_count),
+            "gcode_flavor": {
+                "reprapfirmware": "reprapfirmware",
+                "marlin2": "marlin2",
+                "klipper": "klipper",
+            }.get(str(form_params.get("firmware_type", "reprapfirmware")), "reprapfirmware"),
+            "arc_fitting": (
+                "emit_center"
+                if form_params.get("firmware_supports_arcs") is True
+                and form_params.get("gcode_curve_mode") == "arcs"
+                else "disabled"
+            ),
             "layer_height": str(layer_height),
             "fill_density": f"{infill}%",
             "temperature": _slot_values(nozzle_temp, lambda tool, default: tool.get("defaultTemperature", default)),
@@ -1633,6 +1644,16 @@ def _run_fdm_slice_job(job_id: str, stl_paths: list, job_dir: Path, form_params:
             "filament_used_mm": filament_used,
             "toolhead_actions": layer_actions_raw,
             "toolheads": json.loads(form_params.get("toolheads", "[]")),
+            "gcode_output": {
+                "firmware": form_params.get("firmware_type", "reprapfirmware"),
+                "curve_mode": form_params.get("gcode_curve_mode", "linear"),
+                "arc_fitting": (
+                    "emit_center"
+                    if form_params.get("firmware_supports_arcs") is True
+                    and form_params.get("gcode_curve_mode") == "arcs"
+                    else "disabled"
+                ),
+            },
             "created_at": datetime.now(timezone.utc).isoformat(),
             "xy_compensation": {
                 "applied": False,
@@ -1706,6 +1727,9 @@ def _build_fdm_form_params(form) -> dict:
         "pore_injection": form.get("pore_injection"),
         "z_zones": form.get("z_zones", "[]"),
         "print_bed": form.get("print_bed"),
+        "firmware_type": form.get("firmware_type", "reprapfirmware"),
+        "firmware_supports_arcs": form.get("firmware_supports_arcs", "false") == "true",
+        "gcode_curve_mode": form.get("gcode_curve_mode", "linear"),
     }
 
 

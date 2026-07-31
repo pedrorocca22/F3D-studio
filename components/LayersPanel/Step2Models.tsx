@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import { ModelData, GlobalSettings } from '../../types';
 import { TOOLHEAD_COLORS } from '../Viewport/constants';
 import { MULTIWELL_SPECS } from '../../constants/wellplate';
+import { ContextHelpButton } from '../ContextHelpButton';
 
 const TOOLHEAD_LABELS: Record<string, string> = {
   fdm: 'FDM',
@@ -79,6 +80,11 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
             : 'border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }`}
       >
+        <ContextHelpButton
+          topic="model_import"
+          label="Help: importing STL models"
+          className="absolute right-2 top-2"
+        />
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
           isDragOver ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary'
         }`}>
@@ -97,7 +103,8 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
       <div className="bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/80 rounded-xl p-2.5 flex flex-col gap-2">
         <div className="flex items-center gap-1.5 px-0.5">
           <Icon name="category" className="text-[11px] text-slate-400" />
-          <span className="text-[9.5px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Procedural Shapes</span>
+          <span className="flex-1 text-[9.5px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Procedural Shapes</span>
+          <ContextHelpButton topic="procedural_shapes" label="Help: procedural shapes" />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -179,9 +186,12 @@ export const Step2Models: React.FC<Step2ModelsProps> = ({
       <div className="space-y-2 mt-4">
         <div className="flex items-center justify-between px-1 mb-1.5">
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Models in Scene</span>
-          <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700">
-            {models.length}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700">
+              {models.length}
+            </span>
+            <ContextHelpButton topic="models_scene" label="Help: model placement and behavior" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 pr-1">

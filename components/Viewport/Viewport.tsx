@@ -16,6 +16,7 @@ import { PoreInjectionOverlay } from './subcomponents/PoreInjectionOverlay';
 import { CameraManager } from './subcomponents/CameraManager';
 import { ViewportModel, ObjectTool, ViewMode } from './subcomponents/ViewportModel';
 import { GCodeTextViewer } from './subcomponents/GCodeTextViewer';
+import { PanelEdgeToggle } from '../PanelEdgeToggle';
 import { TransformSettings } from './subcomponents/TransformSettings';
 import { CameraControls } from './subcomponents/CameraControls';
 import { SceneControls } from './subcomponents/SceneControls';
@@ -166,8 +167,8 @@ export const Viewport: React.FC = () => {
   }, [project.models]);
 
   return (
-    <div className="absolute inset-0 min-w-0 bg-white dark:bg-slate-950 overflow-hidden flex">
-      <div className="min-w-0 flex-1 relative h-full">
+    <div className="absolute inset-0 min-w-0 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      <div className="absolute inset-0 min-w-0">
         <div className="absolute inset-0 z-0">
           <Canvas
             shadows
@@ -299,7 +300,7 @@ export const Viewport: React.FC = () => {
           {isGCodeMode && (
             <button
               onClick={() => slicer.setGcodePreviewJob(null)}
-              className="absolute top-6 right-6 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+              className={`absolute top-6 z-30 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest active:scale-95 transition-[right,background-color,transform] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${ui.isInspectorCollapsed ? 'right-11' : 'right-[340px]'}`}
             >
               <Icon name="close" className="text-sm" />
               Exit Preview
@@ -307,7 +308,7 @@ export const Viewport: React.FC = () => {
           )}
 
           {isGCodeMode && gcodeParsed && (
-            <div className="absolute bottom-6 left-6 right-6 z-30 flex items-center gap-2.5 p-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className={`absolute bottom-6 z-20 flex items-center gap-2.5 p-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-200 dark:border-slate-800 transition-[left,right] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${ui.isPanelCollapsed ? 'left-6' : 'left-[452px]'} ${ui.isInspectorCollapsed ? 'right-6' : 'right-[320px]'}`}>
               <button
                     onClick={() => {
                         const start = gcodeParsed.layerMoveIndices[gcodeLayer] || 0;
@@ -472,20 +473,24 @@ export const Viewport: React.FC = () => {
               </div>
           )}
         </div>
-        <CameraControls isGCodeMode={isGCodeMode} setView={setView} />
+        <CameraControls
+          isGCodeMode={isGCodeMode}
+          isLeftPanelCollapsed={ui.isPanelCollapsed}
+          setView={setView}
+        />
       </div>
 
       {/* Right Sidebar - Inspector */}
-      <div className="f3d-inspector-shell relative flex-shrink-0 flex items-center h-full">
-        <button
-          onClick={() => ui.setIsInspectorCollapsed(!ui.isInspectorCollapsed)}
-          className={`absolute -left-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-l-lg shadow-sm z-40 flex items-center justify-center text-slate-300 hover:text-primary transition-all duration-300 ${ui.isInspectorCollapsed ? 'rotate-180' : ''}`}
-          title={ui.isInspectorCollapsed ? "Expand Inspector" : "Collapse Inspector"}
-        >
-          <Icon name="chevron_right" className="text-base" />
-        </button>
+      <div className="f3d-inspector-shell absolute inset-y-0 right-0 z-30 flex items-center bg-transparent">
+        <PanelEdgeToggle
+          edge="left"
+          collapsed={ui.isInspectorCollapsed}
+          onToggle={() => ui.setIsInspectorCollapsed(!ui.isInspectorCollapsed)}
+          panelName="inspector"
+        />
 
-        <div className={`h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-30 flex flex-col transition-all duration-500 ease-in-out overflow-hidden ${ui.isInspectorCollapsed ? 'w-0 opacity-0' : 'w-72 opacity-100'}`}>
+        <div className={`h-full overflow-hidden bg-transparent transition-[width] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${ui.isInspectorCollapsed ? 'w-0' : 'w-[296px]'}`}>
+        <div className={`mx-1 my-2 h-[calc(100%-1rem)] w-72 overflow-hidden rounded-xl border border-slate-200/90 bg-white dark:border-slate-700/80 dark:bg-slate-900 z-30 flex flex-col transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none ${ui.isInspectorCollapsed ? 'pointer-events-none translate-x-4 opacity-0' : 'translate-x-0 opacity-100'}`}>
           <div className="p-3 border-b border-slate-100 dark:border-slate-800/60">
             <div className="flex p-1 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-200/50 dark:border-slate-700/30">
               <button
@@ -641,6 +646,7 @@ export const Viewport: React.FC = () => {
               />
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

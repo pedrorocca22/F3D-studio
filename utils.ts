@@ -45,7 +45,7 @@ export function generateBoxSTL(w: number, d: number, h: number): string {
   return stl;
 }
 
-export function generateCylinderSTL(dia: number, h: number, segs: number = 32): string {
+export function generateCylinderSTL(dia: number, h: number, segs: number = 128): string {
   const r = dia / 2;
   let stl = "solid cyl\n";
   for (let i = 0; i < segs; i++) {

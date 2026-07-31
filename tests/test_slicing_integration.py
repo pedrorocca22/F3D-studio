@@ -118,6 +118,9 @@ def test_fdm_slice_pipeline_writes_config_3mf_and_sanitized_gcode(tmp_path, monk
             ("resolved_layer_plans", json.dumps(resolved_plan)),
             ("layer_actions", "[]"),
             ("z_zones", "[]"),
+            ("firmware_type", "klipper"),
+            ("firmware_supports_arcs", "true"),
+            ("gcode_curve_mode", "arcs"),
         ]
     )
     params = server._build_fdm_form_params(form)
@@ -129,6 +132,8 @@ def test_fdm_slice_pipeline_writes_config_3mf_and_sanitized_gcode(tmp_path, monk
     job_config = (job_dir / "job_config.ini").read_text(encoding="utf-8")
     assert "skirt_height = 2" in job_config
     assert "temperature = 210,210,210" in job_config
+    assert "gcode_flavor = klipper" in job_config
+    assert "arc_fitting = emit_center" in job_config
 
     with zipfile.ZipFile(job_dir / "consolidated.3mf") as archive:
         names = set(archive.namelist())
@@ -147,3 +152,8 @@ def test_fdm_slice_pipeline_writes_config_3mf_and_sanitized_gcode(tmp_path, monk
     manifest = json.loads((job_dir / "job_fdm.json").read_text(encoding="utf-8"))
     assert manifest["layer_count"] == 2
     assert manifest["filament_used_mm"] == 123.4
+    assert manifest["gcode_output"] == {
+        "firmware": "klipper",
+        "curve_mode": "arcs",
+        "arc_fitting": "emit_center",
+    }

@@ -31,4 +31,19 @@ describe('G-code toolhead preview', () => {
     expect(isFdmPreviewTool('syringe')).toBe(false);
     expect(isFdmPreviewTool('T1')).toBe(false);
   });
+
+  it('expands G2/G3 arcs for an accurate interactive preview', () => {
+    const parsed = parseGCode([
+      'M83',
+      'G1 X10 Y0 Z0.2',
+      ';TYPE:External perimeter',
+      'G3 X0 Y10 I-10 J0 E1',
+    ].join('\n'));
+
+    const extrusion = parsed.moves.filter(move => move.extrude);
+    expect(extrusion.length).toBeGreaterThan(2);
+    expect(extrusion.at(-1)).toMatchObject({ x: 0, y: 10, z: 0.2, layer: 1 });
+    expect(Math.max(...extrusion.map(move => move.x))).toBeLessThanOrEqual(10.000001);
+    expect(Math.min(...extrusion.map(move => move.y))).toBeGreaterThanOrEqual(-0.000001);
+  });
 });

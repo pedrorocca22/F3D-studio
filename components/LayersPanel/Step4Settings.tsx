@@ -7,6 +7,7 @@ import { ToolheadProfilesSettings } from './ToolheadProfilesSettings';
 import { ModelProcessProfilesSettings } from './ModelProcessProfilesSettings';
 import { InfoTooltip } from '../InfoTooltip';
 import { Step3Mapping } from './Step3Mapping';
+import { ContextHelpButton } from '../ContextHelpButton';
 
 interface Step4SettingsProps {
   globalSettings: GlobalSettings;
@@ -64,12 +65,14 @@ const RangeField: React.FC<{
 const Panel: React.FC<{
   title: string;
   badge?: string;
+  helpTopic: HelpTopic;
   children: React.ReactNode;
-}> = ({ title, badge, children }) => (
+}> = ({ title, badge, helpTopic, children }) => (
   <section className="overflow-hidden rounded-lg border border-slate-200/90 bg-slate-100/70 shadow-xs dark:border-slate-700/80 dark:bg-slate-800/60">
     <header className="flex items-center gap-2 border-b border-slate-200/80 bg-slate-200/60 px-2.5 py-1.5 dark:border-slate-700/80 dark:bg-slate-700/60">
       <h3 className="min-w-0 flex-1 text-[8.5px] font-black uppercase tracking-[0.14em] text-slate-800 dark:text-slate-100">{title}</h3>
       {badge && <span className="rounded-full bg-slate-200 px-1.5 py-0.2 text-[6.5px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-300">{badge}</span>}
+      <ContextHelpButton topic={helpTopic} label={`Help: ${title}`} />
     </header>
     <div className="p-2.5 bg-slate-50/90 dark:bg-slate-900/50 space-y-2">{children}</div>
   </section>
@@ -108,7 +111,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
             </p>
           </div>
           <button
-            onClick={() => onOpenHelp('hardware_mapping')}
+            onClick={() => onOpenHelp('process_assignment')}
             className="rounded-md p-1 text-slate-400 transition-colors hover:bg-primary/10 hover:text-primary"
             title="Configuration help"
           >
@@ -136,7 +139,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
 
       {level === 'essential' && (
         <div className="space-y-3 animate-in fade-in duration-200">
-          <Panel title="Process assignment" badge={`${models.length} ${models.length === 1 ? 'model' : 'models'}`}>
+          <Panel title="Process assignment" helpTopic="process_assignment" badge={`${models.length} ${models.length === 1 ? 'model' : 'models'}`}>
             <Step3Mapping
               models={models}
               selectedModelId={selectedModelId}
@@ -147,7 +150,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
             />
           </Panel>
 
-          <Panel title="Scaffold definition" badge="Protocol default">
+          <Panel title="Scaffold definition" helpTopic="scaffold_definition" badge="Protocol default">
             <div className="grid grid-cols-2 gap-x-2.5 gap-y-3">
               <label className="space-y-1">
                 <span className={FIELD_LABEL}>Layer height (µm)</span>
@@ -189,14 +192,14 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
 
       {level === 'tune' && (
         <div className="space-y-3 animate-in fade-in duration-200">
-          <Panel title="Layer refinement">
+          <Panel title="Layer refinement" helpTopic="layer_refinement">
             <div className="space-y-4">
               <RangeField label="First layer" value={globalSettings.firstLayerHeight ?? 300} unit="µm" min={50} max={500} step={10} onChange={value => update({ firstLayerHeight: value })} />
               <RangeField label="Fill angle" value={globalSettings.fillAngle ?? 45} unit="°" min={0} max={360} step={5} onChange={value => update({ fillAngle: value })} />
             </div>
           </Panel>
 
-          <Panel title="Motion">
+          <Panel title="Motion" helpTopic="motion">
             <div className="space-y-4">
               <RangeField label="Perimeter" value={globalSettings.perimeterSpeed ?? 45} unit="mm/s" min={5} max={150} step={5} onChange={value => update({ perimeterSpeed: value })} />
               <RangeField label="External perimeter" value={globalSettings.externalPerimeterSpeed ?? 25} unit="mm/s" min={5} max={150} step={5} onChange={value => update({ externalPerimeterSpeed: value })} />
@@ -205,7 +208,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
             </div>
           </Panel>
 
-          <Panel title="Bed adhesion">
+          <Panel title="Bed adhesion" helpTopic="adhesion">
             <div className="grid grid-cols-2 gap-2.5">
               <label className="space-y-1">
                 <span className={FIELD_LABEL}>Skirt loops</span>
@@ -226,7 +229,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
             </div>
           </Panel>
 
-          <Panel title="Assistance">
+          <Panel title="Assistance" helpTopic="assistance">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
@@ -276,7 +279,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
 
       {level === 'expert' && (
         <div className="space-y-3 animate-in fade-in duration-200">
-          <Panel title="Hardware profiles" badge="Canonical source">
+          <Panel title="Hardware profiles" helpTopic="hardware_profiles" badge="Canonical source">
             <ToolheadProfilesSettings
               toolheads={toolheads}
               onUpdateToolheads={onUpdateToolheads}
@@ -288,7 +291,7 @@ export const Step4Settings: React.FC<Step4SettingsProps> = ({
             />
           </Panel>
 
-          <Panel title="Model exceptions" badge={`${models.length} ${models.length === 1 ? 'model' : 'models'}`}>
+          <Panel title="Model exceptions" helpTopic="model_exceptions" badge={`${models.length} ${models.length === 1 ? 'model' : 'models'}`}>
             <ModelProcessProfilesSettings models={models} globalSettings={globalSettings} onUpdateModel={onUpdateModel} />
           </Panel>
         </div>

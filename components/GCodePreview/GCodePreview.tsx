@@ -178,6 +178,93 @@ interface GeometryData {
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
+function arcPoints(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    startZ: number,
+    endZ: number,
+    clockwise: boolean,
+    iOffset?: number,
+    jOffset?: number,
+    radiusCommand?: number,
+): Array<{ x: number; y: number; z: number }> {
+    let centerX: number | undefined;
+    let centerY: number | undefined;
+
+    if (iOffset !== undefined || jOffset !== undefined) {
+        centerX = startX + (iOffset ?? 0);
+        centerY = startY + (jOffset ?? 0);
+    } else if (radiusCommand !== undefined) {
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const chord = Math.hypot(dx, dy);
+        const radius = Math.abs(radiusCommand);
+        if (chord > 0 && radius >= chord / 2) {
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
+            const height = Math.sqrt(Math.max(0, radius * radius - chord * chord / 4));
+            const perpendicularX = -dy / chord;
+            const perpendicularY = dx / chord;
+            const candidates = [
+                { x: midX + perpendicularX * height, y: midY + perpendicularY * height },
+                { x: midX - perpendicularX * height, y: midY - perpendicularY * height },
+            ];
+            const sweepFor = (center: { x: number; y: number }) => {
+                const start = Math.atan2(startY - center.y, startX - center.x);
+                const end = Math.atan2(endY - center.y, endX - center.x);
+                let sweep = end - start;
+                if (clockwise) {
+                    while (sweep >= 0) sweep -= Math.PI * 2;
+                } else {
+                    while (sweep <= 0) sweep += Math.PI * 2;
+                }
+                return sweep;
+            };
+            const wantsLongArc = radiusCommand < 0;
+            const chosen = candidates.find(candidate =>
+                wantsLongArc
+                    ? Math.abs(sweepFor(candidate)) > Math.PI
+                    : Math.abs(sweepFor(candidate)) <= Math.PI + 1e-6,
+            ) ?? candidates[0];
+            centerX = chosen.x;
+            centerY = chosen.y;
+        }
+    }
+
+    if (centerX === undefined || centerY === undefined) {
+        return [{ x: endX, y: endY, z: endZ }];
+    }
+
+    const radius = Math.hypot(startX - centerX, startY - centerY);
+    if (radius < 1e-8) return [{ x: endX, y: endY, z: endZ }];
+
+    const startAngle = Math.atan2(startY - centerY, startX - centerX);
+    const endAngle = Math.atan2(endY - centerY, endX - centerX);
+    let sweep = endAngle - startAngle;
+    if (clockwise) {
+        while (sweep >= 0) sweep -= Math.PI * 2;
+    } else {
+        while (sweep <= 0) sweep += Math.PI * 2;
+    }
+
+    const segments = Math.max(
+        2,
+        Math.ceil(Math.abs(sweep) / (Math.PI / 36)),
+        Math.ceil(radius * Math.abs(sweep) / 0.5),
+    );
+    return Array.from({ length: segments }, (_, index) => {
+        const progress = (index + 1) / segments;
+        const angle = startAngle + sweep * progress;
+        return {
+            x: index === segments - 1 ? endX : centerX! + Math.cos(angle) * radius,
+            y: index === segments - 1 ? endY : centerY! + Math.sin(angle) * radius,
+            z: startZ + (endZ - startZ) * progress,
+        };
+    });
+}
+
 export function parseGCode(raw: string): ParsedGCode {
     const lines = raw.split('\n');
     const moves: Move[] = [];
@@ -221,8 +308,6 @@ export function parseGCode(raw: string): ParsedGCode {
         if (/\bG91\b/i.test(line)) { relativeXYZ = true; }
         if (/\bG90\b/i.test(line)) { relativeXYZ = false; }
 
-        if (!line.startsWith('G0') && !line.startsWith('G1') && !line.startsWith('G92')) continue;
-
         if (line.startsWith('G92')) {
             const eMatch = line.match(/E([-\d.]+)/);
             if (eMatch) prevE = parseFloat(eMatch[1]);
@@ -236,7 +321,11 @@ export function parseGCode(raw: string): ParsedGCode {
             continue;
         }
 
-        const isG0 = line.startsWith('G0');
+        const commandMatch = line.match(/^G0?([0123])(?:\s|$)/i);
+        if (!commandMatch) continue;
+        const command = Number(commandMatch[1]);
+        const isG0 = command === 0;
+        const isArc = command === 2 || command === 3;
         const xM = line.match(/X([-\d.]+)/);
         const yM = line.match(/Y([-\d.]+)/);
         const zM = line.match(/Z([-\d.]+)/);
@@ -286,13 +375,43 @@ export function parseGCode(raw: string): ParsedGCode {
             }
         }
 
-        moves.push({ x: nx, y: ny, z: nz, extrude, layer: currentLayer, toolhead: activeToolhead, lineType: activeLineType, moveIndex: i });
+        const iM = line.match(/I([-\d.]+)/);
+        const jM = line.match(/J([-\d.]+)/);
+        const rM = line.match(/R([-\d.]+)/);
+        const points = isArc
+            ? arcPoints(
+                cx,
+                cy,
+                nx,
+                ny,
+                cz,
+                nz,
+                command === 2,
+                iM ? parseFloat(iM[1]) : undefined,
+                jM ? parseFloat(jM[1]) : undefined,
+                rM ? parseFloat(rM[1]) : undefined,
+            )
+            : [{ x: nx, y: ny, z: nz }];
 
-        if (extrude) {
-            bbox.minX = Math.min(bbox.minX, nx); bbox.maxX = Math.max(bbox.maxX, nx);
-            bbox.minY = Math.min(bbox.minY, ny); bbox.maxY = Math.max(bbox.maxY, ny);
-            bbox.maxZ = Math.max(bbox.maxZ, nz);
-        }
+        points.forEach(point => {
+            const parsedMoveIndex = moves.length;
+            moves.push({
+                x: point.x,
+                y: point.y,
+                z: point.z,
+                extrude,
+                layer: currentLayer,
+                toolhead: activeToolhead,
+                lineType: activeLineType,
+                moveIndex: parsedMoveIndex,
+            });
+
+            if (extrude) {
+                bbox.minX = Math.min(bbox.minX, point.x); bbox.maxX = Math.max(bbox.maxX, point.x);
+                bbox.minY = Math.min(bbox.minY, point.y); bbox.maxY = Math.max(bbox.maxY, point.y);
+                bbox.maxZ = Math.max(bbox.maxZ, point.z);
+            }
+        });
 
         cx = nx; cy = ny; cz = nz;
     }
